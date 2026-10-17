@@ -93,7 +93,8 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 .stamp:active{cursor:grabbing}
 .stamp img{display:block;width:100%;height:100%;pointer-events:none;user-select:none}
 .stamp .ph{width:100%;height:100%;display:grid;place-items:center;background:rgba(29,63,184,.1);color:#1d3fb8;font:500 calc(100cqw * 9 / var(--pw)) var(--f-body);text-align:center}
-.stamp .date{position:absolute;right:calc(100% + 100cqw * 10 / var(--pw));bottom:calc(100cqw * 2 / var(--pw));font:calc(100cqw * 10 / var(--pw)) Helvetica,Arial,sans-serif;white-space:nowrap;color:#111;pointer-events:none}
+.datebox{position:absolute;font:calc(100cqw * 10 / var(--pw))/1 Helvetica,Arial,sans-serif;white-space:nowrap;color:#111;cursor:grab;touch-action:none;outline:1px dashed rgba(29,63,184,.5);outline-offset:2px;user-select:none}
+.datebox:active{cursor:grabbing}
 .chk{position:absolute;border-radius:50%;border:0;padding:0;background:transparent;cursor:pointer;outline:1.5px dashed rgba(29,63,184,.55);outline-offset:0;display:block}
 .chk:hover{background:rgba(29,63,184,.14)}
 .chk.on{outline-color:transparent}
@@ -201,7 +202,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
           <span class="row" style="justify-content:space-between">Größe der Haken <span class="val" id="tVal"></span></span>
           <input type="range" id="tick" min="0.6" max="2.5" step="0.1">
         </label>
-        <label class="check"><input type="checkbox" id="addDate"> Heutiges Datum links daneben setzen</label>
+        <label class="check"><input type="checkbox" id="addDate"> Heutiges Datum bei jedem Bericht einfügen</label>
       </section>
     </aside>
 
@@ -544,7 +545,7 @@ $("#w").oninput = e => {
   state.width = +e.target.value; $("#wVal").textContent = cm(state.width); persist();
   state.docs.forEach(clampStamp); state.docs.forEach(updateStampEl);
 };
-$("#addDate").onchange = e => { state.addDate = e.target.checked; persist(); state.docs.forEach(updateStampEl); };
+$("#addDate").onchange = e => { state.addDate = e.target.checked; persist(); state.docs.forEach(d => d.addDate = state.addDate); renderAll(); };
 
 /* ---------- Dokumente ---------- */
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -559,6 +560,7 @@ async function addDoc(name, bytes, handle){
   for(let i = 1; i <= pdf.numPages; i++){ const vp = (await pdf.getPage(i)).getViewport({scale: 1}); pages.push({w: vp.width, h: vp.height}); }
   const doc = {id: uid(), name, bytes, pdf, pages, handle, stamp: null, found: null, saved: false, moved: false};
   state.docs.push(doc);
+  doc.addDate = state.addDate;
   await autoPlace(doc);
   doc.checks = await findChecks(doc);
 }
@@ -649,7 +651,7 @@ function fitAbove(doc, hit, lines){
   return best && W * best.k * ratio >= 20 ? {x: best.x, k: best.k} : null;
 }
 async function autoPlace(doc){
-  let hit = null;
+  let hit = null; doc.anchor = null; doc.datePos = null;
   for(const kw of keywordList()){ hit = await findKeyword(doc, kw); if(hit) break; }
   const h = sigH();
   if(hit){
@@ -662,6 +664,7 @@ async function autoPlace(doc){
       doc.stamp = {page: hit.page, x: (hit.x0 + hit.x1) / 2 - state.width / 2, y};
     }
     doc.found = hit.kw;
+    doc.anchor = {page: hit.page, x0: hit.x0, vy: hit.vy, fh: hit.fh};
   } else {
     const pg = doc.pages.length - 1, P = doc.pages[pg];
     doc.stamp = {page: pg, x: P.w - state.width - 50, y: P.h - h - 70}; doc.found = null;
@@ -749,6 +752,7 @@ function buildDoc(doc){
         <span class="row" style="gap:6px"><span class="st">${statusChip(doc)}</span>${doc.checks && doc.checks.length ? `<span class="chip info">${doc.checks.length} Ankreuzfelder – zum Abhaken anklicken</span>` : ""}</span>
       </div>
       <div class="row">
+        <button class="ghost" data-a="date" aria-pressed="${!!doc.addDate}">${doc.addDate ? "✓ Datum" : "Datum einfügen"}</button>
         <button class="ghost" data-a="auto">Automatisch platzieren</button>
         <button class="ghost" data-a="rm">Schließen</button>
         <button class="primary" data-a="save" ${doc.stamp ? "" : "disabled"}>Unterschreiben &amp; speichern</button>
@@ -757,6 +761,7 @@ function buildDoc(doc){
     <div class="pages"></div>`;
   el.querySelector('[data-a="rm"]').onclick = () => { state.docs = state.docs.filter(d => d !== doc); try{ doc.pdf.destroy(); }catch(e){} renderAll(); };
   el.querySelector('[data-a="save"]').onclick = () => saveDoc(doc);
+  el.querySelector('[data-a="date"]').onclick = () => { doc.addDate = !doc.addDate; doc.saved = false; rebuild(doc); };
   el.querySelector('[data-a="auto"]').onclick = async () => { doc.moved = false; doc.saved = false; await autoPlace(doc); rebuild(doc); };
 
   const pagesEl = el.querySelector(".pages");
@@ -815,9 +820,65 @@ async function paintPage(doc, i, cv, wrap){
   const task = p.render({canvasContext: cv.getContext("2d"), viewport: vp}); cv._task = task;
   try{ await task.promise; }catch(e){}
 }
+/* ---------- Datum ---------- */
+const DATE_PT = 10;
+let measureCtx;
+function textW(t){
+  measureCtx = measureCtx || document.createElement("canvas").getContext("2d");
+  measureCtx.font = `${DATE_PT}px Helvetica, Arial, sans-serif`;
+  return measureCtx.measureText(t).width;
+}
+// Datum links neben die Unterschrift – oder, wenn dort Text steht, an den Anfang des Unterschriftsfelds.
+function datePlace(doc){
+  const s = doc.stamp; if(!s) return null;
+  if(doc.datePos && doc.datePos.page === s.page) return doc.datePos;
+  const tw = textW(today()), W = stampW(doc), H = stampH(doc), base = s.y + H - 3;
+  const lines = (doc._lines && doc._lines[s.page + 1]) || [];
+  const boxes = [];
+  for(const ln of lines) for(const it of ln.items) if(it.s.trim()) boxes.push([it.x, ln.vy - ln.fh * 0.85, it.x + it.w, ln.vy + ln.fh * 0.25]);
+  const over = (a, b) => a[2] > b[0] && a[0] < b[2] && a[3] > b[1] && a[1] < b[3];
+  const sig = [s.x, s.y, s.x + W, s.y + H];
+  const cands = [{x: s.x - tw - 10, y: base}];
+  const a = doc.anchor;
+  if(a && a.page === s.page) cands.push({x: a.x0, y: base}, {x: a.x0, y: a.vy - a.fh - 3});
+  for(const c of cands){
+    const r = [c.x, c.y - DATE_PT * 0.8, c.x + tw, c.y + DATE_PT * 0.2];
+    if(c.x >= 2 && !boxes.some(b => over(r, b)) && !over(r, sig)) return {page: s.page, ...c};
+  }
+  return {page: s.page, ...cands[0], x: Math.max(2, cands[0].x)};
+}
+function renderDate(doc, card){
+  card.querySelectorAll(".datebox").forEach(e => e.remove());
+  if(!doc.addDate || !doc.stamp) return;
+  const pos = datePlace(doc);
+  const wrap = card.querySelector(`.page[data-page="${pos.page}"]`); if(!wrap) return;
+  const P = doc.pages[pos.page];
+  const el = document.createElement("span"); el.className = "datebox"; el.textContent = today();
+  el.title = "Zum Verschieben ziehen";
+  const place = () => { el.style.left = (pos.x / P.w * 100) + "%"; el.style.top = ((pos.y - DATE_PT * 0.8) / P.h * 100) + "%"; };
+  place();
+  let drag = null;
+  el.addEventListener("pointerdown", e => {
+    e.stopPropagation(); el.setPointerCapture(e.pointerId);
+    const r = wrap.getBoundingClientRect();
+    drag = {r, ox: e.clientX - r.left - pos.x / P.w * r.width, oy: e.clientY - r.top - pos.y / P.h * r.height};
+  });
+  el.addEventListener("pointermove", e => {
+    if(!drag) return;
+    pos.x = Math.max(0, Math.min(P.w - 10, (e.clientX - drag.r.left - drag.ox) / drag.r.width * P.w));
+    pos.y = Math.max(DATE_PT, Math.min(P.h, (e.clientY - drag.r.top - drag.oy) / drag.r.height * P.h));
+    place();
+  });
+  const end = () => { if(drag){ drag = null; doc.datePos = {...pos}; doc.saved = false; updateHead(doc); } };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+  ["click", "dblclick"].forEach(t => el.addEventListener(t, e => e.stopPropagation()));
+  wrap.appendChild(el);
+}
+
 function updateStampEl(doc){
   const card = document.querySelector(`.doc[data-id="${doc.id}"]`); if(!card) return;
   card.querySelectorAll(".stamp").forEach(s => s.remove());
+  renderDate(doc, card);
   if(!doc.stamp) return;
   const wrap = card.querySelector(`.page[data-page="${doc.stamp.page}"]`); if(!wrap) return;
   const P = doc.pages[doc.stamp.page], s = doc.stamp;
@@ -825,7 +886,6 @@ function updateStampEl(doc){
   st.style.left = (s.x / P.w * 100) + "%"; st.style.top = (s.y / P.h * 100) + "%";
   st.style.width = (stampW(doc) / P.w * 100) + "%"; st.style.height = (stampH(doc) / P.h * 100) + "%";
   st.innerHTML = (state.sig ? `<img alt="" src="${state.sig.url}">` : `<div class="ph">Deine Unterschrift</div>`)
-    + (state.addDate ? `<span class="date">${today()}</span>` : "")
     + `<button class="del" aria-label="Unterschrift entfernen">×</button>`;
   st.querySelector(".del").onclick = e => { e.stopPropagation(); doc.stamp = null; doc.saved = false; updateStampEl(doc); updateHead(doc); };
   st.addEventListener("click", e => e.stopPropagation());
@@ -844,7 +904,7 @@ function updateStampEl(doc){
     clampStamp(doc);
     st.style.left = (s.x / P.w * 100) + "%"; st.style.top = (s.y / P.h * 100) + "%";
   });
-  const end = () => { if(drag){ drag = null; doc.moved = true; doc.saved = false; updateHead(doc); } };
+  const end = () => { if(drag){ drag = null; doc.moved = true; doc.saved = false; renderDate(doc, card); updateHead(doc); } };
   st.addEventListener("pointerup", end); st.addEventListener("pointercancel", end);
   wrap.appendChild(st);
 }
@@ -861,11 +921,12 @@ async function buildSigned(doc){
   const page = out.getPage(s.page);
   const [ax, ay] = vp.convertToPdfPoint(s.x, s.y + h);
   page.drawImage(png, {x: ax, y: ay, width: w, height: h, rotate: rot});
-  if(state.addDate){
+  if(doc.addDate){
     const font = await out.embedFont(StandardFonts.Helvetica);
-    const t = today(), tw = font.widthOfTextAtSize(t, 10);
-    const [tx, ty] = vp.convertToPdfPoint(s.x - tw - 10, s.y + h - 2);
-    page.drawText(t, {x: tx, y: ty, size: 10, font, color: rgb(.07,.07,.07), rotate: rot});
+    const pos = datePlace(doc);
+    const dvp = (await doc.pdf.getPage(pos.page + 1)).getViewport({scale: 1});
+    const [tx, ty] = dvp.convertToPdfPoint(pos.x, pos.y);
+    out.getPage(pos.page).drawText(today(), {x: tx, y: ty, size: DATE_PT, font, color: rgb(.07,.07,.07), rotate: degrees(dvp.rotation)});
   }
   const hex = state.ink.replace("#", ""), ink = rgb(parseInt(hex.slice(0,2),16)/255, parseInt(hex.slice(2,4),16)/255, parseInt(hex.slice(4,6),16)/255);
   for(const c of (doc.checks || []).filter(c => c.on)){
