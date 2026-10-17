@@ -115,7 +115,11 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:min(560px,calc(100% - 32px));box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:30}
 /* Ausschneiden aus PDF */
 dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(--ink);width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
-#sheetDlg,#saveDlg,#regDlg,#codeDlg,#blockDlg{width:min(460px,calc(100vw - 32px))}
+#sheetDlg,#saveDlg,#regDlg,#codeDlg,#blockDlg,#ideaDlg{width:min(460px,calc(100vw - 32px))}
+#ideasDlg{width:min(720px,calc(100vw - 32px))}
+.idea{background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.idea .meta{font-size:12.5px;color:var(--muted)}
+.idea .txt{white-space:pre-wrap;overflow-wrap:anywhere}
 dialog::backdrop{background:rgba(10,15,30,.55)}
 .dlg{display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
 .dlg-head,.dlg-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
@@ -136,7 +140,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
       <h1>PDF Unterschreiben</h1>
       <p class="lead">PDFs reinziehen – deine Unterschrift landet automatisch über dem Unterschriftsfeld. Verschieben per Ziehen oder Doppelklick auf die Seite. Ankreuzfelder mit einem Klick abhaken.</p>
     </div>
-    <div class="ver"><span id="verText">Version …</span><button class="ghost" id="checkBtn" hidden>Nach Updates suchen</button></div>
+    <div class="ver"><span id="verText">Version …</span><button class="ghost" id="checkBtn" hidden>Nach Updates suchen</button><button id="ideaBtn" hidden>Verbesserungsvorschlag</button></div>
   </div>
 
   <div class="banner" id="banner" hidden>
@@ -194,6 +198,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
         <div class="step"><b>ADMIN</b><h2 id="h-adm">Testkanal</h2></div>
         <label class="check"><input type="checkbox" id="testChannel"> Testversionen vor allen anderen bekommen</label>
         <p class="hint">Neue Funktionen kommen hier zuerst an. Erst wenn du sie freigibst, bekommen alle anderen das Update.</p>
+        <button id="ideasOpen">Verbesserungsvorschläge lesen</button>
         <p class="hint">Nutzerliste und Sperren: <button class="ghost" id="openSheet" style="padding:0;font-size:13px;text-decoration:underline">Google-Tabelle öffnen</button></p>
       </section>
 
@@ -299,6 +304,28 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
     <div class="dlg-head"><strong>Programm gesperrt</strong></div>
     <div class="dlg-body"><span class="hint">Dein Zugang zu PDF Unterschreiben wurde gesperrt. Bitte wende dich an den Administrator.</span></div>
     <div class="dlg-foot"><span></span><button type="button" class="primary" id="blockRetry">Erneut prüfen</button></div>
+  </form>
+</dialog>
+
+<dialog id="ideaDlg">
+  <form method="dialog" class="dlg" id="ideaForm">
+    <div class="dlg-head"><strong>Verbesserungsvorschlag</strong></div>
+    <div class="dlg-body col" style="gap:10px">
+      <span class="hint">Was könnte das Programm besser machen? Dein Vorschlag geht nur an den Administrator.</span>
+      <textarea id="ideaText" rows="6" maxlength="3000" placeholder="z. B. Beim UVV-Bericht soll die Unterschrift etwas weiter rechts sitzen …" style="font:15px var(--f-body);padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);width:100%;resize:vertical"></textarea>
+      <span class="hint" id="ideaErr" style="color:var(--warn)" hidden></span>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="ghost" id="ideaCancel">Abbrechen</button>
+      <button class="primary" id="ideaSend">Absenden</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="ideasDlg">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head"><strong>Verbesserungsvorschläge</strong><button class="ghost" value="close">Schließen</button></div>
+    <div class="dlg-body col" id="ideasList" style="gap:10px;max-height:65vh"></div>
   </form>
 </dialog>
 
@@ -1220,6 +1247,27 @@ async function printDocs(list){
 $("#printAll").onclick = () => printDocs(state.docs);
 
 /* ---------- Per E-Mail senden ---------- */
+// Berichtsart aus dem Inhalt erkennen: DGUV V3 (Prüfung elektrischer Geräte), UVV (DGUV-Vorschrift 68 / FEM 4.004)
+// oder sonst Montagebericht.
+async function reportKind(doc){
+  if(doc.kind) return doc.kind;
+  let text = "";
+  for(let i = 1; i <= Math.min(2, doc.pages.length); i++) for(const ln of await pageLines(doc, i)) text += ln.text + "\n";
+  const t = text.toLowerCase().replace(/\s+/g, " "), n = (doc.name || "").toLowerCase();
+  if(/prüfung elektrischer|dguv v3|dguv[- ]vorschrift 3\b|elektrische betriebsmittel/.test(t) || /dguv|v3/.test(n)) doc.kind = "dguv";
+  else if(/dguv[- ]vorschrift 68|fem 4\.004|uvv[- ]prüfprotokoll|prüfbericht.{0,20}uvv/.test(t) || /uvv/.test(n)) doc.kind = "uvv";
+  else doc.kind = "montage";
+  return doc.kind;
+}
+async function mailSubject(list){
+  const c = {montage: 0, uvv: 0, dguv: 0};
+  for(const d of list) c[await reportKind(d)]++;
+  const parts = [];
+  if(c.montage) parts.push(c.montage > 1 ? "Montageberichte" : "Montagebericht");
+  if(c.uvv) parts.push(c.uvv > 1 ? "UVV Berichte" : "UVV Bericht");
+  if(c.dguv) parts.push(c.dguv > 1 ? "DGUV V3 Berichte" : "DGUV V3 Bericht");
+  return parts.length > 1 ? parts.slice(0, -1).join(", ") + " und " + parts[parts.length - 1] : parts[0];
+}
 // Öffnet eine neue E-Mail (Outlook bzw. Standard-Mailprogramm) mit allen unterschriebenen Berichten als PDF.
 let mailing = false;
 async function mailDocs(list){
@@ -1232,8 +1280,7 @@ async function mailDocs(list){
     const files = [];
     for(const d of list){ const b = await signed(d); if(b) files.push({name: outName(d), data: b64(b)}); }
     if(!files.length){ toast("Es gab nichts zu versenden."); return; }
-    const base = n => n.replace(/_unterschrieben\.pdf$/i, "");
-    const subject = files.length === 1 ? `Bericht ${base(files[0].name)}` : `Berichte (${files.length})`;
+    const subject = await mailSubject(list);
     const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({subject, files})})).json();
     if(!r.ok){ toast(r.error || "E-Mail konnte nicht geöffnet werden.", 7000); return; }
     let msg = r.via === "explorer"
@@ -1359,9 +1406,9 @@ async function call(event, extra = {}){
     return await (await fetch("/api/report", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event, ...extra})})).json();
   }catch(e){ return {ok: false, offline: true, error: "Keine Verbindung zum Programm."}; }
 }
-function report(event, count = 1){
-  if(reportOn && state.user && state.user.verified) call(event, {count});
-}
+// Es wird nur erfasst, WER das Programm nutzt (Anmeldung, Programmstart) – nicht, was jemand speichert,
+// druckt oder verschickt.
+function report(event, count = 1){}
 // Vorschlag für die E-Mail aus dem Namen: „Max Müller“ → m.mueller
 function mailFromName(n){
   const w = n.trim().toLowerCase()
@@ -1455,6 +1502,7 @@ $("#blockRetry").onclick = async () => {
 };
 function renderAdmin(){
   $("#adminPanel").hidden = !isAdmin();
+  $("#ideaBtn").hidden = !(reportOn && state.user && state.user.verified);
   $("#testChannel").checked = state.testChannel !== false;
   const v = $("#verText").dataset.v;
   if(v) $("#verText").innerHTML = `Version ${esc(v)}` + (/-test/.test(v) ? ' <span class="chip warn">Testversion</span>' : "");
@@ -1488,6 +1536,29 @@ async function refreshBlock(event){
   if(!state.blocked && $("#blockDlg").open){ $("#blockDlg").close(); toast("Zugang ist wieder freigegeben."); }
 }
 
+/* ---------- Verbesserungsvorschläge ---------- */
+const ideaErr = m => { $("#ideaErr").textContent = m; $("#ideaErr").hidden = !m; };
+$("#ideaBtn").onclick = () => { ideaErr(""); $("#ideaDlg").showModal(); $("#ideaText").focus(); };
+$("#ideaCancel").onclick = () => $("#ideaDlg").close();
+$("#ideaForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const text = $("#ideaText").value.trim();
+  if(text.length < 3) return ideaErr("Bitte einen Vorschlag eintragen.");
+  $("#ideaSend").disabled = true;
+  const r = await call("feedback", {text});
+  $("#ideaSend").disabled = false;
+  if(!r.ok) return ideaErr(r.error || "Senden fehlgeschlagen.");
+  $("#ideaText").value = ""; $("#ideaDlg").close(); toast("Danke! Dein Vorschlag wurde gesendet.");
+});
+$("#ideasOpen").onclick = async () => {
+  const list = $("#ideasList"); list.innerHTML = '<span class="hint">Wird geladen …</span>';
+  $("#ideasDlg").showModal();
+  const r = await call("feedbacklist");
+  if(!r.ok){ list.innerHTML = `<span class="hint">${esc(r.error || "Konnte nicht geladen werden.")}</span>`; return; }
+  if(!r.items.length){ list.innerHTML = '<span class="hint">Noch keine Vorschläge.</span>'; return; }
+  list.innerHTML = r.items.map(i => `<div class="idea"><span class="meta">${esc(new Date(i.zeit).toLocaleString("de-DE", {dateStyle: "short", timeStyle: "short"}))} · ${esc(i.name)} · Version ${esc(i.version)}${i.status ? " · " + esc(i.status) : ""}</span><span class="txt">${esc(i.text)}</span></div>`).join("");
+};
+
 /* ---------- Start ---------- */
 (async () => {
   try{
@@ -1499,7 +1570,7 @@ async function refreshBlock(event){
   try{
     const i = await (await fetch("/api/info", {cache: "no-store"})).json();
     $("#verText").dataset.v = i.version; renderAdmin();
-    reportOn = !!i.report; checkAccess();
+    reportOn = !!i.report; renderAdmin(); checkAccess();
     if(i.updates){ $("#checkBtn").hidden = false; checkUpdates(false); }
   }catch(e){}
 })();
