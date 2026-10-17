@@ -304,7 +304,7 @@ func fetchChannel(test bool) (*release, error) {
 	}
 	u := fmt.Sprintf("https://github.com/%s/releases/latest/download/version.json", repoSlug())
 	if test {
-		u = fmt.Sprintf("https://github.com/%s/releases/download/testkanal/version.json", repoSlug())
+		u = fmt.Sprintf("https://github.com/%s/releases/download/adminkanal/version.json", repoSlug())
 	}
 	c := &http.Client{Timeout: 8 * time.Second}
 	resp, err := c.Get(u)

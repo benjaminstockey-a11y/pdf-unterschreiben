@@ -1221,27 +1221,6 @@ async function printDocs(list){
 $("#printAll").onclick = () => printDocs(state.docs);
 
 /* ---------- Per E-Mail senden ---------- */
-// Berichtsart aus dem Inhalt erkennen: DGUV V3 (Prüfung elektrischer Geräte), UVV (DGUV-Vorschrift 68 / FEM 4.004)
-// oder sonst Montagebericht.
-async function reportKind(doc){
-  if(doc.kind) return doc.kind;
-  let text = "";
-  for(let i = 1; i <= Math.min(2, doc.pages.length); i++) for(const ln of await pageLines(doc, i)) text += ln.text + "\n";
-  const t = text.toLowerCase().replace(/\s+/g, " "), n = (doc.name || "").toLowerCase();
-  if(/prüfung elektrischer|dguv v3|dguv[- ]vorschrift 3\b|elektrische betriebsmittel/.test(t) || /dguv|v3/.test(n)) doc.kind = "dguv";
-  else if(/dguv[- ]vorschrift 68|fem 4\.004|uvv[- ]prüfprotokoll|prüfbericht.{0,20}uvv/.test(t) || /uvv/.test(n)) doc.kind = "uvv";
-  else doc.kind = "montage";
-  return doc.kind;
-}
-async function mailSubject(list){
-  const c = {montage: 0, uvv: 0, dguv: 0};
-  for(const d of list) c[await reportKind(d)]++;
-  const parts = [];
-  if(c.montage) parts.push(c.montage > 1 ? "Montageberichte" : "Montagebericht");
-  if(c.uvv) parts.push(c.uvv > 1 ? "UVV Berichte" : "UVV Bericht");
-  if(c.dguv) parts.push(c.dguv > 1 ? "DGUV V3 Berichte" : "DGUV V3 Bericht");
-  return parts.length > 1 ? parts.slice(0, -1).join(", ") + " und " + parts[parts.length - 1] : parts[0];
-}
 // Öffnet eine neue E-Mail (Outlook bzw. Standard-Mailprogramm) mit allen unterschriebenen Berichten als PDF.
 let mailing = false;
 async function mailDocs(list){
@@ -1254,7 +1233,8 @@ async function mailDocs(list){
     const files = [];
     for(const d of list){ const b = await signed(d); if(b) files.push({name: outName(d), data: b64(b)}); }
     if(!files.length){ toast("Es gab nichts zu versenden."); return; }
-    const subject = await mailSubject(list);
+    const base = n => n.replace(/_unterschrieben\.pdf$/i, "");
+    const subject = files.length === 1 ? `Bericht ${base(files[0].name)}` : `Berichte (${files.length})`;
     const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({subject, files})})).json();
     if(!r.ok){ toast(r.error || "E-Mail konnte nicht geöffnet werden.", 7000); return; }
     let msg = r.via === "explorer"

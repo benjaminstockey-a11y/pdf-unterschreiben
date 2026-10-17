@@ -1,5 +1,5 @@
 # Zwei Kanäle:
-#  - TESTVERSION höher als VERSION  → Testversion (z. B. 1.13.0-test.7) ins Vorab-Release „testkanal“.
+#  - TESTVERSION höher als VERSION  → Testversion (z. B. 1.13.0-test.7) ins Vorab-Release „adminkanal“.
 #    Die bekommen nur Admins, die im Programm „Testversionen“ eingeschaltet haben.
 #  - VERSION neu                     → fertige Version als normales Release für alle.
 # Freigeben heißt: VERSION auf die getestete Nummer setzen.
@@ -41,7 +41,7 @@ jobs:
             echo "Testversion $V wird veröffentlicht."
             echo "kind=test" >> "$GITHUB_OUTPUT"
             echo "VERSION=$V" >> "$GITHUB_ENV"
-            echo "TAG=testkanal" >> "$GITHUB_ENV"
+            echo "TAG=adminkanal" >> "$GITHUB_ENV"
           else
             echo "Nichts zu tun."
             echo "kind=none" >> "$GITHUB_OUTPUT"
@@ -91,6 +91,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # alter Testkanal (wurde von Version 1.12.2 auch für Firmen-Adressen abgefragt) – entfernen
+          gh release delete testkanal -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" PDF-Unterschreiben-Setup.exe version.json --target "$GITHUB_SHA" --latest \
             --title "PDF Unterschreiben $VERSION" --notes "$(git log -1 --format=%s "$GITHUB_SHA")"
 
@@ -99,8 +101,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete testkanal -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
-          git push origin ":refs/tags/testkanal" 2>/dev/null || true
-          gh release create testkanal PDF-Unterschreiben-Setup.exe version.json --target "$GITHUB_SHA" \
+          gh release delete adminkanal -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          git push origin ":refs/tags/adminkanal" 2>/dev/null || true
+          gh release create adminkanal PDF-Unterschreiben-Setup.exe version.json --target "$GITHUB_SHA" \
             --prerelease --latest=false \
             --title "Testversion $VERSION (nur Admin)" --notes "$(git log -1 --format=%s "$GITHUB_SHA")"
