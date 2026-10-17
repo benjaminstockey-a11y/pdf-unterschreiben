@@ -121,7 +121,7 @@ func (a *app) routes() http.Handler {
 	})
 	mux.HandleFunc("/lib/pdf-lib.min.js", a.handlePdfLib)
 	mux.HandleFunc("/api/info", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{"version": Version, "repo": repoSlug(), "updates": RepoOwner != ""})
+		writeJSON(w, map[string]any{"version": Version, "repo": repoSlug(), "updates": RepoOwner != "", "report": ReportURL != ""})
 	})
 	mux.HandleFunc("/api/alive", a.handleAlive)
 	mux.HandleFunc("/api/settings", a.handleSettings)
@@ -130,6 +130,8 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/excel/sheets", a.handleExcelSheets)
 	mux.HandleFunc("/api/excel/pdf", a.handleExcelPDF)
 	mux.HandleFunc("/api/excel/sign", a.handleExcelSign)
+	mux.HandleFunc("/api/mail", a.handleMail)
+	mux.HandleFunc("/api/report", a.handleReport)
 	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "POST", http.StatusMethodNotAllowed)

@@ -115,7 +115,7 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:min(560px,calc(100% - 32px));box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:30}
 /* Ausschneiden aus PDF */
 dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(--ink);width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
-#sheetDlg,#saveDlg{width:min(460px,calc(100vw - 32px))}
+#sheetDlg,#saveDlg,#regDlg{width:min(460px,calc(100vw - 32px))}
 dialog::backdrop{background:rgba(10,15,30,.55)}
 .dlg{display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
 .dlg-head,.dlg-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
@@ -187,6 +187,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
           </div>
         </div>
         <p class="hint">Bleibt auf diesem Computer gespeichert.</p>
+        <p class="hint" id="userLine" hidden></p>
       </section>
 
       <section class="panel" aria-labelledby="h-set">
@@ -216,6 +217,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
         <div class="row">
           <button id="openBtn">Dateien öffnen</button>
           <input type="file" id="pdfFile" accept="application/pdf,.pdf,.xlsx,.xlsm,.xls,.xlsb" multiple hidden>
+          <button id="mailAll" hidden>Per E-Mail senden</button>
           <button class="primary" id="printAll" hidden>Drucken</button>
           <button id="saveAll" hidden>Alle speichern</button>
         </div>
@@ -244,6 +246,29 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
       </div>
     </div>
   </div>
+</dialog>
+
+<dialog id="regDlg">
+  <form method="dialog" class="dlg" id="regForm">
+    <div class="dlg-head"><strong>Einmalige Anmeldung</strong></div>
+    <div class="dlg-body col" style="gap:12px">
+      <span class="hint">Bitte einmal mit Namen und Arbeits-E-Mail anmelden. Gemeldet werden nur Name, E-Mail, Programmversion und wann du das Programm nutzt – damit Benjamin Stockey sieht, wer es verwendet. Unterschriften und Berichte werden nicht übertragen.</span>
+      <label class="field">Vor- und Nachname
+        <input type="text" id="regName" autocomplete="name" required placeholder="Max Mustermann">
+      </label>
+      <label class="field">Arbeits-E-Mail
+        <span class="row" style="gap:0;flex-wrap:nowrap">
+          <input type="text" id="regMail" autocomplete="off" required placeholder="max.mustermann" style="border-top-right-radius:0;border-bottom-right-radius:0;min-width:0">
+          <span class="val" style="border:1px solid var(--line);border-left:0;border-radius:0 7px 7px 0;padding:8px 10px;background:var(--sheet);white-space:nowrap">@schlueter-gabelstapler.de</span>
+        </span>
+      </label>
+      <span class="hint" id="regErr" style="color:var(--warn)" hidden></span>
+    </div>
+    <div class="dlg-foot">
+      <span></span>
+      <button class="primary" value="ok" id="regOk">Anmelden</button>
+    </div>
+  </form>
 </dialog>
 
 <dialog id="saveDlg">
@@ -289,8 +314,8 @@ let saveT;
 function persist(){
   clearTimeout(saveT);
   saveT = setTimeout(() => {
-    const {sig, keyword, width, addDate, ink, tick} = state;
-    fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick})})
+    const {sig, keyword, width, addDate, ink, tick, user, lastStart} = state;
+    fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick, user, lastStart})})
       .catch(() => toast("Einstellungen konnten nicht gespeichert werden."));
   }, 300);
 }
@@ -751,6 +776,7 @@ function updateSaveAll(){
   const n = state.docs.filter(d => d.stamp).length;
   $("#saveAll").hidden = n < 2; $("#saveAll").textContent = `Alle speichern (${n})`;
   $("#printAll").hidden = !state.docs.length;
+  $("#mailAll").hidden = !state.docs.length;
   $("#printAll").textContent = state.docs.length > 1 ? `Alle drucken (${state.docs.length})` : "Drucken";
 }
 /* ---------- Ankreuzfelder ---------- */
@@ -1073,7 +1099,7 @@ async function saveExcel(doc){
       if(doc.handle) opts.startIn = doc.handle;
       const fh = await showSaveFilePicker(opts);
       const w = await fh.createWritable(); await w.write(bytes); await w.close();
-      doc.saved = true; updateHead(doc);
+      doc.saved = true; updateHead(doc); report("save");
       toast(`Gespeichert: ${fh.name}` + (skipped ? ` – ${skipped} Eintrag auf einer anderen Seite fehlt in Excel.` : ""), 6000);
     } else {
       const l = document.createElement("a"); l.href = URL.createObjectURL(new Blob([bytes])); l.download = name;
@@ -1092,7 +1118,7 @@ async function saveDoc(doc){
       if(doc.handle) opts.startIn = doc.handle;
       const fh = await showSaveFilePicker(opts);
       const w = await fh.createWritable(); await w.write(bytes); await w.close();
-      doc.saved = true; updateHead(doc); toast(`Gespeichert: ${fh.name}`);
+      doc.saved = true; updateHead(doc); report("save"); toast(`Gespeichert: ${fh.name}`);
     }catch(e){
       if(e && e.name === "AbortError") return;
       toast("Speichern fehlgeschlagen: " + (e && e.message || e));
@@ -1146,6 +1172,7 @@ async function printDocs(list){
     $("#toast").hidden = true;
     await new Promise(r => setTimeout(r, 50));
     window.print();
+    report("print", list.length);
   }catch(e){
     toast("Drucken fehlgeschlagen: " + (e && e.message || e));
   }finally{
@@ -1157,6 +1184,33 @@ async function printDocs(list){
   }
 }
 $("#printAll").onclick = () => printDocs(state.docs);
+
+/* ---------- Per E-Mail senden ---------- */
+// Öffnet eine neue E-Mail (Outlook bzw. Standard-Mailprogramm) mit allen unterschriebenen Berichten als PDF.
+let mailing = false;
+async function mailDocs(list){
+  if(mailing || !ready()) return;
+  const ohne = list.filter(d => !d.stamp).length;
+  list = list.filter(d => d.stamp);
+  if(!list.length){ toast("Doppelklick auf eine Seite, um die Unterschrift zu setzen."); return; }
+  mailing = true; toast("E-Mail wird vorbereitet …", 60000);
+  try{
+    const files = [];
+    for(const d of list){ const b = await signed(d); if(b) files.push({name: outName(d), data: b64(b)}); }
+    if(!files.length){ toast("Es gab nichts zu versenden."); return; }
+    const base = n => n.replace(/_unterschrieben\.pdf$/i, "");
+    const subject = files.length === 1 ? `Bericht ${base(files[0].name)}` : `Berichte (${files.length})`;
+    const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({subject, files})})).json();
+    if(!r.ok){ toast(r.error || "E-Mail konnte nicht geöffnet werden.", 7000); return; }
+    let msg = r.via === "explorer"
+      ? "Kein E-Mail-Programm gefunden. Der Ordner mit den PDFs ist geöffnet – zieh sie einfach in deine E-Mail."
+      : `E-Mail mit ${files.length} ${files.length === 1 ? "Bericht" : "Berichten"} geöffnet – Empfänger eintragen und senden.`;
+    if(ohne) msg += ` ${ohne} ohne Unterschrift ${ohne === 1 ? "wurde" : "wurden"} nicht angehängt.`;
+    toast(msg, 8000); report("mail", files.length);
+  }catch(e){ toast("E-Mail konnte nicht geöffnet werden."); }
+  finally{ mailing = false; }
+}
+$("#mailAll").onclick = () => mailDocs(state.docs);
 // Strg+P druckt die geöffneten Berichte statt der Programmoberfläche
 addEventListener("keydown", e => {
   if((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "p"){
@@ -1183,6 +1237,7 @@ $("#saveAll").onclick = async () => {
       d.saved = true; updateHead(d); n++;
     }catch(e){ toast(`„${d.name}“ konnte nicht gespeichert werden.`); }
   }
+  if(n) report("save", n);
   if(n) toast(`${n} ${n === 1 ? "Datei" : "Dateien"} in „${dir.name}“ gespeichert.`);
 };
 
@@ -1256,14 +1311,69 @@ $("#updateBtn").onclick = async () => {
   }catch(e){ toast("Update fehlgeschlagen."); b.disabled = false; b.textContent = "Jetzt aktualisieren"; }
 };
 
+/* ---------- Anmeldung & Nutzungsmeldung ---------- */
+const MAIL_DOMAIN = "schlueter-gabelstapler.de";
+function report(event, count = 1){
+  if(!state.user) return;
+  fetch("/api/report", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event, count})}).catch(() => {});
+}
+// Vorschlag für die E-Mail aus dem Namen: „Max Müller“ → max.mueller
+function mailFromName(n){
+  return n.trim().toLowerCase()
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .split(/\s+/).filter(Boolean).join(".").replace(/[^a-z0-9.-]/g, "");
+}
+let mailEdited = false;
+$("#regName").addEventListener("input", () => { if(!mailEdited) $("#regMail").value = mailFromName($("#regName").value); });
+$("#regMail").addEventListener("input", () => {
+  mailEdited = true;
+  const v = $("#regMail").value; const at = v.indexOf("@"); if(at >= 0) $("#regMail").value = v.slice(0, at);
+});
+$("#regDlg").addEventListener("cancel", e => { if(!state.user) e.preventDefault(); });
+$("#regForm").addEventListener("submit", e => {
+  const name = $("#regName").value.trim().replace(/\s+/g, " ");
+  const local = $("#regMail").value.trim().toLowerCase();
+  let err = "";
+  if(name.split(" ").length < 2) err = "Bitte Vor- und Nachnamen eintragen.";
+  else if(!/^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+([.-][a-z0-9]+)*$/.test(local)) err = "Die E-Mail hat die Form vorname.nachname@" + MAIL_DOMAIN + ".";
+  if(err){ e.preventDefault(); $("#regErr").textContent = err; $("#regErr").hidden = false; return; }
+  const first = !state.user;
+  const id = (state.user && state.user.id) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+  state.user = {id, name, email: `${local}@${MAIL_DOMAIN}`};
+  state.lastStart = new Date().toISOString().slice(0, 10);
+  persist(); renderUser();
+  // erst speichern, dann melden (der Server liest den Nutzer aus den Einstellungen)
+  setTimeout(() => report(first ? "register" : "update"), 600);
+});
+function openRegistration(){
+  $("#regErr").hidden = true;
+  $("#regName").value = state.user ? state.user.name : "";
+  $("#regMail").value = state.user ? state.user.email.split("@")[0] : "";
+  mailEdited = !!state.user;
+  $("#regDlg").showModal();
+}
+function renderUser(){
+  const el = $("#userLine");
+  if(!state.user){ el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `Angemeldet als ${esc(state.user.name)} (${esc(state.user.email)}) · <button class="ghost" id="userChange" style="padding:0;font-size:13px;text-decoration:underline">ändern</button>`;
+  $("#userChange").onclick = openRegistration;
+}
+
 /* ---------- Start ---------- */
 (async () => {
   try{
     const s = await (await fetch("/api/settings", {cache: "no-store"})).json();
-    for(const k of ["sig","keyword","width","addDate","ink","tick"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
+    for(const k of ["sig","keyword","width","addDate","ink","tick","user","lastStart"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
     if(state.keyword.trim() === "Unterschrift Techniker"){ state.keyword = "Unterschrift Techniker, Servicetechniker"; persist(); }
   }catch(e){}
-  renderSettings(); renderSig(); renderAll();
+  renderSettings(); renderSig(); renderAll(); renderUser();
+  if(!state.user) openRegistration();
+  else {
+    const day = new Date().toISOString().slice(0, 10);
+    if(state.lastStart !== day){ state.lastStart = day; persist(); setTimeout(() => report("start"), 800); }
+  }
   try{
     const i = await (await fetch("/api/info", {cache: "no-store"})).json();
     $("#verText").textContent = `Version ${i.version}`;

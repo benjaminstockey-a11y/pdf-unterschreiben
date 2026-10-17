@@ -43,9 +43,11 @@ jobs:
         env:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
+          REPORT_URL: ${{ secrets.REPORT_URL }}
+          REPORT_KEY: ${{ secrets.REPORT_KEY }}
         run: |
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
-            -ldflags "-s -w -H=windowsgui -X main.Version=$VERSION -X main.RepoOwner=$OWNER -X main.RepoName=$REPO" \
+            -ldflags "-s -w -H=windowsgui -X main.Version=$VERSION -X main.RepoOwner=$OWNER -X main.RepoName=$REPO -X main.ReportURL=$REPORT_URL -X main.ReportKey=$REPORT_KEY" \
             -o PDF-Unterschreiben-Setup.exe .
 
       - name: version.json schreiben
