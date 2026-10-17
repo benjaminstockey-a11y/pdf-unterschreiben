@@ -1406,9 +1406,9 @@ async function call(event, extra = {}){
     return await (await fetch("/api/report", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event, ...extra})})).json();
   }catch(e){ return {ok: false, offline: true, error: "Keine Verbindung zum Programm."}; }
 }
-function report(event, count = 1){
-  if(reportOn && state.user && state.user.verified) call(event, {count});
-}
+// Es wird nur erfasst, WER das Programm nutzt (Anmeldung, Programmstart) – nicht, was jemand speichert,
+// druckt oder verschickt.
+function report(event, count = 1){}
 // Vorschlag für die E-Mail aus dem Namen: „Max Müller“ → m.mueller
 function mailFromName(n){
   const w = n.trim().toLowerCase()
