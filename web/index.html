@@ -301,7 +301,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
         <li><b>Per E-Mail senden</b> – öffnet eine E-Mail mit allen Berichten; der Betreff (Montagebericht, UVV Bericht, DGUV V3 Bericht) wird automatisch gesetzt.</li>
       </ul>
       <h3>4. Dokumentation (Umbau, Gewaltschaden, Garantie)</h3>
-      <p>„Dokumentation“ öffnen, Berichte auswählen und alle Fotos auf einmal hinzufügen. Die Fotos werden nach Aufnahmezeit sortiert und über das Typenschild bzw. das Datum dem richtigen Auftrag zugeordnet; falsch einsortierte Fotos einfach mit der Maus verschieben. Pro Auftrag die Art wählen – dann öffnet sich je Auftrag eine E-Mail mit Betreff „Auftragsnummer Art“ und einer PDF (Bericht vorne, danach die Fotos).</p>
+      <p>„Dokumentation“ öffnen, Berichte auswählen und alle Fotos auf einmal hinzufügen. Die Fotos werden nach Aufnahmezeit sortiert und über das Typenschild bzw. das Datum dem richtigen Auftrag zugeordnet; falsch einsortierte Fotos einfach mit der Maus verschieben. Pro Auftrag die Art wählen – dann öffnet sich je Auftrag eine E-Mail an d.dokumentation@schlueter-gabelstapler.de mit Betreff „Auftragsnummer Art“ und einer PDF (Bericht vorne, danach die Fotos).</p>
       <h3>Sonstiges</h3>
       <ul>
         <li>Updates kommen automatisch: oben erscheint dann „Jetzt aktualisieren“.</li>
@@ -1723,6 +1723,7 @@ const docu = {photos: [], orders: new Map(), manual: null, pick: new Map(), ocrO
 const isPhoto = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|bmp|gif|heic|heif)$/i.test(f.name);
 const docuErr = m => { $("#docuErr").textContent = m; $("#docuErr").hidden = !m; };
 const ARTEN = ["Umbau", "Gewaltschaden", "Garantie"];
+const DOCU_TO = "d.dokumentation@schlueter-gabelstapler.de"; // Empfänger für Dokumentationen
 const SERIES_GAP = 30 * 60 * 1000; // mehr als 30 Minuten Pause = neuer Auftrag
 const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const fmtShort = d => d.toLocaleString("de-DE", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"});
@@ -2017,13 +2018,13 @@ $("#docuSend").onclick = async () => {
       const bytes = await buildDocuPdf(o, photos, kurz);
       const name = `${o.nr}_${kurz}`.replace(/[\\/:*?"<>|\s]+/g, "_") + ".pdf";
       const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({subject: `${o.nr} ${o.art}`, files: [{name, data: b64(bytes)}]})})).json();
+        body: JSON.stringify({subject: `${o.nr} ${o.art}`, to: DOCU_TO, files: [{name, data: b64(bytes)}]})})).json();
       if(!r.ok) throw new Error(r.error || "E-Mail konnte nicht geöffnet werden.");
       via = r.via;
     }
     $("#docuDlg").close();
     toast(via === "explorer" ? "Kein E-Mail-Programm gefunden. Der Ordner mit den PDFs ist geöffnet."
-      : orders.length > 1 ? `${orders.length} E-Mails geöffnet – jeweils Empfänger eintragen und senden.` : `E-Mail „${orders[0].nr} ${orders[0].art}“ geöffnet – Empfänger eintragen und senden.`, 9000);
+      : orders.length > 1 ? `${orders.length} E-Mails an ${DOCU_TO} geöffnet – bitte prüfen und senden.` : `E-Mail „${orders[0].nr} ${orders[0].art}“ an ${DOCU_TO} geöffnet – bitte prüfen und senden.`, 9000);
     docu.photos.forEach(p => URL.revokeObjectURL(p.url)); docu.photos = []; docu.orders.clear(); docu.manual = null; docu.ocrOff = "";
   }catch(e){
     docuErr((sent > 1 ? `${sent - 1} E-Mail(s) wurden schon geöffnet. ` : "") + (e.message && /^[„A-ZÄÖÜ]/.test(e.message) ? e.message : "Die PDF konnte nicht erstellt werden."));

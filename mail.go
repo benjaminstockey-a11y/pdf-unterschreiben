@@ -23,6 +23,7 @@ import (
 
 type mailReq struct {
 	Subject string `json:"subject"`
+	To      string `json:"to"` // optional: Empfänger schon eintragen
 	Files   []struct {
 		Name string `json:"name"`
 		Data string `json:"data"`
@@ -30,6 +31,7 @@ type mailReq struct {
 }
 
 var badChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
+var mailRx = regexp.MustCompile(`^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$`)
 
 func versandDir() string {
 	base := filepath.Join(os.Getenv("LOCALAPPDATA"), AppName, "Versand")
@@ -50,6 +52,7 @@ const outlookScript = `$ErrorActionPreference = 'Stop'
 $o = New-Object -ComObject Outlook.Application
 $m = $o.CreateItem(0)
 $m.Subject = $env:PU_SUBJ
+if ($env:PU_TO) { $m.To = $env:PU_TO }
 foreach ($f in ($env:PU_FILES -split '\|')) { if ($f) { [void]$m.Attachments.Add($f) } }
 $m.Display($false)
 try { $m.GetInspector.Activate() } catch {}`
@@ -86,7 +89,10 @@ func (a *app) handleMail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cmd := hidden("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", outlookScript)
-	cmd.Env = append(os.Environ(), "PU_SUBJ="+req.Subject, "PU_FILES="+strings.Join(paths, "|"))
+	if !mailRx.MatchString(req.To) {
+		req.To = ""
+	}
+	cmd.Env = append(os.Environ(), "PU_SUBJ="+req.Subject, "PU_TO="+req.To, "PU_FILES="+strings.Join(paths, "|"))
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	if err := runWithTimeout(cmd, 60*time.Second); err == nil {
@@ -95,7 +101,7 @@ func (a *app) handleMail(w http.ResponseWriter, r *http.Request) {
 	}
 	// Kein klassisches Outlook – Standard-Mailprogramm über MAPI probieren (blockiert, bis die Mail zu ist).
 	mapiErr := make(chan error, 1)
-	go func() { mapiErr <- mapiSendMail(req.Subject, paths) }()
+	go func() { mapiErr <- mapiSendMail(req.Subject, req.To, paths) }()
 	select {
 	case err := <-mapiErr:
 		if err == nil {
@@ -155,7 +161,16 @@ type mapiMessageW struct {
 	Files          *mapiFileDescW
 }
 
-func mapiSendMail(subject string, paths []string) error {
+type mapiRecipDescW struct {
+	Reserved   uint32
+	RecipClass uint32
+	Name       *uint16
+	Address    *uint16
+	EIDSize    uint32
+	EntryID    uintptr
+}
+
+func mapiSendMail(subject, to string, paths []string) error {
 	dll := syscall.NewLazyDLL("mapi32.dll")
 	proc := dll.NewProc("MAPISendMailW")
 	if err := proc.Find(); err != nil {
@@ -170,6 +185,13 @@ func mapiSendMail(subject string, paths []string) error {
 	subj, _ := syscall.UTF16PtrFromString(subject)
 	empty, _ := syscall.UTF16PtrFromString("")
 	msg := mapiMessageW{Subject: subj, NoteText: empty, FileCount: uint32(len(files)), Files: &files[0]}
+	var recip mapiRecipDescW
+	if to != "" {
+		name, _ := syscall.UTF16PtrFromString(to)
+		addr, _ := syscall.UTF16PtrFromString("SMTP:" + to)
+		recip = mapiRecipDescW{RecipClass: 1, Name: name, Address: addr} // 1 = An
+		msg.RecipCount, msg.Recips = 1, uintptr(unsafe.Pointer(&recip))
+	}
 	const mapiLogonUI, mapiDialog = 0x1, 0x8
 	r, _, _ := proc.Call(0, 0, uintptr(unsafe.Pointer(&msg)), mapiLogonUI|mapiDialog, 0)
 	if r != 0 && r != 1 { // 1 = vom Nutzer abgebrochen
