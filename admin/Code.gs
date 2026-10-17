@@ -31,6 +31,8 @@ function handle(d) {
   if (ADMIN_MAILS.indexOf(mail) < 0 && (!/^[a-z0-9.\-]+@/.test(mail) || !mail.endsWith('@' + DOMAIN))) return { ok: false, error: 'Nur E-Mail-Adressen von ' + DOMAIN + ' sind erlaubt.' };
 
   const now = new Date();
+  if (ev === 'feedbacklist') return feedbackList(ss, users, id, mail);
+  if (ev === 'feedback') return feedback(ss, name, mail, ver, d.text);
   if (ev !== 'check') log.appendRow([now, name, mail, ev, "'" + ver, n]);
 
   let row = findRow(users, id);
@@ -77,6 +79,33 @@ function handle(d) {
   const col = { start: 9, save: 10, print: 11, mail: 12 }[ev];
   if (col) { const cell = users.getRange(row, col); cell.setValue((Number(cell.getValue()) || 0) + n); }
   return { ok: true, verified: String(r[6]).toLowerCase() === 'ja', blocked: blocked };
+}
+
+// Verbesserungsvorschläge: landen im Blatt „Vorschläge“; der Admin bekommt zusätzlich eine E-Mail.
+function feedback(ss, name, mail, ver, text) {
+  const t = clean(text, 3000);
+  if (t.length < 3) return { ok: false, error: 'Bitte einen Vorschlag eintragen.' };
+  const s = sheet(ss, 'Vorschläge', ['Zeit', 'Name', 'E-Mail', 'Version', 'Vorschlag', 'Status / Notiz']);
+  s.appendRow([new Date(), name, mail, "'" + ver, t, 'neu']);
+  try {
+    MailApp.sendEmail({ to: ADMIN_MAILS[0], subject: 'Neuer Verbesserungsvorschlag von ' + name,
+      body: name + ' (' + mail + ', Version ' + ver + ') schreibt:\n\n' + t, name: 'PDF Unterschreiben' });
+  } catch (x) {}
+  return { ok: true };
+}
+
+// Nur der freigeschaltete Admin bekommt die Liste
+function feedbackList(ss, users, id, mail) {
+  const row = findRow(users, id);
+  const ok = row > 0 && ADMIN_MAILS.indexOf(mail) >= 0 &&
+    String(users.getRange(row, 7).getValue()).toLowerCase() === 'ja' && users.getRange(row, 2).getValue() === mail;
+  if (!ok) return { ok: false, error: 'Nur für den Administrator.' };
+  const s = ss.getSheetByName('Vorschläge');
+  if (!s || s.getLastRow() < 2) return { ok: true, items: [] };
+  const n = Math.min(100, s.getLastRow() - 1);
+  const v = s.getRange(s.getLastRow() - n + 1, 1, n, 6).getValues().reverse();
+  return { ok: true, items: v.map(r => ({ zeit: r[0] instanceof Date ? r[0].toISOString() : String(r[0]),
+    name: String(r[1]), email: String(r[2]), version: String(r[3]), text: String(r[4]), status: String(r[5]) })) };
 }
 
 function sheet(ss, name, head) {
