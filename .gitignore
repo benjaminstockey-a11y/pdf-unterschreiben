@@ -7,3 +7,4 @@ android/build/
 android/app/build/
 android/local.properties
 *.p12
+rsrc_windows_*.syso

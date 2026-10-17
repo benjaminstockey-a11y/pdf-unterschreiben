@@ -49,7 +49,8 @@ func url() string { return fmt.Sprintf("http://127.0.0.1:%d/", Port) }
 
 func runApp(relaunch bool) {
 	cleanupOld()
-	_ = os.WriteFile(filepath.Join(installDir(), "app.ico"), appIcon, 0o644)
+	_ = os.WriteFile(iconPath(), appIcon, 0o644)
+	go refreshIcon()
 
 	var ln net.Listener
 	var err error

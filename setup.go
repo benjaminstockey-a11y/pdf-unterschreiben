@@ -94,7 +94,7 @@ func runSetup(self string) {
 		fail("Die Installation ist fehlgeschlagen:\n" + err.Error() + "\n\nSchließe PDF Unterschreiben und versuch es nochmal.")
 		return
 	}
-	_ = os.WriteFile(filepath.Join(installDir(), "app.ico"), appIcon, 0o644)
+	_ = os.WriteFile(iconPath(), appIcon, 0o644)
 	if err := createShortcuts(true); err != nil {
 		// Nicht kritisch – das Programm läuft trotzdem.
 		info("Installiert, aber die Verknüpfungen konnten nicht angelegt werden.\nDu findest das Programm hier:\n" + installedExe())

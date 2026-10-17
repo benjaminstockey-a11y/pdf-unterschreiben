@@ -72,6 +72,10 @@ jobs:
         if: steps.ver.outputs.kind != 'none'
         run: curl -fsSL -o web/lib/pdf-lib.min.js https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js
 
+      - name: Programmsymbol in die exe einbauen
+        if: steps.ver.outputs.kind != 'none'
+        run: go run github.com/tc-hib/go-winres@v0.3.3 simply --icon assets/logo_256.png --arch amd64 --product-name "PDF Unterschreiben" --file-description "PDF Unterschreiben"
+
       - name: Bauen
         if: steps.ver.outputs.kind != 'none'
         env:

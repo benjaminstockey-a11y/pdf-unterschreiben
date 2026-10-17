@@ -87,8 +87,26 @@ foreach ($p in $paths) {
 		"PU_NAME="+AppName,
 		"PU_TARGET="+installedExe(),
 		"PU_DIR="+installDir(),
-		"PU_ICON="+filepath.Join(installDir(), "app.ico"),
+		"PU_ICON="+iconPath(),
 	)
+}
+
+func iconPath() string { return filepath.Join(installDir(), "logo.ico") }
+
+// refreshIcon: Nach einem Update mit neuem Logo vorhandene Verknüpfungen auf die neue Symboldatei
+// umstellen (neuer Dateiname, damit Windows nicht das alte Symbol aus dem Zwischenspeicher zeigt).
+func refreshIcon() {
+	old := filepath.Join(installDir(), "app.ico")
+	if _, err := os.Stat(old); err != nil {
+		return
+	}
+	_ = powershell(`$w = New-Object -ComObject WScript.Shell
+$paths = @($env:PU_START, (Join-Path ([Environment]::GetFolderPath('Desktop')) ($env:PU_NAME + '.lnk')))
+foreach ($p in $paths) { if (Test-Path $p) { $s = $w.CreateShortcut($p); $s.IconLocation = $env:PU_ICON; $s.Save() } }`,
+		"PU_START="+startMenuLink(), "PU_NAME="+AppName, "PU_ICON="+iconPath())
+	regSet("DisplayIcon", "REG_SZ", iconPath())
+	_ = os.Remove(old)
+	_ = hidden("ie4uinit.exe", "-show").Run()
 }
 
 func removeShortcuts() {
@@ -108,7 +126,7 @@ func registerUninstall() {
 	regSet("DisplayName", "REG_SZ", AppName)
 	regSet("DisplayVersion", "REG_SZ", Version)
 	regSet("Publisher", "REG_SZ", Publisher)
-	regSet("DisplayIcon", "REG_SZ", filepath.Join(installDir(), "app.ico"))
+	regSet("DisplayIcon", "REG_SZ", iconPath())
 	regSet("InstallLocation", "REG_SZ", installDir())
 	regSet("UninstallString", "REG_SZ", `"`+exe+`" --uninstall`)
 	regSet("NoModify", "REG_DWORD", "1")
