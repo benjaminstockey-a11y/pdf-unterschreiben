@@ -17,7 +17,7 @@ import (
 var (
 	Version   = "0.0.0-dev"
 	RepoOwner = ""
-	RepoName  = "pdf-unterschreiben"
+	RepoName  = "pdfunterschreiben"
 )
 
 const (

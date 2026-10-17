@@ -34,7 +34,6 @@ func (a *app) handleReport(w http.ResponseWriter, r *http.Request) {
 		Event string `json:"event"`
 		Count int    `json:"count"`
 		Code  string `json:"code"`
-		Text  string `json:"text"`
 	}
 	_ = json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&ev)
 	if ReportURL == "" || !strings.HasPrefix(ReportURL, "https://script.google.com/") {
@@ -57,7 +56,7 @@ func (a *app) handleReport(w http.ResponseWriter, r *http.Request) {
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"key": ReportKey, "id": s.User.ID, "name": s.User.Name, "email": s.User.Email,
-		"event": ev.Event, "count": ev.Count, "code": ev.Code, "text": ev.Text, "version": Version,
+		"event": ev.Event, "count": ev.Count, "code": ev.Code, "version": Version,
 	})
 	send := func() ([]byte, error) {
 		c := &http.Client{Timeout: 30 * time.Second}

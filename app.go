@@ -135,7 +135,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		// Nur feste Adressen im Standardbrowser öffnen (dort ist man bei Google angemeldet)
 		links := map[string]string{
-			"tabelle": "https://docs.google.com/spreadsheets/d/1jUsk23lB_uWjkMMYXkJqDvm09j1ZP3e5GilZZ48ZZBg/edit",
+			"tabelle": "https://docs.google.com/spreadsheets/d/1i7jifCaffYGLXdDVSidWPqHbZTkaWhAF6_wVwN3H0NA/edit",
 		}
 		u, ok := links[r.URL.Query().Get("ziel")]
 		if r.Method != http.MethodPost || !ok {
@@ -297,7 +297,7 @@ func repoSlug() string {
 	return RepoOwner + "/" + RepoName
 }
 
-// Stabile Versionen liegen im neuesten Release, Testversionen im Vorab-Release „adminkanal“.
+// Stabile Versionen liegen im neuesten Release, Testversionen im Vorab-Release „testkanal“.
 func fetchChannel(test bool) (*release, error) {
 	if RepoOwner == "" {
 		return nil, errors.New("keine Update-Quelle eingestellt")

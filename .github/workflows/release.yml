@@ -82,9 +82,16 @@ jobs:
           # Leerzeichen/Zeilenumbrüche aus den Secrets entfernen (z. B. beim Einfügen mitkopiert)
           RU="$(printf '%s' "$REPORT_URL" | tr -d '[:space:]')"
           RK="$(printf '%s' "$REPORT_KEY" | tr -d '[:space:]')"
-          echo "Anmeldeserver gesetzt: $([ -n "$RU" ] && echo ja || echo nein), Schlüssel-Länge: ${#RK}"
+          # Programm und Updates liegen beim Konto pdfunterschreiben-Admin. Wird noch im alten
+          # Repository gebaut, zeigt das Programm danach auf das neue Konto und den neuen Server.
+          APP_OWNER=pdfunterschreiben-Admin
+          APP_REPO=pdfunterschreiben
+          if [ "$OWNER/$REPO" != "$APP_OWNER/$APP_REPO" ]; then
+            RU="https://script.google.com/macros/s/AKfycbwj7l1K2RcGtPUu4wdRFjI7NLayzAtqjx0_XorzQmMNEqh-JyuEaOrUlOEN1BT9HVSC/exec"
+          fi
+          echo "Anmeldeserver gesetzt: $([ -n "$RU" ] && echo ja || echo nein), Schlüssel-Länge: ${#RK}, Ziel: $APP_OWNER/$APP_REPO"
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
-            -ldflags "-s -w -H=windowsgui -X main.Version=$VERSION -X main.RepoOwner=$OWNER -X main.RepoName=$REPO -X 'main.ReportURL=$RU' -X 'main.ReportKey=$RK'" \
+            -ldflags "-s -w -H=windowsgui -X main.Version=$VERSION -X main.RepoOwner=$APP_OWNER -X main.RepoName=$APP_REPO -X 'main.ReportURL=$RU' -X 'main.ReportKey=$RK'" \
             -o PDF-Unterschreiben-Setup.exe .
 
       - name: version.json schreiben
