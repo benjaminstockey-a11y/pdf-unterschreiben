@@ -48,8 +48,17 @@ func versandDir() string {
 	return d
 }
 
+// Läuft Outlook noch nicht, wird es zuerst richtig gestartet – sonst schließt sich ein nur per COM
+// gestartetes Outlook samt neuer Nachricht wieder, sobald das Skript endet.
 const outlookScript = `$ErrorActionPreference = 'Stop'
-$o = New-Object -ComObject Outlook.Application
+function Get-Ol { try { [Runtime.InteropServices.Marshal]::GetActiveObject('Outlook.Application') } catch { $null } }
+$o = Get-Ol
+if (-not $o) {
+  Start-Process 'outlook.exe'
+  for ($i = 0; $i -lt 80 -and -not $o; $i++) { Start-Sleep -Milliseconds 500; $o = Get-Ol }
+  if (-not $o) { $o = New-Object -ComObject Outlook.Application }
+  Start-Sleep -Seconds 3
+}
 $m = $o.CreateItem(0)
 $m.Subject = $env:PU_SUBJ
 if ($env:PU_TO) { $m.To = $env:PU_TO }
