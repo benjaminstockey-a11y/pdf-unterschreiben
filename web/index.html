@@ -97,7 +97,7 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 .chk{position:absolute;border-radius:50%;border:0;padding:0;background:transparent;cursor:pointer;outline:1.5px dashed rgba(29,63,184,.55);outline-offset:0;display:block}
 .chk:hover{background:rgba(29,63,184,.14)}
 .chk.on{outline-color:transparent}
-.chk svg{position:absolute;left:5%;top:-45%;width:150%;height:150%;overflow:visible;pointer-events:none}
+.chk svg{position:absolute;overflow:visible;pointer-events:none}
 .chk path{fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .stamp .del{position:absolute;top:-12px;right:-12px;width:24px;height:24px;border-radius:50%;padding:0;justify-content:center;background:#1d3fb8;color:#fff;border:0;font-size:15px}
 .empty{padding:44px 28px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:8px;align-items:center}
@@ -197,6 +197,10 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
           <span class="row" style="justify-content:space-between">Breite der Unterschrift <span class="val" id="wVal"></span></span>
           <input type="range" id="w" min="70" max="280" step="5">
         </label>
+        <label class="field">
+          <span class="row" style="justify-content:space-between">Größe der Haken <span class="val" id="tVal"></span></span>
+          <input type="range" id="tick" min="0.6" max="2.5" step="0.1">
+        </label>
         <label class="check"><input type="checkbox" id="addDate"> Heutiges Datum links daneben setzen</label>
       </section>
     </aside>
@@ -254,13 +258,13 @@ const openPdf = bytes => pdfjsLib.getDocument({data: bytes.slice(), ...PDF_OPTS}
 /* Verbindung zum Programm halten: schließt man das Fenster, beendet sich das Programm. */
 try { new EventSource("/api/alive"); } catch(e) {}
 
-const state = {sig: null, keyword: "Unterschrift Techniker, Servicetechniker", width: 130, addDate: false, ink: "#1d3fb8", docs: []};
+const state = {sig: null, keyword: "Unterschrift Techniker, Servicetechniker", width: 130, addDate: false, ink: "#1d3fb8", tick: 1, docs: []};
 let saveT;
 function persist(){
   clearTimeout(saveT);
   saveT = setTimeout(() => {
-    const {sig, keyword, width, addDate, ink} = state;
-    fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink})})
+    const {sig, keyword, width, addDate, ink, tick} = state;
+    fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick})})
       .catch(() => toast("Einstellungen konnten nicht gespeichert werden."));
   }, 300);
 }
@@ -525,7 +529,12 @@ function renderSig(){
 function renderSettings(){
   $("#kw").value = state.keyword; $("#w").value = state.width; $("#addDate").checked = state.addDate;
   $("#wVal").textContent = cm(state.width); markInk();
+  $("#tick").value = state.tick; $("#tVal").textContent = Math.round(state.tick * 100) + " %";
 }
+$("#tick").oninput = e => {
+  state.tick = +e.target.value; $("#tVal").textContent = Math.round(state.tick * 100) + " %"; persist();
+  state.docs.forEach(d => (d.checks || []).forEach(c => c.draw && c.draw()));
+};
 let kwT;
 $("#kw").oninput = e => {
   state.keyword = e.target.value; persist();
@@ -691,6 +700,11 @@ async function findChecks(doc){
   }
   return out;
 }
+// Lage des Hakens: die Spitze unten bleibt am Kreis, beim Vergrößern wächst er nach oben rechts.
+function tickGeom(c){
+  const d = c.r * 2.4, S = d * 1.5 * (state.tick || 1);
+  return {d, S, L: c.cx + 0.15 * d - 0.4 * S, T: c.cy + 0.325 * d - 0.85 * S};
+}
 function toggleCheck(doc, c){
   c.on = !c.on; doc.saved = false; if(c.draw) c.draw(); updateHead(doc);
 }
@@ -704,7 +718,9 @@ function renderChecks(doc, wrap, i){
     Object.assign(b.style, {left: ((c.cx - d/2) / P.w * 100) + "%", top: ((c.cy - d/2) / P.h * 100) + "%", width: (d / P.w * 100) + "%", height: (d / P.h * 100) + "%"});
     c.el = b; c.draw = () => {
       b.classList.toggle("on", c.on); b.setAttribute("aria-pressed", c.on);
-      b.innerHTML = c.on ? `<svg viewBox="0 0 10 10"><path d="${CHECK_PATH}" style="stroke:${state.ink}"/></svg>` : "";
+      const g = tickGeom(c);
+      const st = `left:${(g.L - (c.cx - g.d/2)) / g.d * 100}%;top:${(g.T - (c.cy - g.d/2)) / g.d * 100}%;width:${g.S / g.d * 100}%;height:${g.S / g.d * 100}%`;
+      b.innerHTML = c.on ? `<svg viewBox="0 0 10 10" style="${st}"><path d="${CHECK_PATH}" style="stroke:${state.ink}"/></svg>` : "";
     };
     c.draw();
     b.addEventListener("pointerdown", e => e.stopPropagation());
@@ -854,9 +870,8 @@ async function buildSigned(doc){
   const hex = state.ink.replace("#", ""), ink = rgb(parseInt(hex.slice(0,2),16)/255, parseInt(hex.slice(2,4),16)/255, parseInt(hex.slice(4,6),16)/255);
   for(const c of (doc.checks || []).filter(c => c.on)){
     const cvp = (await doc.pdf.getPage(c.page + 1)).getViewport({scale: 1});
-    const d = c.r * 2.4, S = d * 1.5;
-    // gleiche Lage wie in der Vorschau: Haken beginnt leicht rechts und ragt etwas nach oben
-    const [px, py] = cvp.convertToPdfPoint(c.cx - d/2 + d * 0.05, c.cy - d/2 - d * 0.45);
+    const g = tickGeom(c), S = g.S;
+    const [px, py] = cvp.convertToPdfPoint(g.L, g.T);
     out.getPage(c.page).drawSvgPath(CHECK_PATH, {x: px, y: py, scale: S / 10, borderColor: ink, borderWidth: 1.5, rotate: degrees(cvp.rotation)});
   }
   return out.save();
@@ -1048,7 +1063,7 @@ $("#updateBtn").onclick = async () => {
 (async () => {
   try{
     const s = await (await fetch("/api/settings", {cache: "no-store"})).json();
-    for(const k of ["sig","keyword","width","addDate","ink"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
+    for(const k of ["sig","keyword","width","addDate","ink","tick"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
     if(state.keyword.trim() === "Unterschrift Techniker"){ state.keyword = "Unterschrift Techniker, Servicetechniker"; persist(); }
   }catch(e){}
   renderSettings(); renderSig(); renderAll();
