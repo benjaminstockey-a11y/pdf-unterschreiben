@@ -184,8 +184,9 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 
       <section class="panel" aria-labelledby="h-set">
         <div class="step"><b>02</b><h2 id="h-set">Platzierung</h2></div>
-        <label class="field">Suchwort im PDF
+        <label class="field">Suchwörter im PDF
           <input type="text" id="kw" autocomplete="off">
+          <span class="hint">Mehrere mit Komma trennen. Das erste, das im Bericht vorkommt, zählt.</span>
         </label>
         <label class="field">
           <span class="row" style="justify-content:space-between">Breite der Unterschrift <span class="val" id="wVal"></span></span>
@@ -248,7 +249,7 @@ const openPdf = bytes => pdfjsLib.getDocument({data: bytes.slice(), ...PDF_OPTS}
 /* Verbindung zum Programm halten: schließt man das Fenster, beendet sich das Programm. */
 try { new EventSource("/api/alive"); } catch(e) {}
 
-const state = {sig: null, keyword: "Unterschrift Techniker", width: 130, addDate: false, ink: "#1d3fb8", docs: []};
+const state = {sig: null, keyword: "Unterschrift Techniker, Servicetechniker", width: 130, addDate: false, ink: "#1d3fb8", docs: []};
 let saveT;
 function persist(){
   clearTimeout(saveT);
@@ -456,52 +457,65 @@ function clampStamp(doc){
   s.x = Math.min(Math.max(0, s.x), Math.max(0, P.w - state.width));
   s.y = Math.min(Math.max(0, s.y), Math.max(0, P.h - sigH()));
 }
-async function autoPlace(doc){
-  const words = state.keyword.trim().split(/\s+/).filter(Boolean);
-  const re = words.length ? new RegExp(words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s*"), "gi") : null;
-  let hit = null;
-  if(re){
-    for(let i = doc.pages.length; i >= 1 && !hit; i--){
-      const p = await doc.pdf.getPage(i), vp = p.getViewport({scale: 1}), tc = await p.getTextContent();
-      // Textstücke zu Zeilen zusammensetzen, damit auch getrennt gespeicherte Wörter gefunden werden
-      const lines = [];
-      for(const it of tc.items){
-        if(!it.str || !it.str.trim()) continue;
-        const t = it.transform, [vx, vy] = vp.convertToViewportPoint(t[4], t[5]);
-        const fh = Math.hypot(t[2], t[3]) || 10;
-        let ln = lines.find(l => Math.abs(l.vy - vy) < Math.max(2, fh * 0.4));
-        if(!ln){ ln = {vy, fh, items: []}; lines.push(ln); }
-        ln.items.push({x: vx, w: it.width || 0, s: it.str});
-      }
-      const cands = [];
-      for(const ln of lines){
-        ln.items.sort((a, b) => a.x - b.x);
-        let text = "", segs = [], prevEnd = null;
-        for(const it of ln.items){
-          if(prevEnd !== null && it.x - prevEnd > ln.fh * 0.15 && !/\s$/.test(text) && !/^\s/.test(it.s)) text += " ";
-          segs.push({start: text.length, len: it.s.length, x: it.x, w: it.w}); text += it.s; prevEnd = it.x + it.w;
-        }
-        const xAt = idx => { let sg = segs[0]; for(const s of segs) if(s.start <= idx) sg = s; return sg.x + sg.w * Math.min(1, (idx - sg.start) / Math.max(1, sg.len)); };
-        re.lastIndex = 0; let m;
-        while((m = re.exec(text))){
-          // Kurze Zeilen (Feldbeschriftungen) schlagen lange Fließtextzeilen
-          cands.push({x0: xAt(m.index), x1: xAt(m.index + m[0].length), vy: ln.vy, fh: ln.fh, label: text.trim().length < 70});
-          if(!m[0].length) re.lastIndex++;
-        }
-      }
-      const pool = cands.some(c => c.label) ? cands.filter(c => c.label) : cands;
-      let best = null;
-      for(const c of pool) if(!best || c.vy > best.vy + 1 || (Math.abs(c.vy - best.vy) <= 1 && c.x0 > best.x0)) best = c;
-      if(best) hit = {page: i-1, ...best};
-    }
+// Suchwörter: mehrere mit Komma trennen, das erste gefundene gewinnt.
+const keywordList = () => state.keyword.split(/[,;]/).map(k => k.trim()).filter(Boolean);
+async function pageLines(doc, i){
+  doc._lines = doc._lines || {};
+  if(doc._lines[i]) return doc._lines[i];
+  const p = await doc.pdf.getPage(i), vp = p.getViewport({scale: 1}), tc = await p.getTextContent();
+  // Textstücke zu Zeilen zusammensetzen, damit auch getrennt gespeicherte Wörter gefunden werden
+  const lines = [];
+  for(const it of tc.items){
+    if(!it.str || !it.str.trim()) continue;
+    const t = it.transform, [vx, vy] = vp.convertToViewportPoint(t[4], t[5]);
+    const fh = Math.hypot(t[2], t[3]) || 10;
+    let ln = lines.find(l => Math.abs(l.vy - vy) < Math.max(2, fh * 0.4));
+    if(!ln){ ln = {vy, fh, items: []}; lines.push(ln); }
+    ln.items.push({x: vx, w: it.width || 0, s: it.str});
   }
+  for(const ln of lines){
+    ln.items.sort((a, b) => a.x - b.x);
+    let text = "", segs = [], prevEnd = null;
+    for(const it of ln.items){
+      if(prevEnd !== null && it.x - prevEnd > ln.fh * 0.15 && !/\s$/.test(text) && !/^\s/.test(it.s)) text += " ";
+      segs.push({start: text.length, len: it.s.length, x: it.x, w: it.w}); text += it.s; prevEnd = it.x + it.w;
+    }
+    ln.text = text; ln.segs = segs;
+  }
+  return doc._lines[i] = lines;
+}
+async function findKeyword(doc, kw){
+  const words = kw.split(/\s+/).filter(Boolean);
+  const re = new RegExp(words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s*"), "gi");
+  for(let i = doc.pages.length; i >= 1; i--){
+    const cands = [];
+    for(const ln of await pageLines(doc, i)){
+      const segs = ln.segs;
+      const xAt = idx => { let sg = segs[0]; for(const s of segs) if(s.start <= idx) sg = s; return sg.x + sg.w * Math.min(1, (idx - sg.start) / Math.max(1, sg.len)); };
+      re.lastIndex = 0; let m;
+      while((m = re.exec(ln.text))){
+        // Kurze Zeilen (Feldbeschriftungen) schlagen lange Fließtextzeilen
+        cands.push({x0: xAt(m.index), x1: xAt(m.index + m[0].length), vy: ln.vy, fh: ln.fh, label: ln.text.trim().length < 70});
+        if(!m[0].length) re.lastIndex++;
+      }
+    }
+    const pool = cands.some(c => c.label) ? cands.filter(c => c.label) : cands;
+    let best = null;
+    for(const c of pool) if(!best || c.vy > best.vy + 1 || (Math.abs(c.vy - best.vy) <= 1 && c.x0 > best.x0)) best = c;
+    if(best) return {page: i - 1, kw, ...best};
+  }
+  return null;
+}
+async function autoPlace(doc){
+  let hit = null;
+  for(const kw of keywordList()){ hit = await findKeyword(doc, kw); if(hit) break; }
   const h = sigH();
   if(hit){
     let y = hit.vy - hit.fh - 2 - h; if(y < 4) y = hit.vy + 6;
-    doc.stamp = {page: hit.page, x: (hit.x0 + hit.x1) / 2 - state.width / 2, y}; doc.found = true;
+    doc.stamp = {page: hit.page, x: (hit.x0 + hit.x1) / 2 - state.width / 2, y}; doc.found = hit.kw;
   } else {
     const pg = doc.pages.length - 1, P = doc.pages[pg];
-    doc.stamp = {page: pg, x: P.w - state.width - 50, y: P.h - h - 70}; doc.found = false;
+    doc.stamp = {page: pg, x: P.w - state.width - 50, y: P.h - h - 70}; doc.found = null;
   }
   clampStamp(doc);
 }
@@ -525,7 +539,7 @@ function statusChip(doc){
   const pg = `Seite ${doc.stamp.page + 1}`;
   if(doc.saved) return `<span class="chip ok">✓ Gespeichert · ${pg}</span>`;
   if(doc.moved) return `<span class="chip info">Von Hand platziert · ${pg}</span>`;
-  if(doc.found) return `<span class="chip ok">„${esc(state.keyword.trim())}“ gefunden · ${pg}</span>`;
+  if(doc.found) return `<span class="chip ok">„${esc(doc.found)}“ gefunden · ${pg}</span>`;
   return `<span class="chip warn">Suchwort nicht gefunden · unten rechts auf ${pg}</span>`;
 }
 
@@ -833,6 +847,7 @@ $("#updateBtn").onclick = async () => {
   try{
     const s = await (await fetch("/api/settings", {cache: "no-store"})).json();
     for(const k of ["sig","keyword","width","addDate","ink"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
+    if(state.keyword.trim() === "Unterschrift Techniker"){ state.keyword = "Unterschrift Techniker, Servicetechniker"; persist(); }
   }catch(e){}
   renderSettings(); renderSig(); renderAll();
   try{
