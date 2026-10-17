@@ -297,7 +297,7 @@ func repoSlug() string {
 	return RepoOwner + "/" + RepoName
 }
 
-// Stabile Versionen liegen im neuesten Release, Testversionen im Vorab-Release „adminkanal“.
+// Stabile Versionen liegen im neuesten Release, Testversionen im Vorab-Release „testkanal“.
 func fetchChannel(test bool) (*release, error) {
 	if RepoOwner == "" {
 		return nil, errors.New("keine Update-Quelle eingestellt")
