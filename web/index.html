@@ -323,9 +323,11 @@ function knockout(ctx, w, h, fixedWhite){
   let bg = [255,255,255];
   if(!fixedWhite){
     const rs = [], gs = [], bs = [];
-    const push = i => { rs.push(d[i]); gs.push(d[i+1]); bs.push(d[i+2]); };
+    const push = i => { if(d[i+3] > 200){ rs.push(d[i]); gs.push(d[i+1]); bs.push(d[i+2]); } };
     for(let x = 0; x < w; x++){ push(x*4); push(((h-1)*w+x)*4); }
     for(let y = 0; y < h; y++){ push(y*w*4); push((y*w+w-1)*4); }
+    // Rand größtenteils durchsichtig (Bild mit eigenem Alphakanal): nichts zu entfernen
+    if(rs.length < 2 * (w + h) * 0.3) return;
     const med = a => a.sort((p,q) => p-q)[a.length >> 1];
     bg = [med(rs), med(gs), med(bs)];
   }
@@ -364,6 +366,49 @@ $("#sigPdf").onchange = async e => {
   $("#cropDlg").showModal();
   await renderCropPage();
 };
+/* Bilder auf der Seite finden (Unterschriften sind in PDFs fast immer eingebettete Bilder).
+   Für jedes Bild merken wir uns die Lage auf der Seite, um beim Ausschneiden nur das Bild zu nehmen. */
+const mul = (m, n) => [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]];
+async function pageImages(page, vp){
+  const ops = await page.getOperatorList(), O = pdfjsLib.OPS, out = [];
+  let ctm = vp.transform.slice(); const stack = [];
+  for(let i = 0; i < ops.fnArray.length; i++){
+    const fn = ops.fnArray[i], a = ops.argsArray[i];
+    if(fn === O.save) stack.push(ctm);
+    else if(fn === O.restore) ctm = stack.pop() || ctm;
+    else if(fn === O.transform) ctm = mul(ctm, a);
+    else if(fn === O.paintFormXObjectBegin){ stack.push(ctm); if(a && a[0]) ctm = mul(ctm, a[0]); }
+    else if(fn === O.paintFormXObjectEnd) ctm = stack.pop() || ctm;
+    else if(fn === O.paintImageXObject || fn === O.paintInlineImageXObject){
+      let img = null;
+      try{
+        if(fn === O.paintInlineImageXObject) img = a[0];
+        else { const id = a[0]; img = (id.startsWith("g_") ? page.commonObjs : page.objs).get(id); }
+      }catch(e){ img = null; }
+      if(!img) continue;
+      const pts = [[0,0],[1,0],[0,1],[1,1]].map(([u,v]) => [ctm[0]*u + ctm[2]*v + ctm[4], ctm[1]*u + ctm[3]*v + ctm[5]]);
+      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+      out.push({img, m: ctm.slice(), box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]});
+    }
+  }
+  return out;
+}
+function imgSource(img){
+  if(img.bitmap) return img.bitmap;
+  const w = img.width, h = img.height, c = document.createElement("canvas"); c.width = w; c.height = h;
+  const ctx = c.getContext("2d"), id = ctx.createImageData(w, h), d = id.data, src = img.data;
+  if(img.kind === 3) d.set(src.subarray(0, d.length));
+  else if(img.kind === 2){ for(let i = 0, j = 0; i < d.length; i += 4, j += 3){ d[i] = src[j]; d[i+1] = src[j+1]; d[i+2] = src[j+2]; d[i+3] = 255; } }
+  else if(img.kind === 1){
+    const row = (w + 7) >> 3;
+    for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){
+      const on = src[y*row + (x >> 3)] & (128 >> (x & 7)), v = on ? 255 : 0, i = (y*w + x) * 4;
+      d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
+    }
+  } else return null;
+  ctx.putImageData(id, 0, 0); return c;
+}
+
 async function renderCropPage(){
   crop.sel = null; crop.result = null; selEl.hidden = true; $("#cropOk").disabled = true;
   $("#cropPrevBox").innerHTML = '<span class="hint">–</span>';
@@ -373,6 +418,7 @@ async function renderCropPage(){
   cropCanvas.width = vp.width; cropCanvas.height = vp.height;
   cropCanvas.style.width = (vp.width / crop.scale * 1.4) + "px";
   await p.render({canvasContext: cropCanvas.getContext("2d"), viewport: vp}).promise;
+  try{ crop.images = await pageImages(p, vp); }catch(e){ crop.images = []; }
 }
 $("#cropPrev").onclick = () => { if(crop.page > 1){ crop.page--; renderCropPage(); } };
 $("#cropNext").onclick = () => { if(crop.page < crop.pdf.numPages){ crop.page++; renderCropPage(); } };
@@ -393,11 +439,63 @@ function extractCrop(){
   const k = cropCanvas.width / cropCanvas.getBoundingClientRect().width;
   const c = document.createElement("canvas"); c.width = Math.round(s.w * k); c.height = Math.round(s.h * k);
   const ctx = c.getContext("2d");
-  ctx.drawImage(cropCanvas, Math.round(s.x * k), Math.round(s.y * k), c.width, c.height, 0, 0, c.width, c.height);
-  knockout(ctx, c.width, c.height, false);
-  crop.result = trim(c);
+  const sx = Math.round(s.x * k), sy = Math.round(s.y * k);
+  crop.result = null;
+  // 1. Wenn im Rahmen ein eingebettetes Bild liegt (kein ganzseitiger Scan), nur dieses Bild nehmen –
+  //    Text, Linien und Felder des Formulars bleiben so draußen.
+  const pageArea = cropCanvas.width * cropCanvas.height;
+  const hits = (crop.images || []).filter(im => {
+    const [x0, y0, x1, y1] = im.box;
+    return x1 > sx && x0 < sx + c.width && y1 > sy && y0 < sy + c.height && (x1 - x0) * (y1 - y0) < pageArea * 0.4;
+  });
+  // Bilder mit Transparenz (typisch für eingefügte Unterschriften) haben Vorrang vor Hintergrundflächen
+  const transp = hits.filter(im => {
+    if(im.img.kind === 2 || im.img.kind === 1) return false;
+    const src = imgSource(im.img); if(!src) return false;
+    const t = document.createElement("canvas"); t.width = t.height = 48;
+    const tc = t.getContext("2d"); tc.drawImage(src, 0, 0, 48, 48);
+    const d = tc.getImageData(0, 0, 48, 48).data;
+    for(let i = 3; i < d.length; i += 4) if(d[i] < 250) return true;
+    return false;
+  });
+  const use = transp.length ? transp : hits;
+  if(use.length){
+    ctx.save(); ctx.translate(-sx, -sy);
+    for(const im of use){
+      const src = imgSource(im.img); if(!src) continue;
+      const w = im.img.width, h = im.img.height;
+      ctx.save(); ctx.transform(...im.m); ctx.translate(0, 1); ctx.scale(1 / w, -1 / h);
+      ctx.drawImage(src, 0, 0); ctx.restore();
+    }
+    ctx.restore();
+    knockout(ctx, c.width, c.height, false);
+    crop.result = trim(c);
+  }
+  // 2. Sonst den Ausschnitt nehmen und alles entfernen, was nicht nach Tinte aussieht.
+  if(!crop.result){
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.drawImage(cropCanvas, sx, sy, c.width, c.height, 0, 0, c.width, c.height);
+    knockout(ctx, c.width, c.height, false);
+    inkOnly(ctx, c.width, c.height);
+    crop.result = trim(c);
+  }
   $("#cropOk").disabled = !crop.result;
   $("#cropPrevBox").innerHTML = crop.result ? `<img alt="Vorschau" src="${crop.result.url}">` : '<span class="hint">Nichts erkannt</span>';
+}
+// Ist die Unterschrift farbig (meist blau), werden schwarze und graue Teile (Text, Linien) entfernt.
+function inkOnly(ctx, w, h){
+  const id = ctx.getImageData(0, 0, w, h), d = id.data;
+  let inked = 0, colored = 0;
+  for(let i = 0; i < d.length; i += 4){
+    if(d[i+3] < 60) continue; inked++;
+    if(Math.max(d[i], d[i+1], d[i+2]) - Math.min(d[i], d[i+1], d[i+2]) > 45) colored++;
+  }
+  if(colored < 40 || colored < inked * 0.1) return;
+  for(let i = 0; i < d.length; i += 4){
+    const sat = Math.max(d[i], d[i+1], d[i+2]) - Math.min(d[i], d[i+1], d[i+2]);
+    if(sat < 30) d[i+3] = 0; else if(sat < 45) d[i+3] = Math.round(d[i+3] * (sat - 30) / 15);
+  }
+  ctx.putImageData(id, 0, 0);
 }
 $("#cropOk").onclick = () => { if(crop.result){ setSig(crop.result); $("#cropDlg").close(); } };
 
