@@ -115,7 +115,7 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:min(560px,calc(100% - 32px));box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:30}
 /* Ausschneiden aus PDF */
 dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(--ink);width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
-#sheetDlg,#saveDlg,#regDlg{width:min(460px,calc(100vw - 32px))}
+#sheetDlg,#saveDlg,#regDlg,#codeDlg,#blockDlg{width:min(460px,calc(100vw - 32px))}
 dialog::backdrop{background:rgba(10,15,30,.55)}
 .dlg{display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
 .dlg-head,.dlg-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
@@ -258,7 +258,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
       </label>
       <label class="field">Arbeits-E-Mail
         <span class="row" style="gap:0;flex-wrap:nowrap">
-          <input type="text" id="regMail" autocomplete="off" required placeholder="max.mustermann" style="border-top-right-radius:0;border-bottom-right-radius:0;min-width:0">
+          <input type="text" id="regMail" autocomplete="off" required placeholder="m.mustermann" style="border-top-right-radius:0;border-bottom-right-radius:0;min-width:0">
           <span class="val" style="border:1px solid var(--line);border-left:0;border-radius:0 7px 7px 0;padding:8px 10px;background:var(--sheet);white-space:nowrap">@schlueter-gabelstapler.de</span>
         </span>
       </label>
@@ -268,6 +268,31 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
       <span></span>
       <button class="primary" value="ok" id="regOk">Anmelden</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="codeDlg">
+  <form method="dialog" class="dlg" id="codeForm">
+    <div class="dlg-head"><strong>Freischaltcode eingeben</strong></div>
+    <div class="dlg-body col" style="gap:12px">
+      <span class="hint" id="codeInfo"></span>
+      <label class="field">Code aus der E-Mail
+        <input type="text" id="codeInput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="font:600 22px var(--f-mono);letter-spacing:.3em">
+      </label>
+      <span class="hint" id="codeErr" style="color:var(--warn)" hidden></span>
+    </div>
+    <div class="dlg-foot">
+      <div class="row"><button type="button" class="ghost" id="codeBack">E-Mail ändern</button><button type="button" class="ghost" id="codeResend">Code neu senden</button></div>
+      <button class="primary" id="codeOk">Freischalten</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="blockDlg">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head"><strong>Programm gesperrt</strong></div>
+    <div class="dlg-body"><span class="hint">Dein Zugang zu PDF Unterschreiben wurde gesperrt. Bitte wende dich an Benjamin Stockey.</span></div>
+    <div class="dlg-foot"><span></span><button type="button" class="primary" id="blockRetry">Erneut prüfen</button></div>
   </form>
 </dialog>
 
@@ -311,13 +336,15 @@ try { new EventSource("/api/alive"); } catch(e) {}
 
 const state = {sig: null, keyword: "Unterschrift Techniker, Servicetechniker", width: 130, addDate: false, ink: "#1d3fb8", tick: 1, docs: []};
 let saveT;
+function persistNow(){
+  clearTimeout(saveT);
+  const {sig, keyword, width, addDate, ink, tick, user, lastStart, blocked} = state;
+  return fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick, user, lastStart, blocked})})
+    .catch(() => toast("Einstellungen konnten nicht gespeichert werden."));
+}
 function persist(){
   clearTimeout(saveT);
-  saveT = setTimeout(() => {
-    const {sig, keyword, width, addDate, ink, tick, user, lastStart} = state;
-    fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick, user, lastStart})})
-      .catch(() => toast("Einstellungen konnten nicht gespeichert werden."));
-  }, 300);
+  saveT = setTimeout(persistNow, 300);
 }
 
 let toastT;
@@ -1311,48 +1338,97 @@ $("#updateBtn").onclick = async () => {
   }catch(e){ toast("Update fehlgeschlagen."); b.disabled = false; b.textContent = "Jetzt aktualisieren"; }
 };
 
-/* ---------- Anmeldung & Nutzungsmeldung ---------- */
+/* ---------- Anmeldung, Freischaltung & Nutzungsmeldung ---------- */
 const MAIL_DOMAIN = "schlueter-gabelstapler.de";
-function report(event, count = 1){
-  if(!state.user) return;
-  fetch("/api/report", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event, count})}).catch(() => {});
+let reportOn = false;
+async function call(event, extra = {}){
+  try{
+    return await (await fetch("/api/report", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event, ...extra})})).json();
+  }catch(e){ return {ok: false, offline: true, error: "Keine Verbindung zum Programm."}; }
 }
-// Vorschlag für die E-Mail aus dem Namen: „Max Müller“ → max.mueller
+function report(event, count = 1){
+  if(reportOn && state.user && state.user.verified) call(event, {count});
+}
+// Vorschlag für die E-Mail aus dem Namen: „Max Müller“ → m.mueller
 function mailFromName(n){
-  return n.trim().toLowerCase()
+  const w = n.trim().toLowerCase()
     .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .split(/\s+/).filter(Boolean).join(".").replace(/[^a-z0-9.-]/g, "");
+    .split(/\s+/).map(x => x.replace(/[^a-z0-9-]/g, "")).filter(Boolean);
+  if(w.length < 2) return w.join("");
+  return w[0][0] + "." + w.slice(1).join("-");
 }
+const locked = () => reportOn && (!state.user || !state.user.verified || state.blocked);
+["regDlg", "codeDlg", "blockDlg"].forEach(id => $("#" + id).addEventListener("cancel", e => { if(locked()) e.preventDefault(); }));
 let mailEdited = false;
 $("#regName").addEventListener("input", () => { if(!mailEdited) $("#regMail").value = mailFromName($("#regName").value); });
 $("#regMail").addEventListener("input", () => {
   mailEdited = true;
   const v = $("#regMail").value; const at = v.indexOf("@"); if(at >= 0) $("#regMail").value = v.slice(0, at);
 });
-$("#regDlg").addEventListener("cancel", e => { if(!state.user) e.preventDefault(); });
-$("#regForm").addEventListener("submit", e => {
+const regErr = m => { $("#regErr").textContent = m; $("#regErr").hidden = !m; };
+const codeErr = m => { $("#codeErr").textContent = m; $("#codeErr").hidden = !m; };
+$("#regForm").addEventListener("submit", async e => {
+  e.preventDefault();
   const name = $("#regName").value.trim().replace(/\s+/g, " ");
   const local = $("#regMail").value.trim().toLowerCase();
-  let err = "";
-  if(name.split(" ").length < 2) err = "Bitte Vor- und Nachnamen eintragen.";
-  else if(!/^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+([.-][a-z0-9]+)*$/.test(local)) err = "Die E-Mail hat die Form vorname.nachname@" + MAIL_DOMAIN + ".";
-  if(err){ e.preventDefault(); $("#regErr").textContent = err; $("#regErr").hidden = false; return; }
-  const first = !state.user;
+  if(name.split(" ").length < 2) return regErr("Bitte Vor- und Nachnamen eintragen.");
+  if(!/^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+([.-][a-z0-9]+)*$/.test(local)) return regErr("Die E-Mail hat die Form v.nachname@" + MAIL_DOMAIN + ".");
+  const email = `${local}@${MAIL_DOMAIN}`;
   const id = (state.user && state.user.id) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
-  state.user = {id, name, email: `${local}@${MAIL_DOMAIN}`};
+  const same = state.user && state.user.verified && state.user.email === email;
+  state.user = {id, name, email, verified: same || !reportOn};
   state.lastStart = new Date().toISOString().slice(0, 10);
-  persist(); renderUser();
-  // erst speichern, dann melden (der Server liest den Nutzer aus den Einstellungen)
-  setTimeout(() => report(first ? "register" : "update"), 600);
+  await persistNow(); renderUser();
+  if(!reportOn || same){ $("#regDlg").close(); if(same) call("update"); return; }
+  $("#regOk").disabled = true; regErr("");
+  const r = await call("register");
+  $("#regOk").disabled = false;
+  if(!r.ok) return regErr(r.error || "Anmeldung fehlgeschlagen.");
+  $("#regDlg").close(); openCode(false);
 });
 function openRegistration(){
-  $("#regErr").hidden = true;
+  regErr("");
   $("#regName").value = state.user ? state.user.name : "";
   $("#regMail").value = state.user ? state.user.email.split("@")[0] : "";
   mailEdited = !!state.user;
   $("#regDlg").showModal();
 }
+async function openCode(send){
+  codeErr(""); $("#codeInput").value = "";
+  $("#codeInfo").textContent = `Wir haben einen 6-stelligen Code an ${state.user.email} geschickt. Er ist 30 Minuten gültig. Schau auch im Spam-Ordner nach.`;
+  if(!$("#codeDlg").open) $("#codeDlg").showModal();
+  if(send){
+    const r = await call("resend");
+    if(!r.ok) codeErr(r.error || "Der Code konnte nicht gesendet werden.");
+  }
+}
+$("#codeBack").onclick = () => { $("#codeDlg").close(); openRegistration(); };
+$("#codeResend").onclick = async () => {
+  $("#codeResend").disabled = true; codeErr("");
+  const r = await call("resend");
+  $("#codeResend").disabled = false;
+  codeErr(r.ok ? "" : (r.error || "Der Code konnte nicht gesendet werden."));
+  if(r.ok) toast("Neuer Code ist unterwegs.");
+};
+$("#codeForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const code = $("#codeInput").value.replace(/\D/g, "");
+  if(code.length !== 6) return codeErr("Der Code hat 6 Ziffern.");
+  $("#codeOk").disabled = true;
+  const r = await call("verify", {code});
+  $("#codeOk").disabled = false;
+  if(!r.ok || !r.verified) return codeErr(r.error || "Der Code stimmt nicht.");
+  state.user.verified = true; state.blocked = !!r.blocked;
+  await persistNow(); renderUser();
+  $("#codeDlg").close();
+  if(state.blocked) $("#blockDlg").showModal(); else toast("Freigeschaltet – viel Spaß mit dem Programm!");
+});
+$("#blockRetry").onclick = async () => {
+  const r = await call("start");
+  if(r.ok && !r.blocked){ state.blocked = false; $("#blockDlg").close(); toast("Zugang ist wieder freigegeben."); }
+  else toast(r.ok ? "Der Zugang ist weiterhin gesperrt." : (r.error || "Keine Verbindung."));
+};
 function renderUser(){
   const el = $("#userLine");
   if(!state.user){ el.hidden = true; return; }
@@ -1360,23 +1436,32 @@ function renderUser(){
   el.innerHTML = `Angemeldet als ${esc(state.user.name)} (${esc(state.user.email)}) · <button class="ghost" id="userChange" style="padding:0;font-size:13px;text-decoration:underline">ändern</button>`;
   $("#userChange").onclick = openRegistration;
 }
+async function checkAccess(){
+  if(!reportOn) return;
+  if(!state.user) return openRegistration();
+  if(!state.user.verified) return openCode(true);
+  if(state.blocked){ $("#blockDlg").showModal(); return; }
+  const day = new Date().toISOString().slice(0, 10);
+  if(state.lastStart === day) return;
+  const r = await call("start");
+  if(r.ok){
+    state.lastStart = day; state.blocked = !!r.blocked; persist();
+    if(state.blocked) $("#blockDlg").showModal();
+  }
+}
 
 /* ---------- Start ---------- */
 (async () => {
   try{
     const s = await (await fetch("/api/settings", {cache: "no-store"})).json();
-    for(const k of ["sig","keyword","width","addDate","ink","tick","user","lastStart"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
+    for(const k of ["sig","keyword","width","addDate","ink","tick","user","lastStart","blocked"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
     if(state.keyword.trim() === "Unterschrift Techniker"){ state.keyword = "Unterschrift Techniker, Servicetechniker"; persist(); }
   }catch(e){}
   renderSettings(); renderSig(); renderAll(); renderUser();
-  if(!state.user) openRegistration();
-  else {
-    const day = new Date().toISOString().slice(0, 10);
-    if(state.lastStart !== day){ state.lastStart = day; persist(); setTimeout(() => report("start"), 800); }
-  }
   try{
     const i = await (await fetch("/api/info", {cache: "no-store"})).json();
     $("#verText").textContent = `Version ${i.version}`;
+    reportOn = !!i.report; checkAccess();
     if(i.updates){ $("#checkBtn").hidden = false; checkUpdates(false); }
   }catch(e){}
 })();

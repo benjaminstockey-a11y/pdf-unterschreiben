@@ -33,10 +33,11 @@ func (a *app) handleReport(w http.ResponseWriter, r *http.Request) {
 	var ev struct {
 		Event string `json:"event"`
 		Count int    `json:"count"`
+		Code  string `json:"code"`
 	}
 	_ = json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&ev)
-	w.WriteHeader(http.StatusNoContent)
 	if ReportURL == "" || !strings.HasPrefix(ReportURL, "https://script.google.com/") {
+		writeJSON(w, map[string]any{"ok": true, "disabled": true})
 		return
 	}
 	// Den Nutzer aus den gespeicherten Einstellungen nehmen, nicht aus der Anfrage
@@ -47,6 +48,7 @@ func (a *app) handleReport(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(b, &s)
 	}
 	if s.User == nil || s.User.ID == "" {
+		writeJSON(w, map[string]any{"ok": false, "error": "Nicht angemeldet."})
 		return
 	}
 	if ev.Count <= 0 {
@@ -54,14 +56,31 @@ func (a *app) handleReport(w http.ResponseWriter, r *http.Request) {
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"key": ReportKey, "id": s.User.ID, "name": s.User.Name, "email": s.User.Email,
-		"event": ev.Event, "count": ev.Count, "version": Version,
+		"event": ev.Event, "count": ev.Count, "code": ev.Code, "version": Version,
 	})
-	go func() {
-		c := &http.Client{Timeout: 20 * time.Second}
+	send := func() ([]byte, error) {
+		c := &http.Client{Timeout: 30 * time.Second}
 		resp, err := c.Post(ReportURL, "application/json", bytes.NewReader(payload))
-		if err == nil {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+		if err != nil {
+			return nil, err
 		}
-	}()
+		defer resp.Body.Close()
+		return io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	}
+	switch ev.Event {
+	case "save", "print", "mail":
+		// Zählt nur mit – nicht auf die Antwort warten
+		go send()
+		writeJSON(w, map[string]any{"ok": true})
+	default:
+		// Anmeldung, Code prüfen, Start: Antwort wird gebraucht (Freischaltung / Sperre)
+		b, err := send()
+		if err != nil || !json.Valid(b) {
+			writeJSON(w, map[string]any{"ok": false, "offline": true, "error": "Keine Verbindung zum Anmeldeserver. Bitte Internetverbindung prüfen."})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(b)
+	}
 }
