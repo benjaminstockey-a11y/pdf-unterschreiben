@@ -1,10 +1,11 @@
-# Baut bei jedem Versions-Tag (z. B. v1.0.1) die Setup.exe und veröffentlicht sie als Release.
-# Die installierten Programme finden das Update dann automatisch über version.json.
+# Sobald in der Datei VERSION eine neue Nummer steht, wird die Setup.exe gebaut und als Release
+# veröffentlicht. Die installierten Programme finden das Update dann automatisch über version.json.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,39 +16,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Version lesen
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+          if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Version $VERSION ist schon veröffentlicht – nichts zu tun."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-go@v5
+        if: steps.ver.outputs.skip != '1'
         with:
           go-version: "1.24"
 
       - name: pdf-lib mitliefern (damit das Programm offline speichern kann)
+        if: steps.ver.outputs.skip != '1'
         run: curl -fsSL -o web/lib/pdf-lib.min.js https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js
 
       - name: Bauen
+        if: steps.ver.outputs.skip != '1'
         env:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
             -ldflags "-s -w -H=windowsgui -X main.Version=$VERSION -X main.RepoOwner=$OWNER -X main.RepoName=$REPO" \
             -o PDF-Unterschreiben-Setup.exe .
 
       - name: version.json schreiben
+        if: steps.ver.outputs.skip != '1'
         env:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: |
           NOTES="$(git log -1 --format=%s "$GITHUB_SHA")"
           SHA="$(sha256sum PDF-Unterschreiben-Setup.exe | cut -d' ' -f1)"
-          URL="https://github.com/$OWNER/$REPO/releases/download/$GITHUB_REF_NAME/PDF-Unterschreiben-Setup.exe"
+          URL="https://github.com/$OWNER/$REPO/releases/download/$TAG/PDF-Unterschreiben-Setup.exe"
           jq -n --arg v "$VERSION" --arg n "$NOTES" --arg u "$URL" --arg s "$SHA" \
             '{version:$v, notes:$n, url:$u, sha256:$s}' > version.json
           cat version.json
 
       - name: Release veröffentlichen
+        if: steps.ver.outputs.skip != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" PDF-Unterschreiben-Setup.exe version.json \
+          gh release create "$TAG" PDF-Unterschreiben-Setup.exe version.json --target "$GITHUB_SHA" \
             --title "PDF Unterschreiben $VERSION" --notes "$(git log -1 --format=%s "$GITHUB_SHA")"

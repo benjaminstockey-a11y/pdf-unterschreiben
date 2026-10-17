@@ -28,12 +28,6 @@ Windows-Einstellungen → Apps → „PDF Unterschreiben“ → Deinstallieren.
 
 ### Neue Version veröffentlichen
 
-Änderung committen, dann einen Tag mit höherer Versionsnummer pushen:
-
-```
-git commit -am "Was sich geändert hat (erscheint als Update-Hinweis)"
-git tag v1.0.1
-git push && git push --tags
-```
+In der Datei `VERSION` die Nummer erhöhen (z. B. `1.0.1`) und nach `main` pushen. Die erste Zeile der Commit-Nachricht erscheint im Programm als Update-Hinweis.
 
 GitHub Actions baut daraus die `Setup.exe` und das `version.json` und veröffentlicht beides als Release.
