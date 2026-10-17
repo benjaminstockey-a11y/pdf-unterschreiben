@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF Unterschreiben</title>
+<link rel="icon" href="/icon.png">
+<style>
+/* Layout: Werkbank – links die Unterschrift (Werkzeug), rechts die Dokumente auf dem Tisch */
+:root{
+  --paper:#f3f5f9; --sheet:#ffffff; --ink:#18233a; --muted:#5b6880; --line:#d8deea;
+  --pen:#1d3fb8; --pen-soft:#e5ebfb; --ok:#13703a; --ok-soft:#e3f4ea; --warn:#9a4a07; --warn-soft:#fbefdf;
+  --f-display:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --f-body:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --f-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --paper:#0f131b; --sheet:#171d29; --ink:#e5e9f2; --muted:#98a3b8; --line:#2a3345;
+  --pen:#86a6ff; --pen-soft:#1c2a4d; --ok:#5ad38c; --ok-soft:#14301f; --warn:#f0b35a; --warn-soft:#352610; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);padding:20px 20px 48px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+h1{font:700 30px/1.1 var(--f-display);margin:0;letter-spacing:-.01em}
+.lead{margin:6px 0 0;color:var(--muted);max-width:66ch}
+.ver{font:12.5px var(--f-mono);color:var(--muted);display:flex;gap:10px;align-items:center}
+.ver button{font:12.5px var(--f-body);padding:4px 8px}
+.banner{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:var(--pen);color:#fff;border-radius:10px;padding:12px 16px}
+.banner b{font:600 16px var(--f-display)}
+.banner .notes{font-size:13.5px;opacity:.9;white-space:pre-line;margin-top:2px}
+.banner button{background:#fff;color:#1d3fb8;border-color:#fff;font-weight:600}
+.grid{display:grid;grid-template-columns:350px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:14px}
+aside{display:flex;flex-direction:column;gap:20px;position:sticky;top:12px}
+@media (max-width:900px){aside{position:static}}
+.step{display:flex;align-items:baseline;gap:10px}
+.step b{font:500 12px var(--f-mono);color:var(--pen);letter-spacing:.06em}
+.step h2{font:600 18px var(--f-display);margin:0}
+.hint{font-size:13px;color:var(--muted);margin:0}
+button,.btn{font:500 14px var(--f-body);border-radius:7px;border:1px solid var(--line);background:var(--sheet);color:var(--ink);
+  padding:8px 13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;line-height:1.2}
+button:hover,.btn:hover{border-color:var(--pen)}
+button:focus-visible,.btn:focus-within,input:focus-visible{outline:2px solid var(--pen);outline-offset:2px}
+button.primary{background:var(--pen);border-color:var(--pen);color:var(--sheet)}
+button.primary:hover{filter:brightness(1.08)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:6px 8px}
+button.ghost:hover{color:var(--ink)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.col{display:flex;flex-direction:column;gap:10px}
+.tabs{display:flex;border:1px solid var(--line);border-radius:8px;padding:3px;gap:3px}
+.tabs button{flex:1;justify-content:center;border:0;padding:7px 4px}
+.tabs button[aria-selected="true"]{background:var(--pen-soft);color:var(--pen);font-weight:600}
+.pad-wrap{position:relative;border:1px dashed var(--line);border-radius:8px;background:#fff;height:170px;overflow:hidden}
+.pad-wrap::after{content:"";position:absolute;left:18px;right:18px;bottom:44px;border-bottom:1px solid #b9c2d3;pointer-events:none}
+.pad-wrap .x{position:absolute;left:18px;bottom:48px;font:16px var(--f-mono);color:#9aa5b8;pointer-events:none}
+#pad{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.sig-view{border:1px solid var(--line);border-radius:8px;background:#fff;height:130px;display:grid;place-items:center;padding:12px}
+.sig-view img{max-height:100%;max-width:100%}
+.swatches{display:flex;gap:6px;align-items:center}
+.swatch{width:26px;height:26px;border-radius:50%;padding:0;border:2px solid var(--sheet);box-shadow:0 0 0 1px var(--line)}
+.swatch[aria-pressed="true"]{box-shadow:0 0 0 2px var(--pen)}
+label.field{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:500}
+input[type=text]{font:15px var(--f-body);padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);width:100%}
+input[type=range]{width:100%;accent-color:var(--pen)}
+.check{display:flex;gap:8px;align-items:center;font-size:14px}
+.check input{accent-color:var(--pen);width:16px;height:16px}
+.val{font:13px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.upl{border:1px dashed var(--line);border-radius:8px;padding:18px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.file-btn{position:relative}
+.file-btn input{position:absolute;width:1px;height:1px;opacity:0}
+main{display:flex;flex-direction:column;gap:18px;min-width:0}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:var(--sheet)}
+.drop.over{border-color:var(--pen);background:var(--pen-soft)}
+.drop strong{font:600 16px var(--f-display)}
+.doc{background:var(--sheet);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.doc-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+.doc-title{display:flex;flex-direction:column;gap:4px;min-width:0}
+.doc-name{font-weight:600;overflow-wrap:anywhere}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;padding:2px 9px;border-radius:99px;width:fit-content}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.info{background:var(--pen-soft);color:var(--pen)}
+.pages{display:flex;flex-direction:column;gap:14px;padding:16px;background:var(--paper)}
+.page{position:relative;width:100%;max-width:780px;margin:0 auto;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12),0 6px 18px rgba(20,30,60,.08);container-type:inline-size;cursor:copy}
+.page canvas{position:absolute;inset:0;width:100%;height:100%}
+.page .pno{position:absolute;right:8px;bottom:6px;font:11px var(--f-mono);color:#8b95a8;pointer-events:none}
+.stamp{position:absolute;touch-action:none;cursor:grab;outline:1.5px dashed #1d3fb8;outline-offset:2px;border-radius:2px}
+.stamp:active{cursor:grabbing}
+.stamp img{display:block;width:100%;height:100%;pointer-events:none;user-select:none}
+.stamp .ph{width:100%;height:100%;display:grid;place-items:center;background:rgba(29,63,184,.1);color:#1d3fb8;font:500 calc(100cqw * 9 / var(--pw)) var(--f-body);text-align:center}
+.stamp .date{position:absolute;right:calc(100% + 100cqw * 10 / var(--pw));bottom:calc(100cqw * 2 / var(--pw));font:calc(100cqw * 10 / var(--pw)) Helvetica,Arial,sans-serif;white-space:nowrap;color:#111;pointer-events:none}
+.stamp .del{position:absolute;top:-12px;right:-12px;width:24px;height:24px;border-radius:50%;padding:0;justify-content:center;background:#1d3fb8;color:#fff;border:0;font-size:15px}
+.empty{padding:44px 28px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:8px;align-items:center}
+.empty b{font:600 17px var(--f-display);color:var(--ink)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:min(560px,calc(100% - 32px));box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:30}
+/* Ausschneiden aus PDF */
+dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(--ink);width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(10,15,30,.55)}
+.dlg{display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
+.dlg-head,.dlg-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dlg-foot{border-bottom:0;border-top:1px solid var(--line)}
+.dlg-body{overflow:auto;padding:16px;background:var(--paper)}
+.crop{position:relative;margin:0 auto;max-width:100%;width:fit-content;cursor:crosshair;user-select:none;touch-action:none;background:#fff}
+.crop canvas{display:block;max-width:100%}
+.sel{position:absolute;border:2px solid #1d3fb8;background:rgba(29,63,184,.08);box-shadow:0 0 0 9999px rgba(10,15,30,.25);pointer-events:none}
+.crop-prev{height:70px;min-width:120px;border:1px solid var(--line);border-radius:6px;background:#fff;display:grid;place-items:center;padding:6px}
+.crop-prev img{max-height:100%;max-width:220px}
+@media (prefers-reduced-motion:no-preference){.doc{animation:in .2s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>PDF Unterschreiben</h1>
+      <p class="lead">PDFs reinziehen – deine Unterschrift landet automatisch über dem Unterschriftsfeld. Verschieben per Ziehen oder Klick auf die Seite, dann speichern.</p>
+    </div>
+    <div class="ver"><span id="verText">Version …</span><button class="ghost" id="checkBtn" hidden>Nach Updates suchen</button></div>
+  </div>
+
+  <div class="banner" id="banner" hidden>
+    <div><b id="bannerTitle"></b><div class="notes" id="bannerNotes"></div></div>
+    <button id="updateBtn">Jetzt aktualisieren</button>
+  </div>
+
+  <div class="grid">
+    <aside>
+      <section class="panel" aria-labelledby="h-sig">
+        <div class="step"><b>01</b><h2 id="h-sig">Deine Unterschrift</h2></div>
+
+        <div id="sigView" hidden>
+          <div class="sig-view"><img id="sigImg" alt="Gespeicherte Unterschrift"></div>
+          <div class="row" style="margin-top:10px">
+            <button id="sigRedo">Neu anlegen</button>
+            <button class="ghost" id="sigDelete">Entfernen</button>
+          </div>
+        </div>
+
+        <div id="sigEdit" class="col" style="gap:12px">
+          <div class="tabs" role="tablist">
+            <button role="tab" data-tab="draw" aria-selected="true">Zeichnen</button>
+            <button role="tab" data-tab="image" aria-selected="false">Bild</button>
+            <button role="tab" data-tab="pdf" aria-selected="false">Aus PDF</button>
+          </div>
+          <div id="tab-draw" class="col">
+            <div class="pad-wrap"><span class="x">×</span><canvas id="pad" aria-label="Zeichenfeld für die Unterschrift"></canvas></div>
+            <div class="row" style="justify-content:space-between">
+              <div class="swatches" aria-label="Stiftfarbe">
+                <button class="swatch" data-ink="#1d3fb8" style="background:#1d3fb8" aria-label="Blau"></button>
+                <button class="swatch" data-ink="#111111" style="background:#111" aria-label="Schwarz"></button>
+              </div>
+              <div class="row">
+                <button class="ghost" id="padClear">Leeren</button>
+                <button class="primary" id="padSave">Übernehmen</button>
+              </div>
+            </div>
+          </div>
+          <div id="tab-image" class="upl" hidden>
+            <span class="hint">Foto oder Scan deiner Unterschrift (PNG oder JPG)</span>
+            <label class="btn file-btn">Bild auswählen<input type="file" id="sigFile" accept="image/png,image/jpeg,image/webp"></label>
+            <label class="check"><input type="checkbox" id="removeBg" checked> Weißen Hintergrund entfernen</label>
+          </div>
+          <div id="tab-pdf" class="upl" hidden>
+            <span class="hint">Nimm eine PDF, die du schon unterschrieben hast, und zieh einen Rahmen um deine Unterschrift.</span>
+            <label class="btn file-btn">Unterschriebene PDF wählen<input type="file" id="sigPdf" accept="application/pdf,.pdf"></label>
+          </div>
+        </div>
+        <p class="hint">Bleibt auf diesem Computer gespeichert.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-set">
+        <div class="step"><b>02</b><h2 id="h-set">Platzierung</h2></div>
+        <label class="field">Suchwort im PDF
+          <input type="text" id="kw" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="row" style="justify-content:space-between">Breite der Unterschrift <span class="val" id="wVal"></span></span>
+          <input type="range" id="w" min="70" max="280" step="5">
+        </label>
+        <label class="check"><input type="checkbox" id="addDate"> Heutiges Datum links daneben setzen</label>
+      </section>
+    </aside>
+
+    <main>
+      <div class="drop" id="drop">
+        <div>
+          <strong>PDFs hier ablegen</strong>
+          <p class="hint">Mehrere Dateien gleichzeitig gehen auch.</p>
+        </div>
+        <div class="row">
+          <button id="openBtn">PDFs öffnen</button>
+          <input type="file" id="pdfFile" accept="application/pdf,.pdf" multiple hidden>
+          <button class="primary" id="saveAll" hidden>Alle speichern</button>
+        </div>
+      </div>
+      <div id="docs"></div>
+    </main>
+  </div>
+</div>
+
+<dialog id="cropDlg">
+  <div class="dlg">
+    <div class="dlg-head">
+      <strong>Rahmen um deine Unterschrift ziehen</strong>
+      <div class="row">
+        <button class="ghost" id="cropPrev">‹ Seite</button>
+        <span class="val" id="cropPage"></span>
+        <button class="ghost" id="cropNext">Seite ›</button>
+      </div>
+    </div>
+    <div class="dlg-body"><div class="crop" id="crop"><canvas id="cropCanvas"></canvas><div class="sel" id="sel" hidden></div></div></div>
+    <div class="dlg-foot">
+      <div class="row"><span class="hint">Vorschau:</span><div class="crop-prev" id="cropPrevBox"><span class="hint">–</span></div></div>
+      <div class="row">
+        <button class="ghost" id="cropCancel">Abbrechen</button>
+        <button class="primary" id="cropOk" disabled>Übernehmen</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/lib/pdf.js"></script>
+<script src="/lib/pdf-lib.min.js" async></script>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/lib/pdf.worker.js";
+const PDF_OPTS = {cMapUrl: "/lib/cmaps/", cMapPacked: true, standardFontDataUrl: "/lib/standard_fonts/"};
+const openPdf = bytes => pdfjsLib.getDocument({data: bytes.slice(), ...PDF_OPTS}).promise;
+
+/* Verbindung zum Programm halten: schließt man das Fenster, beendet sich das Programm. */
+try { new EventSource("/api/alive"); } catch(e) {}
+
+const state = {sig: null, keyword: "Unterschrift Techniker", width: 130, addDate: false, ink: "#1d3fb8", docs: []};
+let saveT;
+function persist(){
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    const {sig, keyword, width, addDate, ink} = state;
+    fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink})})
+      .catch(() => toast("Einstellungen konnten nicht gespeichert werden."));
+  }, 300);
+}
+
+let toastT;
+function toast(msg, ms = 4500){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms); }
+const sigRatio = () => state.sig ? state.sig.h / state.sig.w : 0.38;
+const sigH = () => state.width * sigRatio();
+const today = () => new Date().toLocaleDateString("de-DE");
+const cm = pt => (pt * 2.54 / 72).toLocaleString("de-DE", {maximumFractionDigits: 1}) + " cm";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- Unterschrift: zeichnen ---------- */
+const pad = $("#pad"), pctx = pad.getContext("2d");
+let drawing = false, last = null, lastMid = null, hasInk = false;
+function sizePad(){
+  const r = pad.getBoundingClientRect(); if(!r.width) return;
+  const d = window.devicePixelRatio || 1;
+  pad.width = Math.round(r.width * d); pad.height = Math.round(r.height * d);
+  pctx.setTransform(d,0,0,d,0,0); pctx.lineCap = "round"; pctx.lineJoin = "round"; hasInk = false;
+}
+const pt = e => { const r = pad.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; };
+pad.addEventListener("pointerdown", e => {
+  if(!pad.width || pad.width < 10) sizePad();
+  pad.setPointerCapture(e.pointerId); drawing = true; last = lastMid = pt(e);
+  pctx.fillStyle = state.ink; pctx.beginPath(); pctx.arc(last.x, last.y, 1.3, 0, Math.PI*2); pctx.fill(); hasInk = true;
+});
+pad.addEventListener("pointermove", e => {
+  if(!drawing) return;
+  const p = pt(e), m = {x: (last.x+p.x)/2, y: (last.y+p.y)/2};
+  const speed = Math.hypot(p.x-last.x, p.y-last.y);
+  pctx.strokeStyle = state.ink; pctx.lineWidth = Math.max(1.6, 3 - speed * 0.06);
+  pctx.beginPath(); pctx.moveTo(lastMid.x, lastMid.y); pctx.quadraticCurveTo(last.x, last.y, m.x, m.y); pctx.stroke();
+  lastMid = m; last = p; hasInk = true;
+});
+["pointerup","pointercancel"].forEach(ev => pad.addEventListener(ev, () => drawing = false));
+$("#padClear").onclick = () => { pctx.clearRect(0,0,pad.width,pad.height); hasInk = false; };
+$("#padSave").onclick = () => {
+  if(!hasInk){ toast("Zeichne zuerst deine Unterschrift ins Feld."); return; }
+  const t = trim(pad); if(!t){ toast("Das Feld ist leer."); return; }
+  setSig(t);
+};
+function markInk(){ document.querySelectorAll(".swatch").forEach(s => s.setAttribute("aria-pressed", s.dataset.ink === state.ink ? "true" : "false")); }
+document.querySelectorAll(".swatch").forEach(b => b.onclick = () => { state.ink = b.dataset.ink; markInk(); persist(); });
+
+function trim(src){
+  const ctx = src.getContext("2d"), {width: w, height: h} = src;
+  const data = ctx.getImageData(0,0,w,h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){
+    if(data[(y*w+x)*4+3] > 8){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  }
+  if(x1 < 0) return null;
+  const p = 4; x0 = Math.max(0,x0-p); y0 = Math.max(0,y0-p); x1 = Math.min(w-1,x1+p); y1 = Math.min(h-1,y1+p);
+  const c = document.createElement("canvas"); c.width = x1-x0+1; c.height = y1-y0+1;
+  c.getContext("2d").drawImage(src, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+  return {url: c.toDataURL("image/png"), w: c.width, h: c.height};
+}
+// Hintergrund entfernen: alles, was der Randfarbe (Papier, graues Feld) ähnelt, wird durchsichtig.
+function knockout(ctx, w, h, fixedWhite){
+  const id = ctx.getImageData(0,0,w,h), d = id.data;
+  let bg = [255,255,255];
+  if(!fixedWhite){
+    const rs = [], gs = [], bs = [];
+    const push = i => { rs.push(d[i]); gs.push(d[i+1]); bs.push(d[i+2]); };
+    for(let x = 0; x < w; x++){ push(x*4); push(((h-1)*w+x)*4); }
+    for(let y = 0; y < h; y++){ push(y*w*4); push((y*w+w-1)*4); }
+    const med = a => a.sort((p,q) => p-q)[a.length >> 1];
+    bg = [med(rs), med(gs), med(bs)];
+  }
+  for(let i = 0; i < d.length; i += 4){
+    const dist = Math.max(Math.abs(d[i]-bg[0]), Math.abs(d[i+1]-bg[1]), Math.abs(d[i+2]-bg[2]));
+    d[i+3] = Math.round(d[i+3] * Math.min(1, Math.max(0, (dist - 28) / 60)));
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+/* ---------- Unterschrift: Bild ---------- */
+$("#sigFile").onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const s = Math.min(1, 1600 / img.naturalWidth);
+    const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth*s); c.height = Math.round(img.naturalHeight*s);
+    const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0, c.width, c.height);
+    if($("#removeBg").checked) knockout(ctx, c.width, c.height, false);
+    const t = trim(c); URL.revokeObjectURL(img.src); e.target.value = "";
+    if(!t){ toast("Auf dem Bild wurde keine Unterschrift erkannt. Versuch es ohne Hintergrund-Entfernung."); return; }
+    setSig(t);
+  };
+  img.onerror = () => toast("Das Bild konnte nicht gelesen werden.");
+  img.src = URL.createObjectURL(f);
+};
+
+/* ---------- Unterschrift: aus PDF ausschneiden ---------- */
+const crop = {pdf: null, page: 1, scale: 3, sel: null, result: null};
+const cropCanvas = $("#cropCanvas"), selEl = $("#sel");
+$("#sigPdf").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if(!f) return;
+  try{ crop.pdf = await openPdf(new Uint8Array(await f.arrayBuffer())); }
+  catch(err){ toast("Die PDF konnte nicht geöffnet werden."); return; }
+  crop.page = crop.pdf.numPages;
+  $("#cropDlg").showModal();
+  await renderCropPage();
+};
+async function renderCropPage(){
+  crop.sel = null; crop.result = null; selEl.hidden = true; $("#cropOk").disabled = true;
+  $("#cropPrevBox").innerHTML = '<span class="hint">–</span>';
+  $("#cropPage").textContent = `${crop.page} / ${crop.pdf.numPages}`;
+  $("#cropPrev").disabled = crop.page <= 1; $("#cropNext").disabled = crop.page >= crop.pdf.numPages;
+  const p = await crop.pdf.getPage(crop.page), vp = p.getViewport({scale: crop.scale});
+  cropCanvas.width = vp.width; cropCanvas.height = vp.height;
+  cropCanvas.style.width = (vp.width / crop.scale * 1.4) + "px";
+  await p.render({canvasContext: cropCanvas.getContext("2d"), viewport: vp}).promise;
+}
+$("#cropPrev").onclick = () => { if(crop.page > 1){ crop.page--; renderCropPage(); } };
+$("#cropNext").onclick = () => { if(crop.page < crop.pdf.numPages){ crop.page++; renderCropPage(); } };
+$("#cropCancel").onclick = () => $("#cropDlg").close();
+(() => {
+  const box = $("#crop"); let start = null;
+  const rel = e => { const r = cropCanvas.getBoundingClientRect(); return {x: Math.min(Math.max(0, e.clientX - r.left), r.width), y: Math.min(Math.max(0, e.clientY - r.top), r.height)}; };
+  box.addEventListener("pointerdown", e => { box.setPointerCapture(e.pointerId); start = rel(e); crop.sel = {x: start.x, y: start.y, w: 0, h: 0}; drawSel(); });
+  box.addEventListener("pointermove", e => {
+    if(!start) return; const p = rel(e);
+    crop.sel = {x: Math.min(start.x, p.x), y: Math.min(start.y, p.y), w: Math.abs(p.x - start.x), h: Math.abs(p.y - start.y)}; drawSel();
+  });
+  box.addEventListener("pointerup", () => { start = null; extractCrop(); });
+  function drawSel(){ const s = crop.sel; selEl.hidden = false; Object.assign(selEl.style, {left: s.x+"px", top: s.y+"px", width: s.w+"px", height: s.h+"px"}); }
+})();
+function extractCrop(){
+  const s = crop.sel; if(!s || s.w < 8 || s.h < 8){ selEl.hidden = true; return; }
+  const k = cropCanvas.width / cropCanvas.getBoundingClientRect().width;
+  const c = document.createElement("canvas"); c.width = Math.round(s.w * k); c.height = Math.round(s.h * k);
+  const ctx = c.getContext("2d");
+  ctx.drawImage(cropCanvas, Math.round(s.x * k), Math.round(s.y * k), c.width, c.height, 0, 0, c.width, c.height);
+  knockout(ctx, c.width, c.height, false);
+  crop.result = trim(c);
+  $("#cropOk").disabled = !crop.result;
+  $("#cropPrevBox").innerHTML = crop.result ? `<img alt="Vorschau" src="${crop.result.url}">` : '<span class="hint">Nichts erkannt</span>';
+}
+$("#cropOk").onclick = () => { if(crop.result){ setSig(crop.result); $("#cropDlg").close(); } };
+
+function setSig(t){
+  state.sig = t; persist();
+  state.docs.forEach(clampStamp); renderSig(); renderAll(); toast("Unterschrift gespeichert.");
+}
+$("#sigRedo").onclick = () => { $("#sigView").hidden = true; $("#sigEdit").hidden = false; requestAnimationFrame(sizePad); };
+$("#sigDelete").onclick = () => { state.sig = null; persist(); renderSig(); renderAll(); };
+document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("[data-tab]").forEach(x => x.setAttribute("aria-selected", x === b));
+  ["draw","image","pdf"].forEach(t => $("#tab-" + t).hidden = t !== b.dataset.tab);
+  if(b.dataset.tab === "draw") requestAnimationFrame(sizePad);
+});
+function renderSig(){
+  const has = !!state.sig;
+  $("#sigView").hidden = !has; $("#sigEdit").hidden = has;
+  if(has) $("#sigImg").src = state.sig.url; else requestAnimationFrame(sizePad);
+}
+
+/* ---------- Einstellungen ---------- */
+function renderSettings(){
+  $("#kw").value = state.keyword; $("#w").value = state.width; $("#addDate").checked = state.addDate;
+  $("#wVal").textContent = cm(state.width); markInk();
+}
+let kwT;
+$("#kw").oninput = e => {
+  state.keyword = e.target.value; persist();
+  clearTimeout(kwT); kwT = setTimeout(async () => { for(const d of state.docs){ d.moved = false; await autoPlace(d); } renderAll(); }, 450);
+};
+$("#w").oninput = e => {
+  state.width = +e.target.value; $("#wVal").textContent = cm(state.width); persist();
+  state.docs.forEach(clampStamp); state.docs.forEach(updateStampEl);
+};
+$("#addDate").onchange = e => { state.addDate = e.target.checked; persist(); state.docs.forEach(updateStampEl); };
+
+/* ---------- Dokumente ---------- */
+const uid = () => Math.random().toString(36).slice(2, 10);
+async function addDoc(name, bytes, handle){
+  let pdf;
+  try{ pdf = await openPdf(bytes); }
+  catch(e){
+    toast(e && e.name === "PasswordException" ? `„${name}“ ist passwortgeschützt und kann nicht unterschrieben werden.` : `„${name}“ konnte nicht als PDF geöffnet werden.`);
+    return;
+  }
+  const pages = [];
+  for(let i = 1; i <= pdf.numPages; i++){ const vp = (await pdf.getPage(i)).getViewport({scale: 1}); pages.push({w: vp.width, h: vp.height}); }
+  const doc = {id: uid(), name, bytes, pdf, pages, handle, stamp: null, found: null, showAll: false, saved: false, moved: false};
+  state.docs.push(doc);
+  await autoPlace(doc);
+}
+async function addEntries(entries){
+  const pdfs = entries.filter(e => e.file && (e.file.type === "application/pdf" || /\.pdf$/i.test(e.file.name)));
+  if(!pdfs.length){ toast("Bitte PDF-Dateien auswählen."); return; }
+  for(const e of pdfs) await addDoc(e.file.name, new Uint8Array(await e.file.arrayBuffer()), e.handle || null);
+  renderAll();
+}
+function clampStamp(doc){
+  const s = doc.stamp; if(!s) return; const P = doc.pages[s.page];
+  s.x = Math.min(Math.max(0, s.x), Math.max(0, P.w - state.width));
+  s.y = Math.min(Math.max(0, s.y), Math.max(0, P.h - sigH()));
+}
+async function autoPlace(doc){
+  const words = state.keyword.trim().split(/\s+/).filter(Boolean);
+  const re = words.length ? new RegExp(words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s*"), "gi") : null;
+  let hit = null;
+  if(re){
+    for(let i = doc.pages.length; i >= 1 && !hit; i--){
+      const p = await doc.pdf.getPage(i), vp = p.getViewport({scale: 1}), tc = await p.getTextContent();
+      // Textstücke zu Zeilen zusammensetzen, damit auch getrennt gespeicherte Wörter gefunden werden
+      const lines = [];
+      for(const it of tc.items){
+        if(!it.str || !it.str.trim()) continue;
+        const t = it.transform, [vx, vy] = vp.convertToViewportPoint(t[4], t[5]);
+        const fh = Math.hypot(t[2], t[3]) || 10;
+        let ln = lines.find(l => Math.abs(l.vy - vy) < Math.max(2, fh * 0.4));
+        if(!ln){ ln = {vy, fh, items: []}; lines.push(ln); }
+        ln.items.push({x: vx, w: it.width || 0, s: it.str});
+      }
+      const cands = [];
+      for(const ln of lines){
+        ln.items.sort((a, b) => a.x - b.x);
+        let text = "", segs = [], prevEnd = null;
+        for(const it of ln.items){
+          if(prevEnd !== null && it.x - prevEnd > ln.fh * 0.15 && !/\s$/.test(text) && !/^\s/.test(it.s)) text += " ";
+          segs.push({start: text.length, len: it.s.length, x: it.x, w: it.w}); text += it.s; prevEnd = it.x + it.w;
+        }
+        const xAt = idx => { let sg = segs[0]; for(const s of segs) if(s.start <= idx) sg = s; return sg.x + sg.w * Math.min(1, (idx - sg.start) / Math.max(1, sg.len)); };
+        re.lastIndex = 0; let m;
+        while((m = re.exec(text))){
+          // Kurze Zeilen (Feldbeschriftungen) schlagen lange Fließtextzeilen
+          cands.push({x0: xAt(m.index), x1: xAt(m.index + m[0].length), vy: ln.vy, fh: ln.fh, label: text.trim().length < 70});
+          if(!m[0].length) re.lastIndex++;
+        }
+      }
+      const pool = cands.some(c => c.label) ? cands.filter(c => c.label) : cands;
+      let best = null;
+      for(const c of pool) if(!best || c.vy > best.vy + 1 || (Math.abs(c.vy - best.vy) <= 1 && c.x0 > best.x0)) best = c;
+      if(best) hit = {page: i-1, ...best};
+    }
+  }
+  const h = sigH();
+  if(hit){
+    let y = hit.vy - hit.fh - 2 - h; if(y < 4) y = hit.vy + 6;
+    doc.stamp = {page: hit.page, x: (hit.x0 + hit.x1) / 2 - state.width / 2, y}; doc.found = true;
+  } else {
+    const pg = doc.pages.length - 1, P = doc.pages[pg];
+    doc.stamp = {page: pg, x: P.w - state.width - 50, y: P.h - h - 70}; doc.found = false;
+  }
+  clampStamp(doc);
+}
+
+function renderAll(){
+  const box = $("#docs"); box.innerHTML = "";
+  if(!state.docs.length){
+    box.innerHTML = '<div class="doc empty"><b>Noch keine PDFs geöffnet</b><span>Zieh Berichte in das Feld oben oder klick auf „PDFs öffnen“.</span></div>';
+  }
+  state.docs.forEach(d => box.appendChild(buildDoc(d)));
+  updateSaveAll();
+}
+function updateSaveAll(){
+  const n = state.docs.filter(d => d.stamp).length;
+  $("#saveAll").hidden = n < 2; $("#saveAll").textContent = `Alle speichern (${n})`;
+}
+function statusChip(doc){
+  if(!doc.stamp) return '<span class="chip warn">Keine Unterschrift gesetzt – klick auf eine Seite</span>';
+  const pg = `Seite ${doc.stamp.page + 1}`;
+  if(doc.saved) return `<span class="chip ok">✓ Gespeichert · ${pg}</span>`;
+  if(doc.moved) return `<span class="chip info">Von Hand platziert · ${pg}</span>`;
+  if(doc.found) return `<span class="chip ok">„${esc(state.keyword.trim())}“ gefunden · ${pg}</span>`;
+  return `<span class="chip warn">Suchwort nicht gefunden · unten rechts auf ${pg}</span>`;
+}
+
+function buildDoc(doc){
+  const el = document.createElement("article"); el.className = "doc"; el.dataset.id = doc.id;
+  const n = doc.pages.length;
+  el.innerHTML = `
+    <div class="doc-head">
+      <div class="doc-title">
+        <span class="doc-name">${esc(doc.name)}</span>
+        <span class="st">${statusChip(doc)}</span>
+      </div>
+      <div class="row">
+        ${n > 1 ? `<button class="ghost" data-a="all">${doc.showAll ? "Nur Unterschriftsseite" : `Alle ${n} Seiten`}</button>` : ""}
+        <button class="ghost" data-a="auto">Automatisch platzieren</button>
+        <button class="ghost" data-a="rm">Schließen</button>
+        <button class="primary" data-a="save" ${doc.stamp ? "" : "disabled"}>Unterschreiben &amp; speichern</button>
+      </div>
+    </div>
+    <div class="pages"></div>`;
+  el.querySelector('[data-a="rm"]').onclick = () => { state.docs = state.docs.filter(d => d !== doc); try{ doc.pdf.destroy(); }catch(e){} renderAll(); };
+  el.querySelector('[data-a="save"]').onclick = () => saveDoc(doc);
+  el.querySelector('[data-a="auto"]').onclick = async () => { doc.moved = false; doc.saved = false; await autoPlace(doc); rebuild(doc); };
+  const allB = el.querySelector('[data-a="all"]'); if(allB) allB.onclick = () => { doc.showAll = !doc.showAll; rebuild(doc); };
+
+  const pagesEl = el.querySelector(".pages");
+  const focus = doc.stamp ? doc.stamp.page : n - 1;
+  for(let i = 0; i < n; i++){
+    if(!doc.showAll && i !== focus) continue;
+    const P = doc.pages[i];
+    const wrap = document.createElement("div"); wrap.className = "page";
+    wrap.style.aspectRatio = `${P.w} / ${P.h}`; wrap.style.setProperty("--pw", P.w);
+    wrap.dataset.page = i;
+    const cv = document.createElement("canvas"); wrap.appendChild(cv);
+    const no = document.createElement("span"); no.className = "pno"; no.textContent = `${i+1} / ${n}`; wrap.appendChild(no);
+    wrap.addEventListener("click", e => {
+      const r = wrap.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width * P.w - state.width / 2;
+      const y = (e.clientY - r.top) / r.height * P.h - sigH() / 2;
+      const changedPage = !doc.stamp || doc.stamp.page !== i;
+      doc.stamp = {page: i, x, y}; clampStamp(doc); doc.moved = true; doc.saved = false;
+      if(changedPage) rebuild(doc); else { updateStampEl(doc); updateHead(doc); }
+    });
+    pagesEl.appendChild(wrap);
+    requestAnimationFrame(() => paintPage(doc, i, cv, wrap));
+  }
+  setTimeout(() => updateStampEl(doc));
+  return el;
+}
+function rebuild(doc){
+  const old = document.querySelector(`.doc[data-id="${doc.id}"]`);
+  if(old) old.replaceWith(buildDoc(doc)); else renderAll();
+  updateSaveAll();
+}
+function updateHead(doc){
+  const el = document.querySelector(`.doc[data-id="${doc.id}"]`); if(!el) return;
+  el.querySelector(".st").innerHTML = statusChip(doc);
+  el.querySelector('[data-a="save"]').disabled = !doc.stamp;
+  updateSaveAll();
+}
+async function paintPage(doc, i, cv, wrap){
+  const w = wrap.clientWidth; if(!w) return;
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  if(cv._task){ try{ cv._task.cancel(); }catch(e){} }
+  const p = await doc.pdf.getPage(i + 1);
+  const vp = p.getViewport({scale: w / doc.pages[i].w * d});
+  cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+  const task = p.render({canvasContext: cv.getContext("2d"), viewport: vp}); cv._task = task;
+  try{ await task.promise; }catch(e){}
+}
+function updateStampEl(doc){
+  const card = document.querySelector(`.doc[data-id="${doc.id}"]`); if(!card) return;
+  card.querySelectorAll(".stamp").forEach(s => s.remove());
+  if(!doc.stamp) return;
+  const wrap = card.querySelector(`.page[data-page="${doc.stamp.page}"]`); if(!wrap) return;
+  const P = doc.pages[doc.stamp.page], s = doc.stamp;
+  const st = document.createElement("div"); st.className = "stamp";
+  st.style.left = (s.x / P.w * 100) + "%"; st.style.top = (s.y / P.h * 100) + "%";
+  st.style.width = (state.width / P.w * 100) + "%"; st.style.height = (sigH() / P.h * 100) + "%";
+  st.innerHTML = (state.sig ? `<img alt="" src="${state.sig.url}">` : `<div class="ph">Deine Unterschrift</div>`)
+    + (state.addDate ? `<span class="date">${today()}</span>` : "")
+    + `<button class="del" aria-label="Unterschrift entfernen">×</button>`;
+  st.querySelector(".del").onclick = e => { e.stopPropagation(); doc.stamp = null; doc.saved = false; updateStampEl(doc); updateHead(doc); };
+  st.addEventListener("click", e => e.stopPropagation());
+  let drag = null;
+  st.addEventListener("pointerdown", e => {
+    if(e.target.closest(".del")) return;
+    e.stopPropagation(); st.setPointerCapture(e.pointerId);
+    const r = wrap.getBoundingClientRect();
+    drag = {r, ox: e.clientX - r.left - s.x / P.w * r.width, oy: e.clientY - r.top - s.y / P.h * r.height};
+  });
+  st.addEventListener("pointermove", e => {
+    if(!drag) return;
+    s.x = (e.clientX - drag.r.left - drag.ox) / drag.r.width * P.w;
+    s.y = (e.clientY - drag.r.top - drag.oy) / drag.r.height * P.h;
+    clampStamp(doc);
+    st.style.left = (s.x / P.w * 100) + "%"; st.style.top = (s.y / P.h * 100) + "%";
+  });
+  const end = () => { if(drag){ drag = null; doc.moved = true; doc.saved = false; updateHead(doc); } };
+  st.addEventListener("pointerup", end); st.addEventListener("pointercancel", end);
+  wrap.appendChild(st);
+}
+
+/* ---------- Unterschreiben & speichern ---------- */
+function dataUrlBytes(url){ const b = atob(url.split(",")[1]); const a = new Uint8Array(b.length); for(let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+async function buildSigned(doc){
+  const {PDFDocument, StandardFonts, rgb, degrees} = PDFLib;
+  const out = await PDFDocument.load(doc.bytes, {ignoreEncryption: true});
+  const png = await out.embedPng(dataUrlBytes(state.sig.url));
+  const s = doc.stamp, h = sigH();
+  const vp = (await doc.pdf.getPage(s.page + 1)).getViewport({scale: 1});
+  const rot = degrees(vp.rotation);
+  const page = out.getPage(s.page);
+  const [ax, ay] = vp.convertToPdfPoint(s.x, s.y + h);
+  page.drawImage(png, {x: ax, y: ay, width: state.width, height: h, rotate: rot});
+  if(state.addDate){
+    const font = await out.embedFont(StandardFonts.Helvetica);
+    const t = today(), tw = font.widthOfTextAtSize(t, 10);
+    const [tx, ty] = vp.convertToPdfPoint(s.x - tw - 10, s.y + h - 2);
+    page.drawText(t, {x: tx, y: ty, size: 10, font, color: rgb(.07,.07,.07), rotate: rot});
+  }
+  return out.save();
+}
+const outName = doc => doc.name.replace(/\.pdf$/i, "") + "_unterschrieben.pdf";
+function ready(doc){
+  if(!window.PDFLib){ toast("Zum ersten Speichern braucht das Programm einmal Internet. Bitte verbinden und das Programm neu öffnen.", 7000); return false; }
+  if(!state.sig){ toast("Leg zuerst links deine Unterschrift an."); return false; }
+  if(doc && !doc.stamp){ toast("Klick auf eine Seite, um die Unterschrift zu setzen."); return false; }
+  return true;
+}
+async function signed(doc){
+  try{ return await buildSigned(doc); }
+  catch(e){ toast(`„${doc.name}“ konnte nicht verarbeitet werden. Ist die Datei geschützt?`); return null; }
+}
+async function saveDoc(doc){
+  if(!ready(doc)) return;
+  const bytes = await signed(doc); if(!bytes) return;
+  const name = outName(doc);
+  if(window.showSaveFilePicker){
+    try{
+      const opts = {suggestedName: name, types: [{description: "PDF-Dokument", accept: {"application/pdf": [".pdf"]}}]};
+      if(doc.handle) opts.startIn = doc.handle;
+      const fh = await showSaveFilePicker(opts);
+      const w = await fh.createWritable(); await w.write(bytes); await w.close();
+      doc.saved = true; updateHead(doc); toast(`Gespeichert: ${fh.name}`);
+    }catch(e){
+      if(e && e.name === "AbortError") return;
+      toast("Speichern fehlgeschlagen: " + (e && e.message || e));
+    }
+    return;
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([bytes], {type: "application/pdf"}));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  doc.saved = true; updateHead(doc); toast(`In „Downloads“ gespeichert: ${name}`);
+}
+$("#saveAll").onclick = async () => {
+  if(!ready()) return;
+  const list = state.docs.filter(d => d.stamp);
+  if(!window.showDirectoryPicker){ for(const d of list) await saveDoc(d); return; }
+  let dir;
+  try{
+    const opts = {mode: "readwrite"}; const h = list.find(d => d.handle); if(h) opts.startIn = h.handle;
+    dir = await showDirectoryPicker(opts);
+  }catch(e){ return; }
+  let n = 0;
+  for(const d of list){
+    const bytes = await signed(d); if(!bytes) continue;
+    try{
+      const fh = await dir.getFileHandle(outName(d), {create: true});
+      const w = await fh.createWritable(); await w.write(bytes); await w.close();
+      d.saved = true; updateHead(d); n++;
+    }catch(e){ toast(`„${d.name}“ konnte nicht gespeichert werden.`); }
+  }
+  if(n) toast(`${n} ${n === 1 ? "Datei" : "Dateien"} in „${dir.name}“ gespeichert.`);
+};
+
+/* ---------- Dateien öffnen ---------- */
+$("#openBtn").onclick = async () => {
+  if(window.showOpenFilePicker){
+    try{
+      const hs = await showOpenFilePicker({multiple: true, types: [{description: "PDF-Dokumente", accept: {"application/pdf": [".pdf"]}}]});
+      const entries = []; for(const h of hs) entries.push({file: await h.getFile(), handle: h});
+      addEntries(entries);
+    }catch(e){ if(!e || e.name !== "AbortError") $("#pdfFile").click(); }
+  } else $("#pdfFile").click();
+};
+$("#pdfFile").onchange = e => { addEntries([...e.target.files].map(f => ({file: f}))); e.target.value = ""; };
+const drop = $("#drop");
+document.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+document.addEventListener("dragleave", e => { if(!e.relatedTarget) drop.classList.remove("over"); });
+document.addEventListener("drop", async e => {
+  e.preventDefault(); drop.classList.remove("over");
+  if($("#cropDlg").open) return;
+  const items = [...(e.dataTransfer.items || [])].filter(i => i.kind === "file");
+  // Datei-Handles müssen sofort angefragt werden, bevor das Drop-Ereignis vorbei ist
+  const jobs = items.map(i => ({file: i.getAsFile(), handleP: i.getAsFileSystemHandle ? i.getAsFileSystemHandle().catch(() => null) : Promise.resolve(null)}));
+  const entries = [];
+  for(const j of jobs){ const h = await j.handleP; entries.push({file: j.file, handle: h && h.kind === "file" ? h : null}); }
+  if(entries.length) addEntries(entries);
+});
+
+let lastW = innerWidth, rT;
+addEventListener("resize", () => {
+  clearTimeout(rT); rT = setTimeout(() => {
+    if(Math.abs(innerWidth - lastW) < 30) return; lastW = innerWidth;
+    renderAll(); if(!state.sig) sizePad();
+  }, 250);
+});
+
+/* ---------- Updates ---------- */
+let latest = null;
+async function checkUpdates(manual){
+  try{
+    const r = await (await fetch("/api/update/check")).json();
+    if(r.ok && r.available){
+      latest = r.latest;
+      $("#bannerTitle").textContent = `Neue Version ${r.latest} ist da`;
+      $("#bannerNotes").textContent = r.notes || "";
+      $("#banner").hidden = false;
+    } else if(manual){
+      toast(r.ok ? `Du hast die neueste Version (${r.current}).` : "Keine Verbindung zum Update-Server. Bitte Internet prüfen.");
+    }
+  }catch(e){ if(manual) toast("Keine Verbindung zum Update-Server."); }
+}
+$("#checkBtn").onclick = () => checkUpdates(true);
+$("#updateBtn").onclick = async () => {
+  const b = $("#updateBtn"); b.disabled = true; b.textContent = "Wird heruntergeladen …";
+  try{
+    const r = await (await fetch("/api/update/apply", {method: "POST"})).json();
+    if(!r.ok){ toast(r.error || "Update fehlgeschlagen.", 7000); b.disabled = false; b.textContent = "Jetzt aktualisieren"; return; }
+    b.textContent = "Wird neu gestartet …";
+    const t0 = Date.now();
+    const poll = async () => {
+      try{
+        const i = await (await fetch("/api/info", {cache: "no-store"})).json();
+        if(i.version === r.version){ location.reload(); return; }
+      }catch(e){}
+      if(Date.now() - t0 > 30000){ b.textContent = "Bitte Programm neu öffnen"; return; }
+      setTimeout(poll, 500);
+    };
+    setTimeout(poll, 800);
+  }catch(e){ toast("Update fehlgeschlagen."); b.disabled = false; b.textContent = "Jetzt aktualisieren"; }
+};
+
+/* ---------- Start ---------- */
+(async () => {
+  try{
+    const s = await (await fetch("/api/settings", {cache: "no-store"})).json();
+    for(const k of ["sig","keyword","width","addDate","ink"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
+  }catch(e){}
+  renderSettings(); renderSig(); renderAll();
+  try{
+    const i = await (await fetch("/api/info", {cache: "no-store"})).json();
+    $("#verText").textContent = `Version ${i.version}`;
+    if(i.updates){ $("#checkBtn").hidden = false; checkUpdates(false); }
+  }catch(e){}
+})();
+})();
+</script>
+</body>
+</html>

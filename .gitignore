@@ -1,0 +1,4 @@
+PDF-Unterschreiben-Setup.exe
+version.json
+*.exe
+web/lib/pdf-lib.min.js

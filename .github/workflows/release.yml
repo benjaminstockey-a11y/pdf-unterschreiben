@@ -1,0 +1,53 @@
+# Baut bei jedem Versions-Tag (z. B. v1.0.1) die Setup.exe und veröffentlicht sie als Release.
+# Die installierten Programme finden das Update dann automatisch über version.json.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: pdf-lib mitliefern (damit das Programm offline speichern kann)
+        run: curl -fsSL -o web/lib/pdf-lib.min.js https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js
+
+      - name: Bauen
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
+            -ldflags "-s -w -H=windowsgui -X main.Version=$VERSION -X main.RepoOwner=$OWNER -X main.RepoName=$REPO" \
+            -o PDF-Unterschreiben-Setup.exe .
+
+      - name: version.json schreiben
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          NOTES="$(git log -1 --format=%s "$GITHUB_SHA")"
+          SHA="$(sha256sum PDF-Unterschreiben-Setup.exe | cut -d' ' -f1)"
+          URL="https://github.com/$OWNER/$REPO/releases/download/$GITHUB_REF_NAME/PDF-Unterschreiben-Setup.exe"
+          jq -n --arg v "$VERSION" --arg n "$NOTES" --arg u "$URL" --arg s "$SHA" \
+            '{version:$v, notes:$n, url:$u, sha256:$s}' > version.json
+          cat version.json
+
+      - name: Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" PDF-Unterschreiben-Setup.exe version.json \
+            --title "PDF Unterschreiben $VERSION" --notes "$(git log -1 --format=%s "$GITHUB_SHA")"
