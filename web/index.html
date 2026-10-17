@@ -115,6 +115,7 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:min(560px,calc(100% - 32px));box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:30}
 /* Ausschneiden aus PDF */
 dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(--ink);width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#sheetDlg{width:min(460px,calc(100vw - 32px))}
 dialog::backdrop{background:rgba(10,15,30,.55)}
 .dlg{display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
 .dlg-head,.dlg-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
@@ -209,12 +210,12 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
     <main>
       <div class="drop" id="drop">
         <div>
-          <strong>PDFs hier ablegen</strong>
-          <p class="hint">Mehrere Dateien gleichzeitig gehen auch.</p>
+          <strong>PDFs oder Excel-Dateien hier ablegen</strong>
+          <p class="hint">Mehrere Dateien gleichzeitig gehen auch. Excel-Dateien werden mit Excel in eine PDF umgewandelt.</p>
         </div>
         <div class="row">
           <button id="openBtn">PDFs öffnen</button>
-          <input type="file" id="pdfFile" accept="application/pdf,.pdf" multiple hidden>
+          <input type="file" id="pdfFile" accept="application/pdf,.pdf,.xlsx,.xlsm,.xls,.xlsb" multiple hidden>
           <button class="primary" id="printAll" hidden>Drucken</button>
           <button id="saveAll" hidden>Alle speichern</button>
         </div>
@@ -243,6 +244,17 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
       </div>
     </div>
   </div>
+</dialog>
+
+<dialog id="sheetDlg">
+  <form method="dialog" class="dlg" style="max-width:460px">
+    <div class="dlg-head"><strong id="sheetTitle">Welches Blatt?</strong></div>
+    <div class="dlg-body col" id="sheetList" style="gap:6px;max-height:55vh"></div>
+    <div class="dlg-foot">
+      <span class="hint">Vorausgewählt ist das zuletzt geöffnete Blatt.</span>
+      <div class="row"><button class="ghost" value="cancel">Abbrechen</button><button class="primary" value="ok">Öffnen</button></div>
+    </div>
+  </form>
 </dialog>
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
@@ -564,11 +576,51 @@ async function addDoc(name, bytes, handle){
   await autoPlace(doc);
   doc.checks = await findChecks(doc);
 }
+const isPdf = f => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+const isExcel = f => /\.(xlsx|xlsm|xls|xlsb)$/i.test(f.name);
 async function addEntries(entries){
-  const pdfs = entries.filter(e => e.file && (e.file.type === "application/pdf" || /\.pdf$/i.test(e.file.name)));
-  if(!pdfs.length){ toast("Bitte PDF-Dateien auswählen."); return; }
-  for(const e of pdfs) await addDoc(e.file.name, new Uint8Array(await e.file.arrayBuffer()), e.handle || null);
+  const ok = entries.filter(e => e.file && (isPdf(e.file) || isExcel(e.file)));
+  if(!ok.length){ toast("Bitte PDF- oder Excel-Dateien auswählen."); return; }
+  for(const e of ok){
+    if(isPdf(e.file)){ await addDoc(e.file.name, new Uint8Array(await e.file.arrayBuffer()), e.handle || null); continue; }
+    const bytes = await excelToPdf(e.file);
+    if(bytes) await addDoc(e.file.name.replace(/\.[^.]+$/, "") + ".pdf", bytes, e.handle || null);
+  }
   renderAll();
+}
+// Blatt auswählen lassen, wenn die Mappe mehrere sichtbare Blätter hat
+function pickSheet(name, sheets){
+  return new Promise(res => {
+    const dlg = $("#sheetDlg"), list = $("#sheetList");
+    $("#sheetTitle").textContent = `Welches Blatt aus „${name}“?`;
+    list.innerHTML = sheets.map((sh, i) => `<label class="check"><input type="radio" name="sheet" value="${i}" ${sh.active ? "checked" : ""}> ${esc(sh.name)}</label>`).join("");
+    if(!list.querySelector("input:checked")) list.querySelector("input").checked = true;
+    dlg.onclose = () => {
+      if(dlg.returnValue !== "ok") return res(undefined);
+      const v = list.querySelector("input:checked"); res(v ? sheets[+v.value].name : undefined);
+    };
+    dlg.returnValue = ""; dlg.showModal();
+  });
+}
+async function excelToPdf(file){
+  const buf = await file.arrayBuffer(), q = "name=" + encodeURIComponent(file.name);
+  let sheet = "";
+  try{
+    const r = await (await fetch("/api/excel/sheets?" + q, {method: "POST", body: buf})).json();
+    const sheets = (r.ok && r.sheets) || [];
+    if(sheets.length > 1){ sheet = await pickSheet(file.name, sheets); if(sheet === undefined) return null; }
+    else if(sheets.length === 1) sheet = sheets[0].name;
+  }catch(e){}
+  toast(`„${file.name}“ wird mit Excel umgewandelt …`, 120000);
+  try{
+    const resp = await fetch(`/api/excel/pdf?${q}&sheet=${encodeURIComponent(sheet)}`, {method: "POST", body: buf});
+    if((resp.headers.get("Content-Type") || "").includes("application/pdf")){
+      $("#toast").hidden = true;
+      return new Uint8Array(await resp.arrayBuffer());
+    }
+    const j = await resp.json(); toast(j.error || "Umwandeln fehlgeschlagen.", 8000);
+  }catch(e){ toast("Umwandeln fehlgeschlagen.", 8000); }
+  return null;
 }
 function clampStamp(doc){
   const s = doc.stamp; if(!s) return; const P = doc.pages[s.page];
@@ -1056,7 +1108,9 @@ $("#saveAll").onclick = async () => {
 $("#openBtn").onclick = async () => {
   if(window.showOpenFilePicker){
     try{
-      const hs = await showOpenFilePicker({multiple: true, types: [{description: "PDF-Dokumente", accept: {"application/pdf": [".pdf"]}}]});
+      const hs = await showOpenFilePicker({multiple: true, types: [
+        {description: "PDF- und Excel-Dateien", accept: {"application/pdf": [".pdf"], "application/vnd.ms-excel": [".xls", ".xlsx", ".xlsm", ".xlsb"]}}
+      ]});
       const entries = []; for(const h of hs) entries.push({file: await h.getFile(), handle: h});
       addEntries(entries);
     }catch(e){ if(!e || e.name !== "AbortError") $("#pdfFile").click(); }
