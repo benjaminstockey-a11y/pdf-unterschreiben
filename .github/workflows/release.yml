@@ -46,8 +46,12 @@ jobs:
           REPORT_URL: ${{ secrets.REPORT_URL }}
           REPORT_KEY: ${{ secrets.REPORT_KEY }}
         run: |
+          # Leerzeichen/Zeilenumbrüche aus den Secrets entfernen (z. B. beim Einfügen mitkopiert)
+          RU="$(printf '%s' "$REPORT_URL" | tr -d '[:space:]')"
+          RK="$(printf '%s' "$REPORT_KEY" | tr -d '[:space:]')"
+          echo "Anmeldeserver gesetzt: $([ -n "$RU" ] && echo ja || echo nein), Schlüssel-Länge: ${#RK}"
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
-            -ldflags "-s -w -H=windowsgui -X main.Version=$VERSION -X main.RepoOwner=$OWNER -X main.RepoName=$REPO -X main.ReportURL=$REPORT_URL -X main.ReportKey=$REPORT_KEY" \
+            -ldflags "-s -w -H=windowsgui -X main.Version=$VERSION -X main.RepoOwner=$OWNER -X main.RepoName=$REPO -X 'main.ReportURL=$RU' -X 'main.ReportKey=$RK'" \
             -o PDF-Unterschreiben-Setup.exe .
 
       - name: version.json schreiben
