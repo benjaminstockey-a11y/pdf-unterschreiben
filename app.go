@@ -132,6 +132,19 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/excel/sign", a.handleExcelSign)
 	mux.HandleFunc("/api/mail", a.handleMail)
 	mux.HandleFunc("/api/report", a.handleReport)
+	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
+		// Nur feste Adressen im Standardbrowser öffnen (dort ist man bei Google angemeldet)
+		links := map[string]string{
+			"tabelle": "https://docs.google.com/spreadsheets/d/1jUsk23lB_uWjkMMYXkJqDvm09j1ZP3e5GilZZ48ZZBg/edit",
+		}
+		u, ok := links[r.URL.Query().Get("ziel")]
+		if r.Method != http.MethodPost || !ok {
+			http.Error(w, "nein", http.StatusBadRequest)
+			return
+		}
+		_ = hidden("rundll32.exe", "url.dll,FileProtocolHandler", u).Start()
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "POST", http.StatusMethodNotAllowed)
@@ -284,11 +297,15 @@ func repoSlug() string {
 	return RepoOwner + "/" + RepoName
 }
 
-func fetchLatest() (*release, error) {
+// Stabile Versionen liegen im neuesten Release, Testversionen im Vorab-Release „testkanal“.
+func fetchChannel(test bool) (*release, error) {
 	if RepoOwner == "" {
 		return nil, errors.New("keine Update-Quelle eingestellt")
 	}
 	u := fmt.Sprintf("https://github.com/%s/releases/latest/download/version.json", repoSlug())
+	if test {
+		u = fmt.Sprintf("https://github.com/%s/releases/download/testkanal/version.json", repoSlug())
+	}
 	c := &http.Client{Timeout: 8 * time.Second}
 	resp, err := c.Get(u)
 	if err != nil {
@@ -305,30 +322,68 @@ func fetchLatest() (*release, error) {
 	return &rel, nil
 }
 
-func parseVer(s string) [3]int {
+// fetchLatest liefert die neueste passende Version; im Testkanal die neuere aus Test und Stabil.
+func fetchLatest(test bool) (*release, error) {
+	stable, err := fetchChannel(false)
+	if !test {
+		return stable, err
+	}
+	t, terr := fetchChannel(true)
+	switch {
+	case terr != nil:
+		return stable, err
+	case err != nil || newer(t.Version, stable.Version):
+		return t, nil
+	default:
+		return stable, nil
+	}
+}
+
+// Versionen wie 1.13.0, 1.13.0-test.4: die Testnummer zählt innerhalb derselben Version,
+// und die fertige Version ist neuer als jede Testversion davon.
+func parseVer(s string) (v [3]int, test int) {
 	s = strings.TrimPrefix(strings.TrimSpace(s), "v")
-	if i := strings.IndexAny(s, "-+"); i >= 0 {
+	test = -1
+	if i := strings.Index(s, "-"); i >= 0 {
+		suf := s[i+1:]
+		s = s[:i]
+		if j := strings.LastIndex(suf, "."); j >= 0 {
+			test, _ = strconv.Atoi(suf[j+1:])
+		} else {
+			test = 0
+		}
+	}
+	if i := strings.Index(s, "+"); i >= 0 {
 		s = s[:i]
 	}
-	var v [3]int
 	for i, p := range strings.SplitN(s, ".", 3) {
 		v[i], _ = strconv.Atoi(p)
 	}
-	return v
+	return
 }
 
 func newer(latest, current string) bool {
-	l, c := parseVer(latest), parseVer(current)
+	l, lt := parseVer(latest)
+	c, ct := parseVer(current)
 	for i := 0; i < 3; i++ {
 		if l[i] != c[i] {
 			return l[i] > c[i]
 		}
 	}
-	return false
+	if lt == ct {
+		return false
+	}
+	if lt == -1 {
+		return true // fertige Version schlägt Testversion
+	}
+	if ct == -1 {
+		return false
+	}
+	return lt > ct
 }
 
 func (a *app) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
-	rel, err := fetchLatest()
+	rel, err := fetchLatest(r.URL.Query().Get("kanal") == "test")
 	if err != nil {
 		writeJSON(w, map[string]any{"ok": false, "current": Version, "error": err.Error(), "configured": RepoOwner != ""})
 		return
@@ -342,7 +397,7 @@ func (a *app) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fehler := func(msg string) { writeJSON(w, map[string]any{"ok": false, "error": msg}) }
-	rel, err := fetchLatest()
+	rel, err := fetchLatest(r.URL.Query().Get("kanal") == "test")
 	if err != nil {
 		fehler("Update-Info nicht erreichbar: " + err.Error())
 		return

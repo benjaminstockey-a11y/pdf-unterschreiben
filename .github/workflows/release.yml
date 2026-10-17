@@ -1,5 +1,8 @@
-# Sobald in der Datei VERSION eine neue Nummer steht, wird die Setup.exe gebaut und als Release
-# veröffentlicht. Die installierten Programme finden das Update dann automatisch über version.json.
+# Zwei Kanäle:
+#  - TESTVERSION höher als VERSION  → Testversion (z. B. 1.13.0-test.7) ins Vorab-Release „testkanal“.
+#    Die bekommen nur Admins, die im Programm „Testversionen“ eingeschaltet haben.
+#  - VERSION neu                     → fertige Version als normales Release für alle.
+# Freigeben heißt: VERSION auf die getestete Nummer setzen.
 name: Release
 
 on:
@@ -10,36 +13,52 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Version lesen
+      - name: Kanal bestimmen
         id: ver
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="$(tr -d '[:space:]' < VERSION)"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
-          if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Version $VERSION ist schon veröffentlicht – nichts zu tun."
-            echo "skip=1" >> "$GITHUB_OUTPUT"
+          STABLE="$(tr -d '[:space:]' < VERSION)"
+          TEST="$(tr -d '[:space:]' < TESTVERSION 2>/dev/null || true)"
+          higher() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1)" = "$1" ]; }
+          if ! gh release view "v$STABLE" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Fertige Version $STABLE wird veröffentlicht."
+            echo "kind=stable" >> "$GITHUB_OUTPUT"
+            echo "VERSION=$STABLE" >> "$GITHUB_ENV"
+            echo "TAG=v$STABLE" >> "$GITHUB_ENV"
+          elif [ -n "$TEST" ] && higher "$TEST" "$STABLE"; then
+            V="$TEST-test.${GITHUB_RUN_NUMBER}"
+            echo "Testversion $V wird veröffentlicht."
+            echo "kind=test" >> "$GITHUB_OUTPUT"
+            echo "VERSION=$V" >> "$GITHUB_ENV"
+            echo "TAG=testkanal" >> "$GITHUB_ENV"
+          else
+            echo "Nichts zu tun."
+            echo "kind=none" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/setup-go@v5
-        if: steps.ver.outputs.skip != '1'
+        if: steps.ver.outputs.kind != 'none'
         with:
           go-version: "1.24"
+          cache: false
 
       - name: pdf-lib mitliefern (damit das Programm offline speichern kann)
-        if: steps.ver.outputs.skip != '1'
+        if: steps.ver.outputs.kind != 'none'
         run: curl -fsSL -o web/lib/pdf-lib.min.js https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js
 
       - name: Bauen
-        if: steps.ver.outputs.skip != '1'
+        if: steps.ver.outputs.kind != 'none'
         env:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
@@ -55,7 +74,7 @@ jobs:
             -o PDF-Unterschreiben-Setup.exe .
 
       - name: version.json schreiben
-        if: steps.ver.outputs.skip != '1'
+        if: steps.ver.outputs.kind != 'none'
         env:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
@@ -67,10 +86,21 @@ jobs:
             '{version:$v, notes:$n, url:$u, sha256:$s}' > version.json
           cat version.json
 
-      - name: Release veröffentlichen
-        if: steps.ver.outputs.skip != '1'
+      - name: Fertige Version veröffentlichen
+        if: steps.ver.outputs.kind == 'stable'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$TAG" PDF-Unterschreiben-Setup.exe version.json --target "$GITHUB_SHA" \
+          gh release create "$TAG" PDF-Unterschreiben-Setup.exe version.json --target "$GITHUB_SHA" --latest \
             --title "PDF Unterschreiben $VERSION" --notes "$(git log -1 --format=%s "$GITHUB_SHA")"
+
+      - name: Testversion veröffentlichen
+        if: steps.ver.outputs.kind == 'test'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete testkanal -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          git push origin ":refs/tags/testkanal" 2>/dev/null || true
+          gh release create testkanal PDF-Unterschreiben-Setup.exe version.json --target "$GITHUB_SHA" \
+            --prerelease --latest=false \
+            --title "Testversion $VERSION (nur Admin)" --notes "$(git log -1 --format=%s "$GITHUB_SHA")"

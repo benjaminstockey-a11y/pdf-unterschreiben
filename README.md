@@ -28,6 +28,9 @@ Windows-Einstellungen → Apps → „PDF Unterschreiben“ → Deinstallieren.
 
 ### Neue Version veröffentlichen
 
-In der Datei `VERSION` die Nummer erhöhen (z. B. `1.0.1`) und nach `main` pushen. Die erste Zeile der Commit-Nachricht erscheint im Programm als Update-Hinweis.
+Es gibt zwei Kanäle:
 
-GitHub Actions baut daraus die `Setup.exe` und das `version.json` und veröffentlicht beides als Release.
+1. **Testen:** In `TESTVERSION` eine höhere Nummer eintragen als in `VERSION` (z. B. `1.13.0`) und nach `main` pushen. Jeder weitere Push baut automatisch eine neue Testversion (`1.13.0-test.N`) ins Vorab-Release `testkanal`. Die bekommen nur Admins, die im Programm unter „Testkanal“ Testversionen eingeschaltet haben.
+2. **Freigeben:** In `VERSION` dieselbe Nummer eintragen (z. B. `1.13.0`) und pushen. Dann wird die fertige Version als normales Release für alle veröffentlicht.
+
+Die erste Zeile der Commit-Nachricht erscheint im Programm als Update-Hinweis.

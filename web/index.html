@@ -190,6 +190,13 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
         <p class="hint" id="userLine" hidden></p>
       </section>
 
+      <section class="panel" id="adminPanel" aria-labelledby="h-adm" hidden>
+        <div class="step"><b>ADMIN</b><h2 id="h-adm">Testkanal</h2></div>
+        <label class="check"><input type="checkbox" id="testChannel"> Testversionen vor allen anderen bekommen</label>
+        <p class="hint">Neue Funktionen kommen hier zuerst an. Erst wenn du sie freigibst, bekommen alle anderen das Update.</p>
+        <p class="hint">Nutzerliste und Sperren: <button class="ghost" id="openSheet" style="padding:0;font-size:13px;text-decoration:underline">Google-Tabelle öffnen</button></p>
+      </section>
+
       <section class="panel" aria-labelledby="h-set">
         <div class="step"><b>02</b><h2 id="h-set">Platzierung</h2></div>
         <label class="field">Suchwörter im PDF
@@ -338,8 +345,8 @@ const state = {sig: null, keyword: "Unterschrift Techniker, Servicetechniker", w
 let saveT;
 function persistNow(){
   clearTimeout(saveT);
-  const {sig, keyword, width, addDate, ink, tick, user, lastStart, blocked} = state;
-  return fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick, user, lastStart, blocked})})
+  const {sig, keyword, width, addDate, ink, tick, user, lastStart, blocked, testChannel} = state;
+  return fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick, user, lastStart, blocked, testChannel})})
     .catch(() => toast("Einstellungen konnten nicht gespeichert werden."));
 }
 function persist(){
@@ -1305,13 +1312,18 @@ addEventListener("resize", () => {
 });
 
 /* ---------- Updates ---------- */
+// Admins bekommen auf Wunsch Testversionen, bevor sie für alle freigegeben werden.
+const ADMINS = ["b.stockey@schlueter-gabelstapler.de"];
+const isAdmin = () => !!(state.user && state.user.verified && ADMINS.includes(state.user.email));
+const kanal = () => (isAdmin() && state.testChannel !== false) ? "?kanal=test" : "";
 let latest = null;
 async function checkUpdates(manual){
   try{
-    const r = await (await fetch("/api/update/check")).json();
+    const r = await (await fetch("/api/update/check" + kanal())).json();
     if(r.ok && r.available){
       latest = r.latest;
-      $("#bannerTitle").textContent = `Neue Version ${r.latest} ist da`;
+      const t = /-test/.test(r.latest);
+      $("#bannerTitle").textContent = t ? `Testversion ${r.latest} zum Ausprobieren` : `Neue Version ${r.latest} ist da`;
       $("#bannerNotes").textContent = r.notes || "";
       $("#banner").hidden = false;
     } else if(manual){
@@ -1323,7 +1335,7 @@ $("#checkBtn").onclick = () => checkUpdates(true);
 $("#updateBtn").onclick = async () => {
   const b = $("#updateBtn"); b.disabled = true; b.textContent = "Wird heruntergeladen …";
   try{
-    const r = await (await fetch("/api/update/apply", {method: "POST"})).json();
+    const r = await (await fetch("/api/update/apply" + kanal(), {method: "POST"})).json();
     if(!r.ok){ toast(r.error || "Update fehlgeschlagen.", 7000); b.disabled = false; b.textContent = "Jetzt aktualisieren"; return; }
     b.textContent = "Wird neu gestartet …";
     const t0 = Date.now();
@@ -1430,7 +1442,16 @@ $("#blockRetry").onclick = async () => {
   if(r.ok && !r.blocked){ state.blocked = false; $("#blockDlg").close(); toast("Zugang ist wieder freigegeben."); }
   else toast(r.ok ? "Der Zugang ist weiterhin gesperrt." : (r.error || "Keine Verbindung."));
 };
+function renderAdmin(){
+  $("#adminPanel").hidden = !isAdmin();
+  $("#testChannel").checked = state.testChannel !== false;
+  const v = $("#verText").dataset.v;
+  if(v) $("#verText").innerHTML = `Version ${esc(v)}` + (/-test/.test(v) ? ' <span class="chip warn">Testversion</span>' : "");
+}
+$("#openSheet").onclick = () => fetch("/api/open?ziel=tabelle", {method: "POST"}).catch(() => {});
+$("#testChannel").onchange = e => { state.testChannel = e.target.checked; persist(); $("#banner").hidden = true; checkUpdates(true); };
 function renderUser(){
+  renderAdmin();
   const el = $("#userLine");
   if(!state.user){ el.hidden = true; return; }
   el.hidden = false;
@@ -1460,13 +1481,13 @@ async function refreshBlock(event){
 (async () => {
   try{
     const s = await (await fetch("/api/settings", {cache: "no-store"})).json();
-    for(const k of ["sig","keyword","width","addDate","ink","tick","user","lastStart","blocked"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
+    for(const k of ["sig","keyword","width","addDate","ink","tick","user","lastStart","blocked","testChannel"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
     if(state.keyword.trim() === "Unterschrift Techniker"){ state.keyword = "Unterschrift Techniker, Servicetechniker"; persist(); }
   }catch(e){}
   renderSettings(); renderSig(); renderAll(); renderUser();
   try{
     const i = await (await fetch("/api/info", {cache: "no-store"})).json();
-    $("#verText").textContent = `Version ${i.version}`;
+    $("#verText").dataset.v = i.version; renderAdmin();
     reportOn = !!i.report; checkAccess();
     if(i.updates){ $("#checkBtn").hidden = false; checkUpdates(false); }
   }catch(e){}
