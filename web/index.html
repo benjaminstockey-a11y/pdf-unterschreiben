@@ -1765,14 +1765,14 @@ $("#docuPhotoIn").onchange = e => { addPhotos([...e.target.files]); e.target.val
 new MutationObserver(() => { if($("#docuDlg").open){ renderDocu(); autoNr(); } }).observe($("#docs"), {childList: true});
 document.querySelectorAll('input[name="docuArt"]').forEach(r => r.onchange = () => docuErr(""));
 
-// Foto verkleinern (max. 1800 px), richtig drehen und als JPG einbetten – hält die E-Mail klein
+// Foto verkleinern (max. 2304 px wie bei einem Handy-Scan), richtig drehen und als JPG einbetten
 async function photoJpeg(file){
   const bmp = await createImageBitmap(file, {imageOrientation: "from-image"});
-  const k = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+  const k = Math.min(1, 2304 / Math.max(bmp.width, bmp.height));
   const c = document.createElement("canvas");
   c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
   const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height); bmp.close();
-  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.8));
   return {bytes: new Uint8Array(await blob.arrayBuffer()), w: c.width, h: c.height};
 }
 let docuBusy = false;
@@ -1789,27 +1789,25 @@ $("#docuSend").onclick = async () => {
   try{
     const {PDFDocument, StandardFonts, rgb} = PDFLib;
     const out = await PDFDocument.create();
-    out.setTitle(`${art} ${nr}`); out.setCreator("PDF Unterschreiben");
+    const kurz = {Gewaltschaden: "Gewalt"}[art] || art;
+    out.setTitle(`${nr} ${kurz}`); out.setCreator("PDF Unterschreiben");
     for(const d of list){
       const bytes = (d.stamp && state.sig) ? await signed(d) : d.bytes;
       if(!bytes) throw new Error(`„${d.name}“ konnte nicht verarbeitet werden.`);
       const src = await PDFDocument.load(bytes, {ignoreEncryption: true});
       (await out.copyPages(src, src.getPageIndices())).forEach(pg => out.addPage(pg));
     }
-    const font = await out.embedFont(StandardFonts.Helvetica);
+    // Jedes Foto füllt eine eigene Seite randlos aus – die Seite hat das Seitenverhältnis des Fotos
+    // (kurze Seite = A4-Breite), so wie bei den bisherigen Gewaltschaden-PDFs.
     for(let i = 0; i < docu.photos.length; i++){
       btn.textContent = `Foto ${i + 1} von ${docu.photos.length} …`;
       const ph = await photoJpeg(docu.photos[i].file);
-      const land = ph.w > ph.h, W = land ? 841.89 : 595.28, H = land ? 595.28 : 841.89, M = 28, top = 26;
+      const k = 595.44 / Math.min(ph.w, ph.h), W = ph.w * k, H = ph.h * k;
       const page = out.addPage([W, H]);
-      page.drawText(`${art} · Auftrag ${nr} · Foto ${i + 1} von ${docu.photos.length}`, {x: M, y: H - M - 10, size: 10, font, color: rgb(.25,.28,.35)});
-      const img = await out.embedJpg(ph.bytes);
-      const k = Math.min((W - 2 * M) / ph.w, (H - 2 * M - top) / ph.h);
-      const w = ph.w * k, h = ph.h * k;
-      page.drawImage(img, {x: (W - w) / 2, y: M + (H - 2 * M - top - h) / 2, width: w, height: h});
+      page.drawImage(await out.embedJpg(ph.bytes), {x: 0, y: 0, width: W, height: H});
     }
     btn.textContent = "E-Mail wird geöffnet …";
-    const name = `${art}_${nr}`.replace(/[\\/:*?"<>|\s]+/g, "_") + ".pdf";
+    const name = `${nr}_${kurz}`.replace(/[\\/:*?"<>|\s]+/g, "_") + ".pdf";
     const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({subject: `${art} ${nr}`, files: [{name, data: b64(await out.save())}]})})).json();
     if(!r.ok) return docuErr(r.error || "E-Mail konnte nicht geöffnet werden.");
