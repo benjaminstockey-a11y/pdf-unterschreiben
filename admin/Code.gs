@@ -33,6 +33,7 @@ function handle(d) {
   const now = new Date();
   if (ev === 'feedbacklist') return feedbackList(ss, users, id, mail);
   if (ev === 'feedback') return feedback(ss, name, mail, ver, d.text);
+  if (ev === 'feedbackreply') return feedbackReply(ss, users, id, mail, d.code, d.text);
   if (ev !== 'check') log.appendRow([now, name, mail, ev, "'" + ver, n]);
 
   let row = findRow(users, id);
@@ -85,7 +86,7 @@ function handle(d) {
 function feedback(ss, name, mail, ver, text) {
   const t = clean(text, 3000);
   if (t.length < 3) return { ok: false, error: 'Bitte einen Vorschlag eintragen.' };
-  const s = sheet(ss, 'Vorschläge', ['Zeit', 'Name', 'E-Mail', 'Version', 'Vorschlag', 'Status / Notiz']);
+  const s = ideasSheet(ss);
   s.appendRow([new Date(), name, mail, "'" + ver, t, 'neu']);
   try {
     MailApp.sendEmail({ to: ADMIN_MAILS[0], subject: 'Neuer Verbesserungsvorschlag von ' + name,
@@ -94,18 +95,53 @@ function feedback(ss, name, mail, ver, text) {
   return { ok: true };
 }
 
-// Nur der freigeschaltete Admin bekommt die Liste
-function feedbackList(ss, users, id, mail) {
+const IDEA_HEAD = ['Zeit', 'Name', 'E-Mail', 'Version', 'Vorschlag', 'Status / Notiz', 'Antwort', 'Beantwortet am'];
+function ideasSheet(ss) {
+  const s = sheet(ss, 'Vorschläge', IDEA_HEAD);
+  if (s.getLastColumn() < IDEA_HEAD.length) s.getRange(1, 1, 1, IDEA_HEAD.length).setValues([IDEA_HEAD]).setFontWeight('bold');
+  return s;
+}
+
+// Nur der freigeschaltete Admin darf die Vorschläge lesen und beantworten
+function isAdmin(users, id, mail) {
   const row = findRow(users, id);
-  const ok = row > 0 && ADMIN_MAILS.indexOf(mail) >= 0 &&
+  return row > 0 && ADMIN_MAILS.indexOf(mail) >= 0 &&
     String(users.getRange(row, 7).getValue()).toLowerCase() === 'ja' && users.getRange(row, 2).getValue() === mail;
-  if (!ok) return { ok: false, error: 'Nur für den Administrator.' };
+}
+
+function feedbackList(ss, users, id, mail) {
+  if (!isAdmin(users, id, mail)) return { ok: false, error: 'Nur für den Administrator.' };
   const s = ss.getSheetByName('Vorschläge');
   if (!s || s.getLastRow() < 2) return { ok: true, items: [] };
-  const n = Math.min(100, s.getLastRow() - 1);
-  const v = s.getRange(s.getLastRow() - n + 1, 1, n, 6).getValues().reverse();
-  return { ok: true, items: v.map(r => ({ zeit: r[0] instanceof Date ? r[0].toISOString() : String(r[0]),
-    name: String(r[1]), email: String(r[2]), version: String(r[3]), text: String(r[4]), status: String(r[5]) })) };
+  const last = s.getLastRow(), n = Math.min(100, last - 1), first = last - n + 1;
+  const v = s.getRange(first, 1, n, 8).getValues();
+  const iso = x => x instanceof Date ? x.toISOString() : String(x || '');
+  return { ok: true, items: v.map((r, i) => ({ row: first + i, zeit: iso(r[0]),
+    name: String(r[1]), email: String(r[2]), version: String(r[3]), text: String(r[4]), status: String(r[5]),
+    antwort: String(r[6] || ''), beantwortet: iso(r[7]) })).reverse() };
+}
+
+// Antwort des Admins: geht per E-Mail an die Person und wird in der Tabelle vermerkt
+function feedbackReply(ss, users, id, mail, rowNo, text) {
+  if (!isAdmin(users, id, mail)) return { ok: false, error: 'Nur für den Administrator.' };
+  const t = clean(text, 3000), row = Number(rowNo);
+  if (t.length < 2) return { ok: false, error: 'Bitte eine Antwort eintragen.' };
+  const s = ideasSheet(ss);
+  if (!(row >= 2 && row <= s.getLastRow())) return { ok: false, error: 'Vorschlag nicht gefunden.' };
+  const r = s.getRange(row, 1, 1, 8).getValues()[0];
+  const to = String(r[2]).trim();
+  if (!/^[^@\s]+@[^@\s]+$/.test(to)) return { ok: false, error: 'Zu diesem Vorschlag gibt es keine E-Mail-Adresse.' };
+  const when = r[0] instanceof Date ? Utilities.formatDate(r[0], 'Europe/Berlin', 'dd.MM.yyyy') : '';
+  MailApp.sendEmail({
+    to: to,
+    subject: 'Antwort auf deinen Verbesserungsvorschlag für PDF Unterschreiben',
+    body: 'Hallo ' + r[1] + ',\n\ndanke für deinen Vorschlag' + (when ? ' vom ' + when : '') + ':\n\n    „' +
+      String(r[4]).replace(/\n/g, '\n    ') + '“\n\n' + t + '\n\nViele Grüße\nPDF Unterschreiben',
+    name: 'PDF Unterschreiben'
+  });
+  const now = new Date();
+  s.getRange(row, 6, 1, 3).setValues([['beantwortet', t, now]]);
+  return { ok: true, antwort: t, beantwortet: now.toISOString() };
 }
 
 function sheet(ss, name, head) {
