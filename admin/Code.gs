@@ -35,6 +35,7 @@ function handle(d) {
   if (ev === 'feedback') return feedback(ss, name, mail, ver, d.text);
   if (ev === 'feedbackreply') return feedbackReply(ss, users, id, mail, d.code, d.text);
   if (ev === 'adminlist') return adminList(ss, users, log, id, mail);
+  if (ev === 'feedbackdelete') return feedbackDelete(ss, users, id, mail, d.code, d.text);
   if (ev === 'adminblock') return adminBlock(users, id, mail, d.code, d.text);
   if (ev !== 'check') log.appendRow([now, name, mail, ev, "'" + ver, n]);
 
@@ -144,6 +145,19 @@ function feedbackReply(ss, users, id, mail, rowNo, text) {
   const now = new Date();
   s.getRange(row, 6, 1, 3).setValues([['beantwortet', t, now]]);
   return { ok: true, antwort: t, beantwortet: now.toISOString() };
+}
+
+// Admin-App: Vorschlag löschen. Zur Sicherheit muss der Zeitpunkt passen – falls sich die Zeilen
+// inzwischen verschoben haben, wird nichts Falsches gelöscht.
+function feedbackDelete(ss, users, id, mail, rowNo, zeit) {
+  if (!isAdmin(users, id, mail)) return { ok: false, error: 'Nur für den Administrator.' };
+  const s = ss.getSheetByName('Vorschläge'), row = Number(rowNo);
+  if (!s || !(row >= 2 && row <= s.getLastRow())) return { ok: false, error: 'Vorschlag nicht gefunden.' };
+  const v = s.getRange(row, 1).getValue();
+  const iso = v instanceof Date ? v.toISOString() : String(v || '');
+  if (iso !== String(zeit || '')) return { ok: false, error: 'Die Liste hat sich geändert – bitte aktualisieren und nochmal versuchen.' };
+  s.deleteRow(row);
+  return { ok: true };
 }
 
 // Admin-App: Nutzerliste und Protokoll lesen

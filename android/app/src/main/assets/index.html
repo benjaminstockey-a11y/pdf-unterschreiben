@@ -198,8 +198,16 @@ function ideaCard(i){
     el.innerHTML = `<div class="muted">${esc(fmt(i.zeit))} · Version ${esc(i.version)}</div>
       <div class="name">${esc(i.name)}</div><div class="txt">${esc(i.text)}</div>
       ${i.antwort ? `<div class="ans"><small>Deine Antwort${i.beantwortet ? " vom " + esc(fmt(i.beantwortet)) : ""}</small>${esc(i.antwort)}</div>` : ""}
-      <div class="row" style="justify-content:flex-end"><button>${i.antwort ? "Noch einmal antworten" : "Antworten"}</button></div>`;
-    el.querySelector("button").onclick = edit;
+      <div class="row sp"><button class="danger" data-a="del">Löschen</button><button data-a="rep">${i.antwort ? "Noch einmal antworten" : "Antworten"}</button></div>`;
+    el.querySelector('[data-a="rep"]').onclick = edit;
+    el.querySelector('[data-a="del"]').onclick = del;
+  };
+  const del = async () => {
+    if(!confirm(`Vorschlag von ${i.name} wirklich löschen?\n\n„${i.text.slice(0, 120)}${i.text.length > 120 ? " …" : ""}“\n\nDas lässt sich nicht rückgängig machen.`)) return;
+    const b = el.querySelector('[data-a="del"]'); b.disabled = true; b.textContent = "Wird gelöscht …";
+    const r = await call("feedbackdelete", {code: String(i.row), text: i.zeit});
+    if(!r.ok){ toast(r.error || "Löschen hat nicht geklappt."); return reloadIdeas(); }
+    toast("Vorschlag gelöscht."); reloadIdeas();
   };
   const edit = () => {
     el.querySelector(".row:last-child").outerHTML = `<textarea rows="5" maxlength="3000" placeholder="Antwort an ${esc(i.name)} – geht per E-Mail an ${esc(i.email)}"></textarea>
@@ -222,6 +230,12 @@ function ideaCard(i){
   return el;
 }
 
+// Nach dem Löschen neu laden – die Zeilennummern in der Tabelle verschieben sich dabei
+async function reloadIdeas(){
+  const f = await call("feedbacklist");
+  if(f.ok) S.ideas = f.items || [];
+  shell();
+}
 async function load(){
   S.loading = true; S.err = ""; renderTab();
   const [a, f] = await Promise.all([call("adminlist"), call("feedbacklist")]);
