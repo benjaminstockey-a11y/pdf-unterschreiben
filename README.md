@@ -14,7 +14,7 @@ Danach liegt „PDF Unterschreiben“ auf dem Desktop und im Startmenü.
 
 1. Einmalig links deine Unterschrift anlegen: zeichnen, als Bild laden oder aus einer schon unterschriebenen PDF ausschneiden.
 2. PDFs oder Excel-Dateien (.xlsx, .xlsm, .xls) ins Fenster ziehen. Excel-Dateien werden mit dem installierten Excel in eine PDF umgewandelt; bei mehreren Blättern fragt das Programm, welches. Die Unterschrift wird automatisch platziert und lässt sich mit der Maus verschieben oder per Doppelklick an eine andere Stelle setzen. Kreise oder Kästchen zum Ankreuzen (z. B. „o Betriebssicher“) werden erkannt und per Klick abgehakt.
-3. **Unterschreiben & speichern** – die neue Datei heißt `…_unterschrieben.pdf`. Oder **Drucken** (auch mit Strg+P), dann wird die unterschriebene Fassung direkt auf dem gewählten Drucker ausgegeben.
+3. **Unterschreiben & speichern** – die neue Datei heißt `…_unterschrieben.pdf`. Bei Excel-Dateien kann man wählen: als PDF oder als Excel-Mappe mit eingefügter Unterschrift. Oder **Drucken** (auch mit Strg+P), dann wird die unterschriebene Fassung direkt auf dem gewählten Drucker ausgegeben.
 
 ## Updates
 

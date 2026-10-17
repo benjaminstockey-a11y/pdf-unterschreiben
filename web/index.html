@@ -115,7 +115,7 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:min(560px,calc(100% - 32px));box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:30}
 /* Ausschneiden aus PDF */
 dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(--ink);width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
-#sheetDlg{width:min(460px,calc(100vw - 32px))}
+#sheetDlg,#saveDlg{width:min(460px,calc(100vw - 32px))}
 dialog::backdrop{background:rgba(10,15,30,.55)}
 .dlg{display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
 .dlg-head,.dlg-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
@@ -214,7 +214,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
           <p class="hint">Mehrere Dateien gleichzeitig gehen auch. Excel-Dateien werden mit Excel in eine PDF umgewandelt.</p>
         </div>
         <div class="row">
-          <button id="openBtn">PDFs öffnen</button>
+          <button id="openBtn">Dateien öffnen</button>
           <input type="file" id="pdfFile" accept="application/pdf,.pdf,.xlsx,.xlsm,.xls,.xlsb" multiple hidden>
           <button class="primary" id="printAll" hidden>Drucken</button>
           <button id="saveAll" hidden>Alle speichern</button>
@@ -244,6 +244,19 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
       </div>
     </div>
   </div>
+</dialog>
+
+<dialog id="saveDlg">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head"><strong>Wie soll gespeichert werden?</strong></div>
+    <div class="dlg-body col" style="gap:8px">
+      <span class="hint">Als PDF: fertiger Bericht zum Verschicken. Als Excel: die Original-Mappe mit eingefügter Unterschrift.</span>
+    </div>
+    <div class="dlg-foot">
+      <button class="ghost" value="cancel">Abbrechen</button>
+      <div class="row"><button value="excel" id="saveExcelBtn">Als Excel</button><button class="primary" value="pdf">Als PDF</button></div>
+    </div>
+  </form>
 </dialog>
 
 <dialog id="sheetDlg">
@@ -561,7 +574,7 @@ $("#addDate").onchange = e => { state.addDate = e.target.checked; persist(); sta
 
 /* ---------- Dokumente ---------- */
 const uid = () => Math.random().toString(36).slice(2, 10);
-async function addDoc(name, bytes, handle){
+async function addDoc(name, bytes, handle, excel){
   let pdf;
   try{ pdf = await openPdf(bytes); }
   catch(e){
@@ -570,7 +583,7 @@ async function addDoc(name, bytes, handle){
   }
   const pages = [];
   for(let i = 1; i <= pdf.numPages; i++){ const vp = (await pdf.getPage(i)).getViewport({scale: 1}); pages.push({w: vp.width, h: vp.height}); }
-  const doc = {id: uid(), name, bytes, pdf, pages, handle, stamp: null, found: null, saved: false, moved: false};
+  const doc = {id: uid(), name, bytes, pdf, pages, handle, excel: excel || null, stamp: null, found: null, saved: false, moved: false};
   state.docs.push(doc);
   doc.addDate = state.addDate;
   await autoPlace(doc);
@@ -583,8 +596,9 @@ async function addEntries(entries){
   if(!ok.length){ toast("Bitte PDF- oder Excel-Dateien auswählen."); return; }
   for(const e of ok){
     if(isPdf(e.file)){ await addDoc(e.file.name, new Uint8Array(await e.file.arrayBuffer()), e.handle || null); continue; }
-    const bytes = await excelToPdf(e.file);
-    if(bytes) await addDoc(e.file.name.replace(/\.[^.]+$/, "") + ".pdf", bytes, e.handle || null);
+    const conv = await excelToPdf(e.file);
+    if(conv) await addDoc(e.file.name.replace(/\.[^.]+$/, "") + ".pdf", conv.pdf, e.handle || null,
+      {bytes: conv.src, name: e.file.name, sheet: conv.sheet});
   }
   renderAll();
 }
@@ -616,7 +630,7 @@ async function excelToPdf(file){
     const resp = await fetch(`/api/excel/pdf?${q}&sheet=${encodeURIComponent(sheet)}`, {method: "POST", body: buf});
     if((resp.headers.get("Content-Type") || "").includes("application/pdf")){
       $("#toast").hidden = true;
-      return new Uint8Array(await resp.arrayBuffer());
+      return {pdf: new Uint8Array(await resp.arrayBuffer()), src: new Uint8Array(buf), sheet};
     }
     const j = await resp.json(); toast(j.error || "Umwandeln fehlgeschlagen.", 8000);
   }catch(e){ toast("Umwandeln fehlgeschlagen.", 8000); }
@@ -666,7 +680,8 @@ async function findKeyword(doc, kw){
       re.lastIndex = 0; let m;
       while((m = re.exec(ln.text))){
         // Kurze Zeilen (Feldbeschriftungen) schlagen lange Fließtextzeilen
-        cands.push({x0: xAt(m.index), x1: xAt(m.index + m[0].length), vy: ln.vy, fh: ln.fh, label: ln.text.trim().length < 70});
+        let seg = segs[0]; for(const q of segs) if(q.start <= m.index) seg = q;
+        cands.push({x0: xAt(m.index), x1: xAt(m.index + m[0].length), vy: ln.vy, fh: ln.fh, ix: seg.x, iw: seg.w, label: ln.text.trim().length < 70});
         if(!m[0].length) re.lastIndex++;
       }
     }
@@ -716,7 +731,7 @@ async function autoPlace(doc){
       doc.stamp = {page: hit.page, x: (hit.x0 + hit.x1) / 2 - state.width / 2, y};
     }
     doc.found = hit.kw;
-    doc.anchor = {page: hit.page, x0: hit.x0, vy: hit.vy, fh: hit.fh};
+    doc.anchor = {page: hit.page, x0: hit.x0, vy: hit.vy, fh: hit.fh, ix: hit.ix, iw: hit.iw, kw: hit.kw};
   } else {
     const pg = doc.pages.length - 1, P = doc.pages[pg];
     doc.stamp = {page: pg, x: P.w - state.width - 50, y: P.h - h - 70}; doc.found = null;
@@ -727,7 +742,7 @@ async function autoPlace(doc){
 function renderAll(){
   const box = $("#docs"); box.innerHTML = "";
   if(!state.docs.length){
-    box.innerHTML = '<div class="doc empty"><b>Noch keine PDFs geöffnet</b><span>Zieh Berichte in das Feld oben oder klick auf „PDFs öffnen“.</span></div>';
+    box.innerHTML = '<div class="doc empty"><b>Noch keine Berichte geöffnet</b><span>Zieh Berichte in das Feld oben oder klick auf „Dateien öffnen“. PDF und Excel gehen beide.</span></div>';
   }
   state.docs.forEach(d => box.appendChild(buildDoc(d)));
   updateSaveAll();
@@ -807,12 +822,12 @@ function buildDoc(doc){
         <button class="ghost" data-a="date" aria-pressed="${!!doc.addDate}">${doc.addDate ? "✓ Datum" : "Datum einfügen"}</button>
         <button class="ghost" data-a="auto">Automatisch platzieren</button>
         <button class="ghost" data-a="rm">Schließen</button>
-        <button class="primary" data-a="save" ${doc.stamp ? "" : "disabled"}>Unterschreiben &amp; speichern</button>
+        <button class="primary" data-a="save" ${doc.stamp ? "" : "disabled"}>${doc.excel ? "Speichern …" : "Unterschreiben &amp; speichern"}</button>
       </div>
     </div>
     <div class="pages"></div>`;
   el.querySelector('[data-a="rm"]').onclick = () => { state.docs = state.docs.filter(d => d !== doc); try{ doc.pdf.destroy(); }catch(e){} renderAll(); };
-  el.querySelector('[data-a="save"]').onclick = () => saveDoc(doc);
+  el.querySelector('[data-a="save"]').onclick = () => doc.excel ? chooseSave(doc) : saveDoc(doc);
   el.querySelector('[data-a="date"]').onclick = () => { doc.addDate = !doc.addDate; doc.saved = false; rebuild(doc); };
   el.querySelector('[data-a="auto"]').onclick = async () => { doc.moved = false; doc.saved = false; await autoPlace(doc); rebuild(doc); };
 
@@ -1000,6 +1015,73 @@ async function signed(doc){
   try{ return await buildSigned(doc); }
   catch(e){ toast(`„${doc.name}“ konnte nicht verarbeitet werden. Ist die Datei geschützt?`); return null; }
 }
+/* ---------- Als PDF oder Excel speichern ---------- */
+function chooseSave(doc){
+  if(!ready(doc)) return;
+  const dlg = $("#saveDlg");
+  $("#saveExcelBtn").textContent = `Als Excel (${doc.excel.name.split(".").pop().toLowerCase()})`;
+  dlg.onclose = () => { if(dlg.returnValue === "pdf") saveDoc(doc); else if(dlg.returnValue === "excel") saveExcel(doc); };
+  dlg.returnValue = ""; dlg.showModal();
+}
+function canvasPng(w, h, draw){
+  const k = 6, c = document.createElement("canvas"); c.width = Math.ceil(w * k); c.height = Math.ceil(h * k);
+  const ctx = c.getContext("2d"); ctx.scale(k, k); draw(ctx); return c.toDataURL("image/png");
+}
+function b64(bytes){
+  let s = ""; const step = 0x8000;
+  for(let i = 0; i < bytes.length; i += step) s += String.fromCharCode.apply(null, bytes.subarray(i, i + step));
+  return btoa(s);
+}
+async function saveExcel(doc){
+  const a = doc.anchor;
+  if(!a){ toast("Für das Speichern als Excel muss das Suchwort im Blatt gefunden werden. Bitte als PDF speichern.", 7000); return; }
+  const overlays = []; let skipped = 0;
+  const add = (page, x, y, w, h, png) => { if(page !== a.page){ skipped++; return; } overlays.push({png, dx: x - a.ix, dy: y - a.vy, w, h}); };
+  const s = doc.stamp;
+  add(s.page, s.x, s.y, stampW(doc), stampH(doc), state.sig.url);
+  if(doc.addDate){
+    const pos = datePlace(doc), t = today(), tw = textW(t), hh = DATE_PT * 1.1;
+    add(pos.page, pos.x, pos.y - DATE_PT * 0.85, tw + 1, hh, canvasPng(tw + 1, hh, ctx => {
+      ctx.font = `${DATE_PT}px Helvetica, Arial, sans-serif`; ctx.fillStyle = "#111"; ctx.fillText(t, 0, DATE_PT * 0.85);
+    }));
+  }
+  for(const c of (doc.checks || []).filter(c => c.on)){
+    const g = tickGeom(c);
+    add(c.page, g.L, g.T, g.S, g.S, canvasPng(g.S, g.S, ctx => {
+      ctx.scale(g.S / 10, g.S / 10); ctx.strokeStyle = state.ink; ctx.lineWidth = 1.5; ctx.lineCap = ctx.lineJoin = "round";
+      ctx.stroke(new Path2D(CHECK_PATH));
+    }));
+  }
+  toast("Excel fügt die Unterschrift ein …", 120000);
+  let resp;
+  try{
+    resp = await fetch("/api/excel/sign", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({
+      name: doc.excel.name, sheet: doc.excel.sheet || "", file: b64(doc.excel.bytes),
+      kw: a.kw, fh: a.fh, itemW: a.iw, overlays
+    })});
+  }catch(e){ toast("Speichern als Excel fehlgeschlagen.", 7000); return; }
+  if(!(resp.headers.get("Content-Type") || "").includes("octet-stream")){
+    const j = await resp.json().catch(() => ({})); toast(j.error || "Speichern als Excel fehlgeschlagen.", 8000); return;
+  }
+  const bytes = new Uint8Array(await resp.arrayBuffer());
+  $("#toast").hidden = true;
+  const ext = "." + doc.excel.name.split(".").pop().toLowerCase();
+  const name = doc.excel.name.replace(/\.[^.]+$/, "") + "_unterschrieben" + ext;
+  try{
+    if(window.showSaveFilePicker){
+      const opts = {suggestedName: name, types: [{description: "Excel-Arbeitsmappe", accept: {"application/vnd.ms-excel": [ext]}}]};
+      if(doc.handle) opts.startIn = doc.handle;
+      const fh = await showSaveFilePicker(opts);
+      const w = await fh.createWritable(); await w.write(bytes); await w.close();
+      doc.saved = true; updateHead(doc);
+      toast(`Gespeichert: ${fh.name}` + (skipped ? ` – ${skipped} Eintrag auf einer anderen Seite fehlt in Excel.` : ""), 6000);
+    } else {
+      const l = document.createElement("a"); l.href = URL.createObjectURL(new Blob([bytes])); l.download = name;
+      document.body.appendChild(l); l.click(); l.remove(); doc.saved = true; updateHead(doc); toast(`In „Downloads“ gespeichert: ${name}`);
+    }
+  }catch(e){ if(!e || e.name !== "AbortError") toast("Speichern fehlgeschlagen: " + (e && e.message || e)); }
+}
+
 async function saveDoc(doc){
   if(!ready(doc)) return;
   const bytes = await signed(doc); if(!bytes) return;

@@ -129,6 +129,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/update/apply", a.handleUpdateApply)
 	mux.HandleFunc("/api/excel/sheets", a.handleExcelSheets)
 	mux.HandleFunc("/api/excel/pdf", a.handleExcelPDF)
+	mux.HandleFunc("/api/excel/sign", a.handleExcelSign)
 	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "POST", http.StatusMethodNotAllowed)
