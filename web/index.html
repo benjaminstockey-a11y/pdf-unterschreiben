@@ -264,6 +264,9 @@ let toastT;
 function toast(msg, ms = 4500){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms); }
 const sigRatio = () => state.sig ? state.sig.h / state.sig.w : 0.38;
 const sigH = () => state.width * sigRatio();
+// Größe der Unterschrift in einem Bericht: Grundbreite × Faktor k (wird verkleinert, wenn das Feld eng ist)
+const stampW = doc => state.width * ((doc.stamp && doc.stamp.k) || 1);
+const stampH = doc => stampW(doc) * sigRatio();
 const today = () => new Date().toLocaleDateString("de-DE");
 const cm = pt => (pt * 2.54 / 72).toLocaleString("de-DE", {maximumFractionDigits: 1}) + " cm";
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -454,8 +457,8 @@ async function addEntries(entries){
 }
 function clampStamp(doc){
   const s = doc.stamp; if(!s) return; const P = doc.pages[s.page];
-  s.x = Math.min(Math.max(0, s.x), Math.max(0, P.w - state.width));
-  s.y = Math.min(Math.max(0, s.y), Math.max(0, P.h - sigH()));
+  s.x = Math.min(Math.max(0, s.x), Math.max(0, P.w - stampW(doc)));
+  s.y = Math.min(Math.max(0, s.y), Math.max(0, P.h - stampH(doc)));
 }
 // Suchwörter: mehrere mit Komma trennen, das erste gefundene gewinnt.
 const keywordList = () => state.keyword.split(/[,;]/).map(k => k.trim()).filter(Boolean);
@@ -506,13 +509,45 @@ async function findKeyword(doc, kw){
   }
   return null;
 }
+// Sucht über der Beschriftung eine freie Fläche ohne Text. Ist es dort eng (z. B. „Unterschrift:“
+// steht im selben Feld), rückt die Unterschrift daneben und wird bei Bedarf kleiner.
+function fitAbove(doc, hit, lines){
+  const P = doc.pages[hit.page], ratio = sigRatio(), W = state.width;
+  const bottom = hit.vy - hit.fh * 0.85 - 1;
+  const boxes = [];
+  for(const ln of lines) for(const it of ln.items) if(it.s.trim()) boxes.push({x0: it.x, x1: it.x + it.w, y0: ln.vy - ln.fh * 0.85, y1: ln.vy + ln.fh * 0.25});
+  const free = (x, w, h) => x >= 2 && x + w <= P.w - 2 && bottom - h >= 2 &&
+    !boxes.some(b => b.x1 > x - 2 && b.x0 < x + w + 2 && b.y1 > bottom - h - 1.5 && b.y0 < bottom - 1);
+  const cx = (hit.x0 + hit.x1) / 2 - W / 2;
+  if(free(cx, W, W * ratio)) return {x: cx, k: 1};
+  const xs = [cx, hit.x0];
+  for(const b of boxes) if(b.y1 < bottom && b.y1 > bottom - W * ratio - 6 && b.x1 >= hit.x0 - 4 && b.x1 < hit.x1 + W) xs.push(b.x1 + 6);
+  let best = null;
+  for(const x of xs){
+    for(let k = 1; k >= 0.3; k -= 0.02){
+      if(free(x, W * k, W * k * ratio)){
+        const dist = Math.abs(x - hit.x0);
+        if(!best || k > best.k + 0.04 || (Math.abs(k - best.k) <= 0.04 && dist < best.dist)) best = {x, k, dist};
+        break;
+      }
+    }
+  }
+  return best && W * best.k * ratio >= 20 ? {x: best.x, k: best.k} : null;
+}
 async function autoPlace(doc){
   let hit = null;
   for(const kw of keywordList()){ hit = await findKeyword(doc, kw); if(hit) break; }
   const h = sigH();
   if(hit){
-    let y = hit.vy - hit.fh - 2 - h; if(y < 4) y = hit.vy + 6;
-    doc.stamp = {page: hit.page, x: (hit.x0 + hit.x1) / 2 - state.width / 2, y}; doc.found = hit.kw;
+    const fit = fitAbove(doc, hit, await pageLines(doc, hit.page + 1));
+    if(fit){
+      const hh = h * fit.k;
+      doc.stamp = {page: hit.page, x: fit.x, y: hit.vy - hit.fh * 0.85 - 1 - hh, k: fit.k};
+    } else {
+      let y = hit.vy - hit.fh - 2 - h; if(y < 4) y = hit.vy + 6;
+      doc.stamp = {page: hit.page, x: (hit.x0 + hit.x1) / 2 - state.width / 2, y};
+    }
+    doc.found = hit.kw;
   } else {
     const pg = doc.pages.length - 1, P = doc.pages[pg];
     doc.stamp = {page: pg, x: P.w - state.width - 50, y: P.h - h - 70}; doc.found = null;
@@ -573,10 +608,11 @@ function buildDoc(doc){
     const no = document.createElement("span"); no.className = "pno"; no.textContent = `${i+1} / ${n}`; wrap.appendChild(no);
     wrap.addEventListener("click", e => {
       const r = wrap.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width * P.w - state.width / 2;
-      const y = (e.clientY - r.top) / r.height * P.h - sigH() / 2;
+      const k = (doc.stamp && doc.stamp.k) || 1;
+      const x = (e.clientX - r.left) / r.width * P.w - state.width * k / 2;
+      const y = (e.clientY - r.top) / r.height * P.h - sigH() * k / 2;
       const changedPage = !doc.stamp || doc.stamp.page !== i;
-      doc.stamp = {page: i, x, y}; clampStamp(doc); doc.moved = true; doc.saved = false;
+      doc.stamp = {page: i, x, y, k}; clampStamp(doc); doc.moved = true; doc.saved = false;
       if(changedPage) rebuild(doc); else { updateStampEl(doc); updateHead(doc); }
     });
     pagesEl.appendChild(wrap);
@@ -614,7 +650,7 @@ function updateStampEl(doc){
   const P = doc.pages[doc.stamp.page], s = doc.stamp;
   const st = document.createElement("div"); st.className = "stamp";
   st.style.left = (s.x / P.w * 100) + "%"; st.style.top = (s.y / P.h * 100) + "%";
-  st.style.width = (state.width / P.w * 100) + "%"; st.style.height = (sigH() / P.h * 100) + "%";
+  st.style.width = (stampW(doc) / P.w * 100) + "%"; st.style.height = (stampH(doc) / P.h * 100) + "%";
   st.innerHTML = (state.sig ? `<img alt="" src="${state.sig.url}">` : `<div class="ph">Deine Unterschrift</div>`)
     + (state.addDate ? `<span class="date">${today()}</span>` : "")
     + `<button class="del" aria-label="Unterschrift entfernen">×</button>`;
@@ -645,12 +681,12 @@ async function buildSigned(doc){
   const {PDFDocument, StandardFonts, rgb, degrees} = PDFLib;
   const out = await PDFDocument.load(doc.bytes, {ignoreEncryption: true});
   const png = await out.embedPng(dataUrlBytes(state.sig.url));
-  const s = doc.stamp, h = sigH();
+  const s = doc.stamp, h = stampH(doc), w = stampW(doc);
   const vp = (await doc.pdf.getPage(s.page + 1)).getViewport({scale: 1});
   const rot = degrees(vp.rotation);
   const page = out.getPage(s.page);
   const [ax, ay] = vp.convertToPdfPoint(s.x, s.y + h);
-  page.drawImage(png, {x: ax, y: ay, width: state.width, height: h, rotate: rot});
+  page.drawImage(png, {x: ax, y: ay, width: w, height: h, rotate: rot});
   if(state.addDate){
     const font = await out.embedFont(StandardFonts.Helvetica);
     const t = today(), tw = font.widthOfTextAtSize(t, 10);
