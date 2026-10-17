@@ -441,7 +441,7 @@ async function addDoc(name, bytes, handle){
   }
   const pages = [];
   for(let i = 1; i <= pdf.numPages; i++){ const vp = (await pdf.getPage(i)).getViewport({scale: 1}); pages.push({w: vp.width, h: vp.height}); }
-  const doc = {id: uid(), name, bytes, pdf, pages, handle, stamp: null, found: null, showAll: false, saved: false, moved: false};
+  const doc = {id: uid(), name, bytes, pdf, pages, handle, stamp: null, found: null, saved: false, moved: false};
   state.docs.push(doc);
   await autoPlace(doc);
 }
@@ -539,7 +539,6 @@ function buildDoc(doc){
         <span class="st">${statusChip(doc)}</span>
       </div>
       <div class="row">
-        ${n > 1 ? `<button class="ghost" data-a="all">${doc.showAll ? "Nur Unterschriftsseite" : `Alle ${n} Seiten`}</button>` : ""}
         <button class="ghost" data-a="auto">Automatisch platzieren</button>
         <button class="ghost" data-a="rm">Schließen</button>
         <button class="primary" data-a="save" ${doc.stamp ? "" : "disabled"}>Unterschreiben &amp; speichern</button>
@@ -549,12 +548,9 @@ function buildDoc(doc){
   el.querySelector('[data-a="rm"]').onclick = () => { state.docs = state.docs.filter(d => d !== doc); try{ doc.pdf.destroy(); }catch(e){} renderAll(); };
   el.querySelector('[data-a="save"]').onclick = () => saveDoc(doc);
   el.querySelector('[data-a="auto"]').onclick = async () => { doc.moved = false; doc.saved = false; await autoPlace(doc); rebuild(doc); };
-  const allB = el.querySelector('[data-a="all"]'); if(allB) allB.onclick = () => { doc.showAll = !doc.showAll; rebuild(doc); };
 
   const pagesEl = el.querySelector(".pages");
-  const focus = doc.stamp ? doc.stamp.page : n - 1;
   for(let i = 0; i < n; i++){
-    if(!doc.showAll && i !== focus) continue;
     const P = doc.pages[i];
     const wrap = document.createElement("div"); wrap.className = "page";
     wrap.style.aspectRatio = `${P.w} / ${P.h}`; wrap.style.setProperty("--pw", P.w);
