@@ -30,11 +30,11 @@ function handle(d) {
   if (!/^[a-z0-9.\-]+@/.test(mail) || !mail.endsWith('@' + DOMAIN)) return { ok: false, error: 'Nur E-Mail-Adressen von ' + DOMAIN + ' sind erlaubt.' };
 
   const now = new Date();
-  log.appendRow([now, name, mail, ev, ver, n]);
+  if (ev !== 'check') log.appendRow([now, name, mail, ev, "'" + ver, n]);
 
   let row = findRow(users, id);
-  if (row < 0) { users.appendRow([name, mail, id, ver, now, now, 'nein', '', 0, 0, 0, 0]); row = users.getLastRow(); }
-  users.getRange(row, 1, 1, 4).setValues([[name, mail, id, ver]]);
+  if (row < 0) { users.appendRow([name, mail, id, "'" + ver, now, now, 'nein', '', 0, 0, 0, 0]); row = users.getLastRow(); }
+  users.getRange(row, 1, 1, 4).setValues([[name, mail, id, "'" + ver]]);
   users.getRange(row, 6).setValue(now);
   const r = users.getRange(row, 1, 1, 12).getValues()[0];
   const blocked = String(r[7]).trim().toLowerCase() === 'ja';

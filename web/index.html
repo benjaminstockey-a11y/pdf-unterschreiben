@@ -1059,6 +1059,7 @@ async function buildSigned(doc){
 }
 const outName = doc => doc.name.replace(/\.pdf$/i, "") + "_unterschrieben.pdf";
 function ready(doc){
+  if(reportOn && state.blocked){ $("#blockDlg").showModal(); return false; }
   if(!window.PDFLib){ toast("Zum ersten Speichern braucht das Programm einmal Internet. Bitte verbinden und das Programm neu öffnen.", 7000); return false; }
   if(!state.sig){ toast("Leg zuerst links deine Unterschrift an."); return false; }
   if(doc && !doc.stamp){ toast("Doppelklick auf eine Seite, um die Unterschrift zu setzen."); return false; }
@@ -1425,7 +1426,7 @@ $("#codeForm").addEventListener("submit", async e => {
   if(state.blocked) $("#blockDlg").showModal(); else toast("Freigeschaltet – viel Spaß mit dem Programm!");
 });
 $("#blockRetry").onclick = async () => {
-  const r = await call("start");
+  const r = await call("check");
   if(r.ok && !r.blocked){ state.blocked = false; $("#blockDlg").close(); toast("Zugang ist wieder freigegeben."); }
   else toast(r.ok ? "Der Zugang ist weiterhin gesperrt." : (r.error || "Keine Verbindung."));
 };
@@ -1436,18 +1437,23 @@ function renderUser(){
   el.innerHTML = `Angemeldet als ${esc(state.user.name)} (${esc(state.user.email)}) · <button class="ghost" id="userChange" style="padding:0;font-size:13px;text-decoration:underline">ändern</button>`;
   $("#userChange").onclick = openRegistration;
 }
+// Sperre wird bei jedem Start und danach alle 10 Minuten geprüft. Ohne Internet gilt der letzte bekannte Stand.
 async function checkAccess(){
   if(!reportOn) return;
   if(!state.user) return openRegistration();
   if(!state.user.verified) return openCode(true);
-  if(state.blocked){ $("#blockDlg").showModal(); return; }
-  const day = new Date().toISOString().slice(0, 10);
-  if(state.lastStart === day) return;
-  const r = await call("start");
-  if(r.ok){
-    state.lastStart = day; state.blocked = !!r.blocked; persist();
-    if(state.blocked) $("#blockDlg").showModal();
-  }
+  if(state.blocked) $("#blockDlg").showModal();
+  await refreshBlock("start");
+  setInterval(() => refreshBlock("check"), 10 * 60 * 1000);
+}
+async function refreshBlock(event){
+  if(!state.user || !state.user.verified) return;
+  const r = await call(event);
+  if(!r.ok) return;
+  const was = !!state.blocked; state.blocked = !!r.blocked;
+  if(was !== state.blocked) persist();
+  if(state.blocked && !$("#blockDlg").open) $("#blockDlg").showModal();
+  if(!state.blocked && $("#blockDlg").open){ $("#blockDlg").close(); toast("Zugang ist wieder freigegeben."); }
 }
 
 /* ---------- Start ---------- */
