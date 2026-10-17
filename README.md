@@ -13,7 +13,7 @@ Danach liegt „PDF Unterschreiben“ auf dem Desktop und im Startmenü.
 ## Benutzen
 
 1. Einmalig links deine Unterschrift anlegen: zeichnen, als Bild laden oder aus einer schon unterschriebenen PDF ausschneiden.
-2. PDFs ins Fenster ziehen. Die Unterschrift wird automatisch platziert und lässt sich mit der Maus verschieben. Kreise oder Kästchen zum Ankreuzen (z. B. „o Betriebssicher“) werden erkannt und per Klick abgehakt.
+2. PDFs ins Fenster ziehen. Die Unterschrift wird automatisch platziert und lässt sich mit der Maus verschieben oder per Doppelklick an eine andere Stelle setzen. Kreise oder Kästchen zum Ankreuzen (z. B. „o Betriebssicher“) werden erkannt und per Klick abgehakt.
 3. **Unterschreiben & speichern** – die neue Datei heißt `…_unterschrieben.pdf`. Oder **Drucken** (auch mit Strg+P), dann wird die unterschriebene Fassung direkt auf dem gewählten Drucker ausgegeben.
 
 ## Updates

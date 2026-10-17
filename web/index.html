@@ -86,7 +86,7 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 .chip.warn{background:var(--warn-soft);color:var(--warn)}
 .chip.info{background:var(--pen-soft);color:var(--pen)}
 .pages{display:flex;flex-direction:column;gap:14px;padding:16px;background:var(--paper)}
-.page{position:relative;width:100%;max-width:780px;margin:0 auto;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12),0 6px 18px rgba(20,30,60,.08);container-type:inline-size;cursor:copy}
+.page{position:relative;width:100%;max-width:780px;margin:0 auto;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12),0 6px 18px rgba(20,30,60,.08);container-type:inline-size;cursor:default}
 .page canvas{position:absolute;inset:0;width:100%;height:100%}
 .page .pno{position:absolute;right:8px;bottom:6px;font:11px var(--f-mono);color:#8b95a8;pointer-events:none}
 .stamp{position:absolute;touch-action:none;cursor:grab;outline:1.5px dashed #1d3fb8;outline-offset:2px;border-radius:2px}
@@ -132,7 +132,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
   <div class="top">
     <div>
       <h1>PDF Unterschreiben</h1>
-      <p class="lead">PDFs reinziehen – deine Unterschrift landet automatisch über dem Unterschriftsfeld. Verschieben per Ziehen oder Klick auf die Seite, dann speichern.</p>
+      <p class="lead">PDFs reinziehen – deine Unterschrift landet automatisch über dem Unterschriftsfeld. Verschieben per Ziehen oder Doppelklick auf die Seite. Ankreuzfelder mit einem Klick abhaken.</p>
     </div>
     <div class="ver"><span id="verText">Version …</span><button class="ghost" id="checkBtn" hidden>Nach Updates suchen</button></div>
   </div>
@@ -691,6 +691,9 @@ async function findChecks(doc){
   }
   return out;
 }
+function toggleCheck(doc, c){
+  c.on = !c.on; doc.saved = false; if(c.draw) c.draw(); updateHead(doc);
+}
 function renderChecks(doc, wrap, i){
   const P = doc.pages[i];
   for(const c of (doc.checks || []).filter(c => c.page === i)){
@@ -699,19 +702,20 @@ function renderChecks(doc, wrap, i){
     b.setAttribute("aria-label", "Ankreuzen"); b.setAttribute("aria-pressed", c.on);
     const d = c.r * 2.4;
     Object.assign(b.style, {left: ((c.cx - d/2) / P.w * 100) + "%", top: ((c.cy - d/2) / P.h * 100) + "%", width: (d / P.w * 100) + "%", height: (d / P.h * 100) + "%"});
-    const draw = () => { b.innerHTML = c.on ? `<svg viewBox="0 0 10 10"><path d="${CHECK_PATH}" style="stroke:${state.ink}"/></svg>` : ""; };
-    draw();
+    c.el = b; c.draw = () => {
+      b.classList.toggle("on", c.on); b.setAttribute("aria-pressed", c.on);
+      b.innerHTML = c.on ? `<svg viewBox="0 0 10 10"><path d="${CHECK_PATH}" style="stroke:${state.ink}"/></svg>` : "";
+    };
+    c.draw();
     b.addEventListener("pointerdown", e => e.stopPropagation());
-    b.addEventListener("click", e => {
-      e.stopPropagation(); c.on = !c.on; doc.saved = false;
-      b.classList.toggle("on", c.on); b.setAttribute("aria-pressed", c.on); draw(); updateHead(doc);
-    });
+    b.addEventListener("dblclick", e => e.stopPropagation());
+    b.addEventListener("click", e => { e.stopPropagation(); toggleCheck(doc, c); });
     wrap.appendChild(b);
   }
 }
 
 function statusChip(doc){
-  if(!doc.stamp) return '<span class="chip warn">Keine Unterschrift gesetzt – klick auf eine Seite</span>';
+  if(!doc.stamp) return '<span class="chip warn">Keine Unterschrift gesetzt – Doppelklick auf eine Seite</span>';
   const pg = `Seite ${doc.stamp.page + 1}`;
   if(doc.saved) return `<span class="chip ok">✓ Gespeichert · ${pg}</span>`;
   if(doc.moved) return `<span class="chip info">Von Hand platziert · ${pg}</span>`;
@@ -747,8 +751,19 @@ function buildDoc(doc){
     wrap.dataset.page = i;
     const cv = document.createElement("canvas"); wrap.appendChild(cv);
     const no = document.createElement("span"); no.className = "pno"; no.textContent = `${i+1} / ${n}`; wrap.appendChild(no);
+    // Einfacher Klick in der Nähe eines Ankreuzfelds hakt es ab (auch wenn man nicht genau trifft)
     wrap.addEventListener("click", e => {
       const r = wrap.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width * P.w, py = (e.clientY - r.top) / r.height * P.h;
+      let best = null, bd = 1e9;
+      for(const c of (doc.checks || [])) if(c.page === i){ const dd = Math.hypot(c.cx - px, c.cy - py); if(dd < bd){ bd = dd; best = c; } }
+      if(best && bd < Math.max(14, best.r * 4)) toggleCheck(doc, best);
+    });
+    wrap.addEventListener("dblclick", e => {
+      if(e.target.closest(".chk")) return;
+      const r = wrap.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width * P.w, py = (e.clientY - r.top) / r.height * P.h;
+      if((doc.checks || []).some(c => c.page === i && Math.hypot(c.cx - px, c.cy - py) < Math.max(14, c.r * 4))) return;
       const k = (doc.stamp && doc.stamp.k) || 1;
       const x = (e.clientX - r.left) / r.width * P.w - state.width * k / 2;
       const y = (e.clientY - r.top) / r.height * P.h - sigH() * k / 2;
@@ -798,6 +813,7 @@ function updateStampEl(doc){
     + `<button class="del" aria-label="Unterschrift entfernen">×</button>`;
   st.querySelector(".del").onclick = e => { e.stopPropagation(); doc.stamp = null; doc.saved = false; updateStampEl(doc); updateHead(doc); };
   st.addEventListener("click", e => e.stopPropagation());
+  st.addEventListener("dblclick", e => e.stopPropagation());
   let drag = null;
   st.addEventListener("pointerdown", e => {
     if(e.target.closest(".del")) return;
@@ -849,7 +865,7 @@ const outName = doc => doc.name.replace(/\.pdf$/i, "") + "_unterschrieben.pdf";
 function ready(doc){
   if(!window.PDFLib){ toast("Zum ersten Speichern braucht das Programm einmal Internet. Bitte verbinden und das Programm neu öffnen.", 7000); return false; }
   if(!state.sig){ toast("Leg zuerst links deine Unterschrift an."); return false; }
-  if(doc && !doc.stamp){ toast("Klick auf eine Seite, um die Unterschrift zu setzen."); return false; }
+  if(doc && !doc.stamp){ toast("Doppelklick auf eine Seite, um die Unterschrift zu setzen."); return false; }
   return true;
 }
 async function signed(doc){
@@ -886,7 +902,7 @@ async function printDocs(list){
   if(printing || !ready()) return;
   const ohne = list.filter(d => !d.stamp);
   list = list.filter(d => d.stamp);
-  if(!list.length){ toast("Klick auf eine Seite, um die Unterschrift zu setzen."); return; }
+  if(!list.length){ toast("Doppelklick auf eine Seite, um die Unterschrift zu setzen."); return; }
   const ohneMsg = `${ohne.length} ${ohne.length === 1 ? "Bericht hat" : "Berichte haben"} keine Unterschrift und ${ohne.length === 1 ? "wurde" : "wurden"} nicht gedruckt.`;
   printing = true; toast("Druck wird vorbereitet …", 20000);
   const area = document.createElement("div"); area.id = "printArea";
