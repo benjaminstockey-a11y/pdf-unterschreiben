@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PDF Admin</title>
+<style>
+:root{--pen:#1d3fb8;--pen-soft:#e8edfb;--ink:#141a2a;--muted:#5d6577;--line:#dde1ea;--paper:#f4f5f8;--sheet:#fff;--warn:#b42318;--ok:#067647;--ok-soft:#e6f4ec;--warn-soft:#fdecea}
+@media (prefers-color-scheme: dark){:root{--pen:#8aa2ff;--pen-soft:#1e2a52;--ink:#e8ebf2;--muted:#9aa3b5;--line:#2c3346;--paper:#0f131c;--sheet:#171c28;--warn:#ff8a7a;--ok:#5fd39a;--ok-soft:#14301f;--warn-soft:#3a1814}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+header{position:sticky;top:0;z-index:5;background:var(--pen);color:#fff;padding:14px 16px 0}
+header h1{margin:0 0 10px;font-size:19px;font-weight:650;display:flex;align-items:center;justify-content:space-between;gap:8px}
+header h1 button{background:transparent;border:0;color:#fff;font-size:14px;padding:6px 8px;border-radius:8px}
+nav{display:flex;gap:4px}
+nav button{flex:1;background:transparent;border:0;color:rgba(255,255,255,.75);font:600 14px system-ui,sans-serif;padding:10px 4px 12px;border-bottom:3px solid transparent}
+nav button[aria-selected=true]{color:#fff;border-bottom-color:#fff}
+nav .n{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:10px;background:rgba(255,255,255,.22);font-size:12px}
+main{padding:12px 16px 32px;max-width:720px;margin:0 auto}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sp{justify-content:space-between}
+.muted{color:var(--muted);font-size:13px}
+.name{font-weight:650;font-size:16px}
+.chip{display:inline-block;font-size:12px;padding:2px 8px;border-radius:10px;background:var(--pen-soft);color:var(--pen);font-weight:600}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+button{font:600 14px system-ui,sans-serif;border-radius:9px;border:1px solid var(--line);background:var(--sheet);color:var(--ink);padding:9px 14px}
+button.primary{background:var(--pen);border-color:var(--pen);color:#fff}
+button.danger{color:var(--warn);border-color:var(--warn)}
+button:disabled{opacity:.55}
+input,textarea{width:100%;font:16px system-ui,sans-serif;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--sheet);color:var(--ink)}
+textarea{resize:vertical}
+label{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:14px;margin-bottom:12px}
+.txt{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+.ans{white-space:pre-wrap;overflow-wrap:anywhere;border-left:3px solid var(--pen);padding:4px 0 4px 10px;margin:8px 0}
+.ans small{display:block;color:var(--muted);font-size:12px}
+.err{color:var(--warn);font-size:14px}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.banner{background:var(--pen-soft);color:var(--pen);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.login{max-width:420px;margin:40px auto;padding:0 16px}
+.login h2{margin:0 0 6px;font-size:22px}
+.log{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:14px}
+.log .t{color:var(--muted);white-space:nowrap}
+.search{margin-bottom:10px}
+#toast{position:fixed;left:16px;right:16px;bottom:20px;background:#141a2a;color:#fff;padding:12px 14px;border-radius:10px;font-size:14px;text-align:center;z-index:20}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" hidden></div>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const N = window.Native;
+let toastT;
+function toast(m, ms = 3500){ const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms); }
+
+// Anfrage über die App an den Anmeldeserver
+const pending = {}; let cbN = 0;
+window.__reply = (id, body) => { const f = pending[id]; delete pending[id]; if(f) f(body); };
+function native(fn, ...args){ return new Promise(res => { const id = "c" + (++cbN); pending[id] = res; N[fn](...args, id); }); }
+async function call(event, extra = {}){
+  const u = me();
+  const body = await native("post", JSON.stringify({event, id: u.id, name: u.name, email: u.email, ...extra}));
+  try{ return JSON.parse(body); }catch(e){ return {ok: false, error: "Unerwartete Antwort vom Server."}; }
+}
+
+// Zugang dieser App (eigene Geräte-ID, per E-Mail-Code freigeschaltet)
+function me(){ try{ return JSON.parse(localStorage.getItem("me")) || {}; }catch(e){ return {}; } }
+function saveMe(u){ try{ localStorage.setItem("me", JSON.stringify(u)); }catch(e){} }
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2));
+
+const fmt = z => { const d = new Date(z); return isNaN(d) ? "" : d.toLocaleString("de-DE", {dateStyle: "short", timeStyle: "short"}); };
+function ago(z){
+  const d = new Date(z); if(isNaN(d)) return "";
+  const m = Math.round((Date.now() - d) / 60000);
+  if(m < 2) return "gerade eben"; if(m < 60) return `vor ${m} Min.`;
+  const h = Math.round(m / 60); if(h < 24) return `vor ${h} Std.`;
+  const t = Math.round(h / 24); return t === 1 ? "gestern" : `vor ${t} Tagen`;
+}
+const EV = {register: "Anmeldung", verify: "Freigeschaltet", start: "Programmstart", update: "Daten geändert", resend: "Code neu gesendet"};
+
+/* ---------- Anmeldung ---------- */
+function renderLogin(step, err = ""){
+  const u = me();
+  $("#app").innerHTML = `<div class="login">
+    <h2>PDF Admin</h2>
+    <p class="muted">${step === "code" ? `Wir haben einen 6-stelligen Code an ${esc(u.email)} geschickt.` : "Einmalig mit Namen und Admin-E-Mail anmelden. Danach kommt ein Code per E-Mail."}</p>
+    ${step === "code" ? `
+      <label>Freischaltcode<input id="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>
+      <div class="row sp"><button id="back">Zurück</button><button class="primary" id="go">Freischalten</button></div>
+      <p><button id="resend" style="border:0;background:none;color:var(--pen);padding:0">Code neu senden</button></p>`
+    : `
+      <label>Vor- und Nachname<input id="name" autocomplete="name" value="${esc(u.name || "")}"></label>
+      <label>E-Mail<input id="mail" type="email" inputmode="email" autocomplete="email" value="${esc(u.email || "")}"></label>
+      <div class="row sp"><span></span><button class="primary" id="go">Code anfordern</button></div>`}
+    <p class="err" id="err">${esc(err)}</p>
+    ${N.configured() ? "" : '<p class="err">Diese App wurde ohne Serveradresse gebaut.</p>'}
+  </div>`;
+  const go = $("#go");
+  if(step === "code"){
+    $("#code").focus();
+    $("#back").onclick = () => renderLogin("start");
+    $("#resend").onclick = async () => { const r = await call("resend"); toast(r.ok ? "Neuer Code ist unterwegs." : (r.error || "Fehler")); };
+    go.onclick = async () => {
+      go.disabled = true;
+      const r = await call("verify", {code: $("#code").value.trim()});
+      go.disabled = false;
+      if(!r.ok) return renderLogin("code", r.error || "Das hat nicht geklappt.");
+      saveMe({...me(), verified: true}); start();
+    };
+  } else {
+    go.onclick = async () => {
+      const name = $("#name").value.trim(), email = $("#mail").value.trim().toLowerCase();
+      if(name.length < 3 || !email.includes("@")) return renderLogin("start", "Bitte Namen und E-Mail eintragen.");
+      saveMe({id: me().id || newId(), name, email, verified: false});
+      go.disabled = true;
+      const r = await call("register");
+      go.disabled = false;
+      if(!r.ok) return renderLogin("start", r.error || "Anmeldung fehlgeschlagen.");
+      renderLogin("code");
+    };
+  }
+}
+
+/* ---------- Hauptansicht ---------- */
+const S = {tab: "users", users: [], log: [], ideas: [], q: "", loading: false, err: "", update: null};
+function shell(){
+  const newIdeas = S.ideas.filter(i => !i.antwort).length;
+  $("#app").innerHTML = `<header>
+      <h1>PDF Admin <span><button id="reload" aria-label="Aktualisieren">↻ Aktualisieren</button><button id="menu" aria-label="Menü">⋮</button></span></h1>
+      <nav role="tablist">
+        <button role="tab" data-t="users" aria-selected="${S.tab === "users"}">Nutzer<span class="n">${S.users.length}</span></button>
+        <button role="tab" data-t="ideas" aria-selected="${S.tab === "ideas"}">Vorschläge${newIdeas ? `<span class="n">${newIdeas}</span>` : ""}</button>
+        <button role="tab" data-t="log" aria-selected="${S.tab === "log"}">Protokoll</button>
+      </nav>
+    </header><main id="main"></main>`;
+  document.querySelectorAll("nav button").forEach(b => b.onclick = () => { S.tab = b.dataset.t; shell(); });
+  $("#reload").onclick = load;
+  $("#menu").onclick = () => {
+    const u = me();
+    if(confirm(`Angemeldet als ${u.name} (${u.email}).\nApp-Version ${N.version()}\n\nAbmelden?`)){ localStorage.removeItem("me"); renderLogin("start"); }
+  };
+  renderTab();
+}
+function renderTab(){
+  const m = $("#main"); if(!m) return;
+  let h = "";
+  if(S.update) h += `<div class="banner"><span>Neue App-Version ${esc(S.update.version)}</span><button class="primary" id="upd">Laden</button></div>`;
+  if(S.err) h += `<p class="err">${esc(S.err)}</p>`;
+  if(S.loading && !S.users.length) h += '<p class="empty">Wird geladen …</p>';
+  else if(S.tab === "users") h += usersHtml();
+  else if(S.tab === "log") h += logHtml();
+  m.innerHTML = h;
+  if(S.update) $("#upd").onclick = () => N.open(S.update.url);
+  if(S.tab === "users") bindUsers();
+  if(S.tab === "ideas"){ if(!(S.loading && !S.users.length)) S.ideas.length ? S.ideas.forEach(i => m.appendChild(ideaCard(i))) : m.insertAdjacentHTML("beforeend", '<p class="empty">Noch keine Vorschläge.</p>'); }
+}
+
+function usersHtml(){
+  const q = S.q.toLowerCase();
+  const list = S.users.filter(u => !q || (u.name + " " + u.email).toLowerCase().includes(q))
+    .sort((a, b) => new Date(b.last) - new Date(a.last));
+  const blocked = S.users.filter(u => u.blocked).length;
+  return `<input class="search" id="q" type="search" placeholder="Name oder E-Mail suchen" value="${esc(S.q)}">
+    <p class="muted">${S.users.length} Nutzer${blocked ? ` · ${blocked} gesperrt` : ""}</p>` +
+    (list.length ? list.map(u => `<div class="card">
+      <div class="row sp"><span class="name">${esc(u.name)}</span>
+        ${u.blocked ? '<span class="chip warn">gesperrt</span>' : u.verified ? '<span class="chip ok">freigeschaltet</span>' : '<span class="chip">Code offen</span>'}</div>
+      <div class="muted">${esc(u.email)}</div>
+      <div class="muted">Version ${esc(u.version)} · zuletzt aktiv ${esc(ago(u.last))} · ${u.starts} Starts</div>
+      <div class="muted">Erste Anmeldung ${esc(fmt(u.first))}</div>
+      ${u.id === me().id ? "" : `<div class="row" style="margin-top:8px;justify-content:flex-end">
+        <button class="${u.blocked ? "" : "danger"}" data-block="${esc(u.id)}" data-v="${u.blocked ? "" : "ja"}">${u.blocked ? "Entsperren" : "Sperren"}</button></div>`}
+    </div>`).join("") : '<p class="empty">Keine Nutzer gefunden.</p>');
+}
+function bindUsers(){
+  const q = $("#q");
+  if(q) q.oninput = () => { S.q = q.value; const pos = q.selectionStart; renderTab(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); };
+  document.querySelectorAll("[data-block]").forEach(b => b.onclick = async () => {
+    const u = S.users.find(x => x.id === b.dataset.block), v = b.dataset.v;
+    if(!confirm(v ? `${u.name} sperren? Das Programm ist dann auf diesem Rechner sofort gesperrt.` : `${u.name} wieder freigeben?`)) return;
+    b.disabled = true;
+    const r = await call("adminblock", {code: u.id, text: v});
+    if(!r.ok){ b.disabled = false; return toast(r.error || "Hat nicht geklappt."); }
+    u.blocked = !!r.blocked; toast(u.blocked ? `${u.name} ist gesperrt.` : `${u.name} ist wieder frei.`); renderTab();
+  });
+}
+function logHtml(){
+  if(!S.log.length) return '<p class="empty">Noch keine Einträge.</p>';
+  return `<div class="card log">${S.log.map(l => `<span class="t">${esc(fmt(l.zeit))}</span><span>${esc(l.name)} · ${esc(EV[l.event] || l.event)}${l.version ? ` <span class="muted">(${esc(l.version)})</span>` : ""}</span>`).join("")}</div>`;
+}
+function ideaCard(i){
+  const el = document.createElement("div"); el.className = "card";
+  const draw = () => {
+    el.innerHTML = `<div class="muted">${esc(fmt(i.zeit))} · Version ${esc(i.version)}</div>
+      <div class="name">${esc(i.name)}</div><div class="txt">${esc(i.text)}</div>
+      ${i.antwort ? `<div class="ans"><small>Deine Antwort${i.beantwortet ? " vom " + esc(fmt(i.beantwortet)) : ""}</small>${esc(i.antwort)}</div>` : ""}
+      <div class="row" style="justify-content:flex-end"><button>${i.antwort ? "Noch einmal antworten" : "Antworten"}</button></div>`;
+    el.querySelector("button").onclick = edit;
+  };
+  const edit = () => {
+    el.querySelector(".row:last-child").outerHTML = `<textarea rows="5" maxlength="3000" placeholder="Antwort an ${esc(i.name)} – geht per E-Mail an ${esc(i.email)}"></textarea>
+      <p class="err" hidden></p>
+      <div class="row sp" style="margin-top:8px"><button data-a="x">Abbrechen</button><button class="primary" data-a="s">Antwort senden</button></div>`;
+    const ta = el.querySelector("textarea"), err = el.querySelector(".err"), send = el.querySelector('[data-a="s"]');
+    ta.focus();
+    el.querySelector('[data-a="x"]').onclick = draw;
+    send.onclick = async () => {
+      const text = ta.value.trim();
+      if(text.length < 2){ err.textContent = "Bitte eine Antwort eintragen."; err.hidden = false; return; }
+      send.disabled = true; send.textContent = "Wird gesendet …";
+      const r = await call("feedbackreply", {code: String(i.row), text});
+      if(!r.ok){ send.disabled = false; send.textContent = "Antwort senden"; err.textContent = r.error || "Senden fehlgeschlagen."; err.hidden = false; return; }
+      Object.assign(i, {antwort: r.antwort || text, beantwortet: r.beantwortet || new Date().toISOString(), status: "beantwortet"});
+      draw(); toast(`Antwort an ${i.name} gesendet.`);
+    };
+  };
+  draw();
+  return el;
+}
+
+async function load(){
+  S.loading = true; S.err = ""; renderTab();
+  const [a, f] = await Promise.all([call("adminlist"), call("feedbacklist")]);
+  S.loading = false;
+  if(a.ok){ S.users = a.users || []; S.log = a.log || []; }
+  if(f.ok) S.ideas = f.items || [];
+  const bad = [a, f].find(r => !r.ok);
+  if(bad){
+    if(/Administrator/.test(bad.error || "")){ S.err = "Dieser Zugang ist nicht als Administrator freigeschaltet."; }
+    else S.err = bad.error || "Konnte nicht geladen werden.";
+  }
+  shell();
+}
+
+// Neue App-Version auf GitHub?
+function newer(a, b){ const p = s => String(s).split(".").map(n => parseInt(n, 10) || 0); const x = p(a), y = p(b); for(let i = 0; i < 3; i++){ if((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; }
+async function checkUpdate(){
+  const repo = N.repo(); if(!repo) return;
+  const body = await native("get", `https://github.com/${repo}/releases/download/android/version.json`);
+  try{ const v = JSON.parse(body); if(v.version && v.url && newer(v.version, N.version())){ S.update = v; renderTab(); } }catch(e){}
+}
+
+window.goBack = () => { if(S.tab !== "users" && me().verified){ S.tab = "users"; shell(); return true; } return false; };
+
+function start(){
+  const u = me();
+  if(!u.id || !u.email) return renderLogin("start");
+  if(!u.verified) return renderLogin("code");
+  shell(); load(); checkUpdate();
+}
+start();
+</script>
+</body>
+</html>

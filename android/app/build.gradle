@@ -1,0 +1,39 @@
+plugins { id 'com.android.application' }
+
+// Werte kommen beim Bauen aus den GitHub-Secrets (wie beim Windows-Programm)
+def env = { String k, String d -> (System.getenv(k) ?: d).trim() }
+
+android {
+    namespace 'de.pdfunterschreiben.admin'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'de.pdfunterschreiben.admin'
+        minSdk 26
+        targetSdk 34
+        versionCode Integer.parseInt(env('APP_VERSION_CODE', '1'))
+        versionName env('APP_VERSION', '0.0.0')
+        buildConfigField 'String', 'REPORT_URL', "\"${env('REPORT_URL', '')}\""
+        buildConfigField 'String', 'REPORT_KEY', "\"${env('REPORT_KEY', '')}\""
+        buildConfigField 'String', 'REPO', "\"${env('APP_REPO', '')}\""
+    }
+    signingConfigs {
+        release {
+            storeFile file(env('ANDROID_KEYSTORE_FILE', 'missing.p12'))
+            storePassword 'pdfunterschreiben'
+            keyAlias 'admin'
+            keyPassword 'pdfunterschreiben'
+            storeType 'pkcs12'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

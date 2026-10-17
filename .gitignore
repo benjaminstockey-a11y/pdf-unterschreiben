@@ -2,3 +2,8 @@ PDF-Unterschreiben-Setup.exe
 version.json
 *.exe
 web/lib/pdf-lib.min.js
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.p12

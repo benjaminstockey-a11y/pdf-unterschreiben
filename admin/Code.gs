@@ -34,6 +34,8 @@ function handle(d) {
   if (ev === 'feedbacklist') return feedbackList(ss, users, id, mail);
   if (ev === 'feedback') return feedback(ss, name, mail, ver, d.text);
   if (ev === 'feedbackreply') return feedbackReply(ss, users, id, mail, d.code, d.text);
+  if (ev === 'adminlist') return adminList(ss, users, log, id, mail);
+  if (ev === 'adminblock') return adminBlock(users, id, mail, d.code, d.text);
   if (ev !== 'check') log.appendRow([now, name, mail, ev, "'" + ver, n]);
 
   let row = findRow(users, id);
@@ -142,6 +144,31 @@ function feedbackReply(ss, users, id, mail, rowNo, text) {
   const now = new Date();
   s.getRange(row, 6, 1, 3).setValues([['beantwortet', t, now]]);
   return { ok: true, antwort: t, beantwortet: now.toISOString() };
+}
+
+// Admin-App: Nutzerliste und Protokoll lesen
+function adminList(ss, users, log, id, mail) {
+  if (!isAdmin(users, id, mail)) return { ok: false, error: 'Nur für den Administrator.' };
+  const iso = x => x instanceof Date ? x.toISOString() : String(x || '');
+  const u = users.getLastRow() < 2 ? [] : users.getRange(2, 1, users.getLastRow() - 1, 12).getValues();
+  const nLog = Math.min(150, Math.max(0, log.getLastRow() - 1));
+  const l = nLog ? log.getRange(log.getLastRow() - nLog + 1, 1, nLog, 6).getValues().reverse() : [];
+  return { ok: true,
+    users: u.map(r => ({ name: String(r[0]), email: String(r[1]), id: String(r[2]), version: String(r[3]).replace(/^'/, ''),
+      first: iso(r[4]), last: iso(r[5]), verified: String(r[6]).toLowerCase() === 'ja', blocked: String(r[7]).trim().toLowerCase() === 'ja',
+      starts: Number(r[8]) || 0 })),
+    log: l.map(r => ({ zeit: iso(r[0]), name: String(r[1]), email: String(r[2]), event: String(r[3]), version: String(r[4]).replace(/^'/, '') })) };
+}
+
+// Admin-App: Nutzer sperren („ja“) oder entsperren – der eigene Zugang lässt sich nicht sperren
+function adminBlock(users, id, mail, targetId, value) {
+  if (!isAdmin(users, id, mail)) return { ok: false, error: 'Nur für den Administrator.' };
+  const row = findRow(users, String(targetId || ''));
+  if (row < 0) return { ok: false, error: 'Nutzer nicht gefunden.' };
+  if (ADMIN_MAILS.indexOf(String(users.getRange(row, 2).getValue()).toLowerCase()) >= 0) return { ok: false, error: 'Der Administrator kann nicht gesperrt werden.' };
+  const block = String(value) === 'ja';
+  users.getRange(row, 8).setValue(block ? 'ja' : '');
+  return { ok: true, blocked: block };
 }
 
 function sheet(ss, name, head) {
