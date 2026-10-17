@@ -25,7 +25,7 @@ const (
 	AppID     = "PDFUnterschreiben"
 	ExeName   = "PDF Unterschreiben.exe"
 	Port      = 47613 // fest, damit gespeicherte Einstellungen im Fenster erhalten bleiben
-	Publisher = "Benjamin Stockey"
+	Publisher = "PDF Unterschreiben"
 )
 
 func installDir() string {

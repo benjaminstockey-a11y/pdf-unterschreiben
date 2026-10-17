@@ -264,7 +264,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
   <form method="dialog" class="dlg" id="regForm">
     <div class="dlg-head"><strong>Einmalige Anmeldung</strong></div>
     <div class="dlg-body col" style="gap:12px">
-      <span class="hint">Bitte einmal mit Namen und Arbeits-E-Mail anmelden. Gemeldet werden nur Name, E-Mail, Programmversion und wann du das Programm nutzt – damit Benjamin Stockey sieht, wer es verwendet. Unterschriften und Berichte werden nicht übertragen.</span>
+      <span class="hint">Bitte einmal mit Namen und Arbeits-E-Mail anmelden. Gemeldet werden nur Name, E-Mail, Programmversion und wann du das Programm nutzt – damit der Administrator sieht, wer es verwendet. Unterschriften und Berichte werden nicht übertragen.</span>
       <label class="field">Vor- und Nachname
         <input type="text" id="regName" autocomplete="name" required placeholder="Max Mustermann">
       </label>
@@ -303,7 +303,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 <dialog id="blockDlg">
   <form method="dialog" class="dlg">
     <div class="dlg-head"><strong>Programm gesperrt</strong></div>
-    <div class="dlg-body"><span class="hint">Dein Zugang zu PDF Unterschreiben wurde gesperrt. Bitte wende dich an Benjamin Stockey.</span></div>
+    <div class="dlg-body"><span class="hint">Dein Zugang zu PDF Unterschreiben wurde gesperrt. Bitte wende dich an den Administrator.</span></div>
     <div class="dlg-foot"><span></span><button type="button" class="primary" id="blockRetry">Erneut prüfen</button></div>
   </form>
 </dialog>
@@ -312,7 +312,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
   <form method="dialog" class="dlg" id="ideaForm">
     <div class="dlg-head"><strong>Verbesserungsvorschlag</strong></div>
     <div class="dlg-body col" style="gap:10px">
-      <span class="hint">Was könnte das Programm besser machen? Dein Vorschlag geht nur an Benjamin Stockey.</span>
+      <span class="hint">Was könnte das Programm besser machen? Dein Vorschlag geht nur an den Administrator.</span>
       <textarea id="ideaText" rows="6" maxlength="3000" placeholder="z. B. Beim UVV-Bericht soll die Unterschrift etwas weiter rechts sitzen …" style="font:15px var(--f-body);padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);width:100%;resize:vertical"></textarea>
       <span class="hint" id="ideaErr" style="color:var(--warn)" hidden></span>
     </div>

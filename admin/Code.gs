@@ -53,7 +53,7 @@ function handle(d) {
       subject: 'Dein Freischaltcode für PDF Unterschreiben: ' + code,
       body: 'Hallo ' + name + ',\n\ndein Freischaltcode für PDF Unterschreiben lautet:\n\n    ' + code +
         '\n\nTrag ihn im Programm ein. Der Code ist ' + CODE_MINUTEN + ' Minuten gültig.\n\n' +
-        'Falls du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.\n\nViele Grüße\nBenjamin Stockey',
+        'Falls du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.\n\nViele Grüße\nPDF Unterschreiben',
       name: 'PDF Unterschreiben'
     });
     return { ok: true, sent: true };
