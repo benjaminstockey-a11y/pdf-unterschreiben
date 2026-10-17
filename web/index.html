@@ -97,6 +97,15 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 .stamp .del{position:absolute;top:-12px;right:-12px;width:24px;height:24px;border-radius:50%;padding:0;justify-content:center;background:#1d3fb8;color:#fff;border:0;font-size:15px}
 .empty{padding:44px 28px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:8px;align-items:center}
 .empty b{font:600 17px var(--f-display);color:var(--ink)}
+#printArea{display:none}
+@media print{
+  body{padding:0;background:#fff}
+  body > *:not(#printArea){display:none!important}
+  #printArea{display:block}
+  .print-page{height:100vh;display:flex;align-items:center;justify-content:center;break-after:page;overflow:hidden}
+  .print-page:last-child{break-after:auto}
+  .print-page img{display:block;max-width:100%;max-height:100vh;object-fit:contain}
+}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:min(560px,calc(100% - 32px));box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:30}
 /* Ausschneiden aus PDF */
 dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(--ink);width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -195,6 +204,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
         <div class="row">
           <button id="openBtn">PDFs öffnen</button>
           <input type="file" id="pdfFile" accept="application/pdf,.pdf" multiple hidden>
+          <button id="printAll" hidden>Alle drucken</button>
           <button class="primary" id="saveAll" hidden>Alle speichern</button>
         </div>
       </div>
@@ -507,6 +517,7 @@ function renderAll(){
 function updateSaveAll(){
   const n = state.docs.filter(d => d.stamp).length;
   $("#saveAll").hidden = n < 2; $("#saveAll").textContent = `Alle speichern (${n})`;
+  $("#printAll").hidden = n < 2; $("#printAll").textContent = `Alle drucken (${n})`;
 }
 function statusChip(doc){
   if(!doc.stamp) return '<span class="chip warn">Keine Unterschrift gesetzt – klick auf eine Seite</span>';
@@ -530,12 +541,14 @@ function buildDoc(doc){
         ${n > 1 ? `<button class="ghost" data-a="all">${doc.showAll ? "Nur Unterschriftsseite" : `Alle ${n} Seiten`}</button>` : ""}
         <button class="ghost" data-a="auto">Automatisch platzieren</button>
         <button class="ghost" data-a="rm">Schließen</button>
+        <button data-a="print" ${doc.stamp ? "" : "disabled"}>Drucken</button>
         <button class="primary" data-a="save" ${doc.stamp ? "" : "disabled"}>Unterschreiben &amp; speichern</button>
       </div>
     </div>
     <div class="pages"></div>`;
   el.querySelector('[data-a="rm"]').onclick = () => { state.docs = state.docs.filter(d => d !== doc); try{ doc.pdf.destroy(); }catch(e){} renderAll(); };
   el.querySelector('[data-a="save"]').onclick = () => saveDoc(doc);
+  el.querySelector('[data-a="print"]').onclick = () => printDocs([doc]);
   el.querySelector('[data-a="auto"]').onclick = async () => { doc.moved = false; doc.saved = false; await autoPlace(doc); rebuild(doc); };
   const allB = el.querySelector('[data-a="all"]'); if(allB) allB.onclick = () => { doc.showAll = !doc.showAll; rebuild(doc); };
 
@@ -572,6 +585,7 @@ function updateHead(doc){
   const el = document.querySelector(`.doc[data-id="${doc.id}"]`); if(!el) return;
   el.querySelector(".st").innerHTML = statusChip(doc);
   el.querySelector('[data-a="save"]').disabled = !doc.stamp;
+  el.querySelector('[data-a="print"]').disabled = !doc.stamp;
   updateSaveAll();
 }
 async function paintPage(doc, i, cv, wrap){
@@ -670,6 +684,64 @@ async function saveDoc(doc){
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   doc.saved = true; updateHead(doc); toast(`In „Downloads“ gespeichert: ${name}`);
 }
+/* ---------- Drucken ---------- */
+// Die unterschriebenen Seiten werden scharf gerendert und über den Windows-Druckdialog ausgegeben
+// (Drucker, Anzahl und Seiten wählt man dort wie gewohnt).
+let printing = false;
+async function printDocs(list){
+  if(printing || !ready()) return;
+  list = list.filter(d => d.stamp);
+  if(!list.length){ toast("Klick auf eine Seite, um die Unterschrift zu setzen."); return; }
+  printing = true; toast("Druck wird vorbereitet …", 20000);
+  const area = document.createElement("div"); area.id = "printArea";
+  const urls = []; let landscape = null;
+  try{
+    for(const doc of list){
+      const bytes = await signed(doc); if(!bytes) continue;
+      const pdf = await openPdf(bytes);
+      for(let i = 1; i <= pdf.numPages; i++){
+        const page = await pdf.getPage(i);
+        const base = page.getViewport({scale: 1});
+        if(landscape === null) landscape = base.width > base.height;
+        const scale = Math.min(300 / 72, 5000 / Math.max(base.width, base.height)); // ca. 300 dpi
+        const vp = page.getViewport({scale});
+        const cv = document.createElement("canvas"); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+        const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+        await page.render({canvasContext: ctx, viewport: vp}).promise;
+        const blob = await new Promise(r => cv.toBlob(r, "image/png"));
+        cv.width = cv.height = 0;
+        const url = URL.createObjectURL(blob); urls.push(url);
+        const pg = document.createElement("div"); pg.className = "print-page";
+        const img = new Image(); img.src = url; img.alt = ""; pg.appendChild(img); area.appendChild(pg);
+      }
+      pdf.destroy();
+    }
+    if(!area.children.length){ toast("Es gab nichts zu drucken."); return; }
+    const ps = document.createElement("style"); ps.id = "printPage";
+    ps.textContent = `@page{size:A4 ${landscape ? "landscape" : "portrait"};margin:0}`;
+    document.head.appendChild(ps); document.body.appendChild(area);
+    await Promise.all([...area.querySelectorAll("img")].map(i => i.decode().catch(() => {})));
+    $("#toast").hidden = true;
+    await new Promise(r => setTimeout(r, 50));
+    window.print();
+  }catch(e){
+    toast("Drucken fehlgeschlagen: " + (e && e.message || e));
+  }finally{
+    setTimeout(() => {
+      area.remove(); const ps = $("#printPage"); if(ps) ps.remove();
+      urls.forEach(u => URL.revokeObjectURL(u)); printing = false;
+    }, 500);
+  }
+}
+$("#printAll").onclick = () => printDocs(state.docs);
+// Strg+P druckt die geöffneten Berichte statt der Programmoberfläche
+addEventListener("keydown", e => {
+  if((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "p"){
+    e.preventDefault();
+    if(state.docs.some(d => d.stamp)) printDocs(state.docs); else toast("Öffne zuerst eine PDF zum Drucken.");
+  }
+});
+
 $("#saveAll").onclick = async () => {
   if(!ready()) return;
   const list = state.docs.filter(d => d.stamp);
