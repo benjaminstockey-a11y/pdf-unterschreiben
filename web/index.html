@@ -266,7 +266,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
       <label class="field">Arbeits-E-Mail
         <span class="row" style="gap:0;flex-wrap:nowrap">
           <input type="text" id="regMail" autocomplete="off" required placeholder="m.mustermann" style="border-top-right-radius:0;border-bottom-right-radius:0;min-width:0">
-          <span class="val" style="border:1px solid var(--line);border-left:0;border-radius:0 7px 7px 0;padding:8px 10px;background:var(--sheet);white-space:nowrap">@schlueter-gabelstapler.de</span>
+          <span class="val" id="regDomain" style="border:1px solid var(--line);border-left:0;border-radius:0 7px 7px 0;padding:8px 10px;background:var(--sheet);white-space:nowrap">@schlueter-gabelstapler.de</span>
         </span>
       </label>
       <span class="hint" id="regErr" style="color:var(--warn)" hidden></span>
@@ -1333,8 +1333,9 @@ addEventListener("resize", () => {
 
 /* ---------- Updates ---------- */
 // Admins bekommen auf Wunsch Testversionen, bevor sie für alle freigegeben werden.
-const ADMINS = ["b.stockey@schlueter-gabelstapler.de"];
-const isAdmin = () => !!(state.user && state.user.verified && ADMINS.includes(state.user.email));
+const ADMINS = ["b.stockey@hotmail.de"];
+const isAdmin = () => !!(state.user && state.user.verified && ADMINS.includes(state.user.email)
+  && state.user.name.trim().toLowerCase() === "benjamin stockey");
 const kanal = () => (isAdmin() && state.testChannel !== false) ? "?kanal=test" : "";
 let latest = null;
 async function checkUpdates(manual){
@@ -1395,9 +1396,13 @@ const locked = () => reportOn && (!state.user || !state.user.verified || state.b
 ["regDlg", "codeDlg", "blockDlg"].forEach(id => $("#" + id).addEventListener("cancel", e => { if(locked()) e.preventDefault(); }));
 let mailEdited = false;
 $("#regName").addEventListener("input", () => { if(!mailEdited) $("#regMail").value = mailFromName($("#regName").value); });
+// Eine vollständige Adresse (mit @) ist nur für Admins erlaubt – sonst wird die Firmen-Domain angehängt.
+const ADMIN_MAILS = ["b.stockey@hotmail.de"];
 $("#regMail").addEventListener("input", () => {
   mailEdited = true;
-  const v = $("#regMail").value; const at = v.indexOf("@"); if(at >= 0) $("#regMail").value = v.slice(0, at);
+  const v = $("#regMail").value.trim().toLowerCase();
+  if(v.endsWith("@" + MAIL_DOMAIN)) $("#regMail").value = v.slice(0, -(MAIL_DOMAIN.length + 1));
+  $("#regDomain").hidden = $("#regMail").value.includes("@");
 });
 const regErr = m => { $("#regErr").textContent = m; $("#regErr").hidden = !m; };
 const codeErr = m => { $("#codeErr").textContent = m; $("#codeErr").hidden = !m; };
@@ -1406,8 +1411,14 @@ $("#regForm").addEventListener("submit", async e => {
   const name = $("#regName").value.trim().replace(/\s+/g, " ");
   const local = $("#regMail").value.trim().toLowerCase();
   if(name.split(" ").length < 2) return regErr("Bitte Vor- und Nachnamen eintragen.");
-  if(!/^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+([.-][a-z0-9]+)*$/.test(local)) return regErr("Die E-Mail hat die Form v.nachname@" + MAIL_DOMAIN + ".");
-  const email = `${local}@${MAIL_DOMAIN}`;
+  let email;
+  if(local.includes("@")){
+    if(!ADMIN_MAILS.includes(local)) return regErr("Bitte nur den Teil vor dem @ eintragen – es gilt immer die Arbeits-E-Mail @" + MAIL_DOMAIN + ".");
+    email = local;
+  } else {
+    if(!/^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+([.-][a-z0-9]+)*$/.test(local)) return regErr("Die E-Mail hat die Form v.nachname@" + MAIL_DOMAIN + ".");
+    email = `${local}@${MAIL_DOMAIN}`;
+  }
   const id = (state.user && state.user.id) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
   const same = state.user && state.user.verified && state.user.email === email;
   state.user = {id, name, email, verified: same || !reportOn};
@@ -1423,7 +1434,8 @@ $("#regForm").addEventListener("submit", async e => {
 function openRegistration(){
   regErr("");
   $("#regName").value = state.user ? state.user.name : "";
-  $("#regMail").value = state.user ? state.user.email.split("@")[0] : "";
+  $("#regMail").value = state.user ? (state.user.email.endsWith("@" + MAIL_DOMAIN) ? state.user.email.split("@")[0] : state.user.email) : "";
+  $("#regDomain").hidden = $("#regMail").value.includes("@");
   mailEdited = !!state.user;
   $("#regDlg").showModal();
 }

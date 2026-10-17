@@ -4,6 +4,7 @@
 // GitHub-Secret REPORT_KEY – im Repository steht hier nur ein Platzhalter.
 const KEY = 'HIER_SCHLUESSEL_EINTRAGEN';
 const DOMAIN = 'schlueter-gabelstapler.de';
+const ADMIN_MAILS = ['b.stockey@hotmail.de']; // Admin darf sich mit dieser Adresse anmelden
 const CODE_MINUTEN = 30;
 
 function doPost(e) {
@@ -27,7 +28,7 @@ function handle(d) {
   const ev = clean(d.event, 20), ver = clean(d.version, 20);
   const n = Math.max(1, Math.min(1000, Number(d.count) || 1));
   if (!id) return { ok: false, error: 'Rechner-ID fehlt.' };
-  if (!/^[a-z0-9.\-]+@/.test(mail) || !mail.endsWith('@' + DOMAIN)) return { ok: false, error: 'Nur E-Mail-Adressen von ' + DOMAIN + ' sind erlaubt.' };
+  if (ADMIN_MAILS.indexOf(mail) < 0 && (!/^[a-z0-9.\-]+@/.test(mail) || !mail.endsWith('@' + DOMAIN))) return { ok: false, error: 'Nur E-Mail-Adressen von ' + DOMAIN + ' sind erlaubt.' };
 
   const now = new Date();
   if (ev !== 'check') log.appendRow([now, name, mail, ev, "'" + ver, n]);
