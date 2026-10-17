@@ -131,6 +131,22 @@ dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(-
 .idea textarea{font:15px var(--f-body);padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);width:100%;resize:vertical}
 .idea .acts{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
 dialog::backdrop{background:rgba(10,15,30,.55)}
+#docuDlg{width:min(780px,calc(100vw - 32px))}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg label{flex:1 1 140px;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sheet);cursor:pointer;font-weight:500}
+.seg input{accent-color:var(--pen)}
+.seg label:has(input:checked){border-color:var(--pen);background:var(--pen-soft);color:var(--pen)}
+.docu-sec{display:flex;flex-direction:column;gap:8px}
+.docu-sec > strong{font:600 14px var(--f-body)}
+.docu-list{display:flex;flex-direction:column;gap:6px}
+.docu-list label{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sheet)}
+.docu-list label span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.docu-list small{color:var(--muted);white-space:nowrap}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.thumbs figure{position:relative;margin:0;aspect-ratio:1;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--sheet)}
+.thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.thumbs button{position:absolute;top:4px;right:4px;width:26px;height:26px;padding:0;border-radius:50%;font-size:16px;line-height:1;background:rgba(255,255,255,.92)}
+.docu-drop{border:2px dashed var(--line);border-radius:8px;padding:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .dlg{display:flex;flex-direction:column;max-height:calc(100vh - 32px)}
 .dlg-head,.dlg-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
 .dlg-foot{border-bottom:0;border-top:1px solid var(--line)}
@@ -238,6 +254,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
         </div>
         <div class="row">
           <button id="openBtn">Dateien öffnen</button>
+          <button id="docuBtn">Dokumentation</button>
           <input type="file" id="pdfFile" accept="application/pdf,.pdf,.xlsx,.xlsm,.xls,.xlsb" multiple hidden>
           <button id="mailAll" hidden>Per E-Mail senden</button>
           <button class="primary" id="printAll" hidden>Drucken</button>
@@ -248,6 +265,43 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
     </main>
   </div>
 </div>
+
+<dialog id="docuDlg">
+  <form method="dialog" class="dlg" id="docuForm">
+    <div class="dlg-head"><strong>Dokumentation per E-Mail senden</strong><button type="button" class="ghost" id="docuClose">Schließen</button></div>
+    <div class="dlg-body col" style="gap:16px">
+      <div class="docu-sec">
+        <strong>Art auswählen</strong>
+        <div class="seg" role="radiogroup" aria-label="Art der Dokumentation">
+          <label><input type="radio" name="docuArt" value="Umbau"> Umbau</label>
+          <label><input type="radio" name="docuArt" value="Gewaltschaden"> Gewaltschaden</label>
+          <label><input type="radio" name="docuArt" value="Garantie"> Garantie</label>
+        </div>
+      </div>
+      <label class="field docu-sec"><strong>Auftragsnummer</strong>
+        <input type="text" id="docuNr" autocomplete="off" maxlength="40" placeholder="z. B. 25704950">
+      </label>
+      <div class="docu-sec">
+        <strong>Montageberichte</strong>
+        <div class="docu-list" id="docuDocs"></div>
+        <div class="row"><button type="button" id="docuAddDoc">Bericht hinzufügen …</button></div>
+      </div>
+      <div class="docu-sec">
+        <strong>Fotos</strong>
+        <div class="docu-drop">
+          <span class="hint">Fotos auswählen oder hier hineinziehen (JPG oder PNG).</span>
+          <label class="btn file-btn">Fotos hinzufügen …<input type="file" id="docuPhotoIn" accept="image/jpeg,image/png,image/webp,image/bmp,image/gif" multiple></label>
+        </div>
+        <div class="thumbs" id="docuThumbs"></div>
+      </div>
+      <span class="hint" id="docuErr" style="color:var(--warn)" hidden></span>
+    </div>
+    <div class="dlg-foot">
+      <span class="hint" id="docuInfo"></span>
+      <button type="button" class="primary" id="docuSend">Als PDF per E-Mail senden</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="cropDlg">
   <div class="dlg">
@@ -1365,6 +1419,13 @@ document.addEventListener("dragleave", e => { if(!e.relatedTarget) drop.classLis
 document.addEventListener("drop", async e => {
   e.preventDefault(); drop.classList.remove("over");
   if($("#cropDlg").open) return;
+  if($("#docuDlg").open){
+    const fs = [...(e.dataTransfer.files || [])];
+    const pics = fs.filter(isPhoto), rest = fs.filter(f => !isPhoto(f));
+    if(pics.length) addPhotos(pics);
+    if(rest.length) addEntries(rest.map(file => ({file, handle: null})));
+    return;
+  }
   const items = [...(e.dataTransfer.items || [])].filter(i => i.kind === "file");
   // Datei-Handles müssen sofort angefragt werden, bevor das Drop-Ereignis vorbei ist
   const jobs = items.map(i => ({file: i.getAsFile(), handleP: i.getAsFileSystemHandle ? i.getAsFileSystemHandle().catch(() => null) : Promise.resolve(null)}));
@@ -1618,6 +1679,121 @@ function ideaCard(i){
   draw();
   return el;
 }
+
+/* ---------- Dokumentation: Berichte + Fotos als eine PDF per E-Mail ---------- */
+const docu = {photos: [], pick: new Map()};
+const isPhoto = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|bmp|gif|heic|heif)$/i.test(f.name);
+const docuErr = m => { $("#docuErr").textContent = m; $("#docuErr").hidden = !m; };
+const docuArt = () => (document.querySelector('input[name="docuArt"]:checked') || {}).value || "";
+function renderDocu(){
+  const box = $("#docuDocs");
+  box.innerHTML = state.docs.length ? "" : '<span class="hint">Noch kein Bericht geöffnet.</span>';
+  state.docs.forEach(d => {
+    if(!docu.pick.has(d)) docu.pick.set(d, true);
+    const l = document.createElement("label");
+    l.innerHTML = `<input type="checkbox"><span>${esc(d.name)}</span><small>${d.stamp && state.sig ? "wird unterschrieben" : "ohne Unterschrift"}</small>`;
+    const cb = l.querySelector("input"); cb.checked = docu.pick.get(d);
+    cb.onchange = () => docu.pick.set(d, cb.checked);
+    box.appendChild(l);
+  });
+  const t = $("#docuThumbs"); t.innerHTML = "";
+  docu.photos.forEach((ph, i) => {
+    const f = document.createElement("figure");
+    f.innerHTML = `<img alt="Foto ${i + 1}" src="${ph.url}"><button type="button" title="Foto entfernen" aria-label="Foto entfernen">×</button>`;
+    f.querySelector("button").onclick = () => { URL.revokeObjectURL(ph.url); docu.photos.splice(i, 1); renderDocu(); };
+    t.appendChild(f);
+  });
+  const nd = state.docs.filter(d => docu.pick.get(d)).length, np = docu.photos.length;
+  $("#docuInfo").textContent = `${nd} ${nd === 1 ? "Bericht" : "Berichte"}, ${np} ${np === 1 ? "Foto" : "Fotos"}`;
+}
+async function addPhotos(files){
+  let bad = 0;
+  for(const f of files){
+    if(/\.(heic|heif)$/i.test(f.name) || /hei[cf]/i.test(f.type)){ bad++; continue; }
+    try{ const bmp = await createImageBitmap(f); bmp.close(); docu.photos.push({file: f, url: URL.createObjectURL(f)}); }
+    catch(e){ bad++; }
+  }
+  if(bad) toast(`${bad} ${bad === 1 ? "Foto konnte" : "Fotos konnten"} nicht gelesen werden. Bitte als JPG oder PNG speichern (iPhone-Fotos im HEIC-Format gehen nicht).`, 8000);
+  renderDocu();
+}
+// Auftragsnummer aus dem Bericht vorschlagen (z. B. „Servicebericht 25704950“ oder „Auftrags-Nr.: …“)
+async function guessOrderNr(){
+  for(const d of state.docs.filter(d => docu.pick.get(d))){
+    let text = "";
+    for(let i = 1; i <= Math.min(2, d.pages.length); i++) for(const ln of await pageLines(d, i)) text += ln.text + "\n";
+    const m = text.match(/Auftrags?\s*-?\s*(?:nr\.?|nummer)\s*:?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,})/i)
+      || text.match(/(?:Service|Montage|Arbeits)bericht\s*(?:nr\.?\s*)?:?\s*(\d{5,})/i);
+    if(m) return m[1];
+  }
+  return "";
+}
+$("#docuBtn").onclick = async () => {
+  if(reportOn && state.blocked){ $("#blockDlg").showModal(); return; }
+  docuErr(""); renderDocu(); $("#docuDlg").showModal();
+  if(!$("#docuNr").value.trim()){ const nr = await guessOrderNr(); if(nr && !$("#docuNr").value.trim()) $("#docuNr").value = nr; }
+};
+$("#docuClose").onclick = () => $("#docuDlg").close();
+$("#docuAddDoc").onclick = () => $("#pdfFile").click();
+$("#docuPhotoIn").onchange = e => { addPhotos([...e.target.files]); e.target.value = ""; };
+// neu geöffnete Berichte erscheinen sofort in der Liste
+new MutationObserver(() => { if($("#docuDlg").open) renderDocu(); }).observe($("#docs"), {childList: true});
+document.querySelectorAll('input[name="docuArt"]').forEach(r => r.onchange = () => docuErr(""));
+
+// Foto verkleinern (max. 1800 px), richtig drehen und als JPG einbetten – hält die E-Mail klein
+async function photoJpeg(file){
+  const bmp = await createImageBitmap(file, {imageOrientation: "from-image"});
+  const k = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height); bmp.close();
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
+  return {bytes: new Uint8Array(await blob.arrayBuffer()), w: c.width, h: c.height};
+}
+let docuBusy = false;
+$("#docuSend").onclick = async () => {
+  if(docuBusy) return;
+  const art = docuArt(), nr = $("#docuNr").value.trim();
+  const list = state.docs.filter(d => docu.pick.get(d));
+  if(!art) return docuErr("Bitte auswählen: Umbau, Gewaltschaden oder Garantie.");
+  if(!nr){ $("#docuNr").focus(); return docuErr("Bitte die Auftragsnummer eintragen."); }
+  if(!list.length && !docu.photos.length) return docuErr("Bitte mindestens einen Bericht oder ein Foto hinzufügen.");
+  if(!window.PDFLib) return docuErr("Zum Erstellen der PDF braucht das Programm einmal Internet. Bitte verbinden und das Programm neu öffnen.");
+  docuErr(""); docuBusy = true;
+  const btn = $("#docuSend"); btn.disabled = true; btn.textContent = "PDF wird erstellt …";
+  try{
+    const {PDFDocument, StandardFonts, rgb} = PDFLib;
+    const out = await PDFDocument.create();
+    out.setTitle(`${art} ${nr}`); out.setCreator("PDF Unterschreiben");
+    for(const d of list){
+      const bytes = (d.stamp && state.sig) ? await signed(d) : d.bytes;
+      if(!bytes) throw new Error(`„${d.name}“ konnte nicht verarbeitet werden.`);
+      const src = await PDFDocument.load(bytes, {ignoreEncryption: true});
+      (await out.copyPages(src, src.getPageIndices())).forEach(pg => out.addPage(pg));
+    }
+    const font = await out.embedFont(StandardFonts.Helvetica);
+    for(let i = 0; i < docu.photos.length; i++){
+      btn.textContent = `Foto ${i + 1} von ${docu.photos.length} …`;
+      const ph = await photoJpeg(docu.photos[i].file);
+      const land = ph.w > ph.h, W = land ? 841.89 : 595.28, H = land ? 595.28 : 841.89, M = 28, top = 26;
+      const page = out.addPage([W, H]);
+      page.drawText(`${art} · Auftrag ${nr} · Foto ${i + 1} von ${docu.photos.length}`, {x: M, y: H - M - 10, size: 10, font, color: rgb(.25,.28,.35)});
+      const img = await out.embedJpg(ph.bytes);
+      const k = Math.min((W - 2 * M) / ph.w, (H - 2 * M - top) / ph.h);
+      const w = ph.w * k, h = ph.h * k;
+      page.drawImage(img, {x: (W - w) / 2, y: M + (H - 2 * M - top - h) / 2, width: w, height: h});
+    }
+    btn.textContent = "E-Mail wird geöffnet …";
+    const name = `${art}_${nr}`.replace(/[\\/:*?"<>|\s]+/g, "_") + ".pdf";
+    const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({subject: `${art} ${nr}`, files: [{name, data: b64(await out.save())}]})})).json();
+    if(!r.ok) return docuErr(r.error || "E-Mail konnte nicht geöffnet werden.");
+    $("#docuDlg").close();
+    toast(r.via === "explorer" ? "Kein E-Mail-Programm gefunden. Der Ordner mit der PDF ist geöffnet." : `E-Mail „${art} ${nr}“ geöffnet – Empfänger eintragen und senden.`, 8000);
+    docu.photos.forEach(ph => URL.revokeObjectURL(ph.url)); docu.photos = [];
+    $("#docuNr").value = ""; document.querySelectorAll('input[name="docuArt"]').forEach(r => r.checked = false);
+  }catch(e){ docuErr(e.message && e.message.startsWith("„") ? e.message : "Die PDF konnte nicht erstellt werden."); }
+  finally{ docuBusy = false; btn.disabled = false; btn.textContent = "Als PDF per E-Mail senden"; }
+};
 
 /* ---------- Abmelden ---------- */
 $("#logoutDlg").addEventListener("close", async () => {

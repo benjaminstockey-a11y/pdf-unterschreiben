@@ -30,7 +30,7 @@ Windows-Einstellungen → Apps → „PDF Unterschreiben“ → Deinstallieren.
 
 Es gibt zwei Kanäle:
 
-1. **Testen:** In `TESTVERSION` eine höhere Nummer eintragen als in `VERSION` (z. B. `1.13.1`) und nach `main` pushen. Jeder weitere Push baut automatisch eine neue Testversion (`1.13.1-test.N`) ins Vorab-Release `adminkanal`. Die bekommen nur Admins, die im Programm unter „Testkanal“ Testversionen eingeschaltet haben.
-2. **Freigeben:** In `VERSION` dieselbe Nummer eintragen (z. B. `1.13.1`) und pushen. Dann wird die fertige Version als normales Release für alle veröffentlicht.
+1. **Testen:** In `TESTVERSION` eine höhere Nummer eintragen als in `VERSION` (z. B. `1.14.0`) und nach `main` pushen. Jeder weitere Push baut automatisch eine neue Testversion (`1.14.0-test.N`) ins Vorab-Release `adminkanal`. Die bekommen nur Admins, die im Programm unter „Testkanal“ Testversionen eingeschaltet haben.
+2. **Freigeben:** In `VERSION` dieselbe Nummer eintragen (z. B. `1.14.0`) und pushen. Dann wird die fertige Version als normales Release für alle veröffentlicht.
 
 Die erste Zeile der Commit-Nachricht erscheint im Programm als Update-Hinweis.
