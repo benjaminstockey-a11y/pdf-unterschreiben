@@ -131,6 +131,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/excel/pdf", a.handleExcelPDF)
 	mux.HandleFunc("/api/excel/sign", a.handleExcelSign)
 	mux.HandleFunc("/api/mail", a.handleMail)
+	mux.HandleFunc("/api/ocr", a.handleOCR)
 	mux.HandleFunc("/api/report", a.handleReport)
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		// Nur feste Adressen im Standardbrowser öffnen (dort ist man bei Google angemeldet)
