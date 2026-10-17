@@ -131,6 +131,11 @@ dialog{border:0;border-radius:12px;padding:0;background:var(--sheet);color:var(-
 .idea textarea{font:15px var(--f-body);padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);width:100%;resize:vertical}
 .idea .acts{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
 dialog::backdrop{background:rgba(10,15,30,.55)}
+#helpDlg{width:min(680px,calc(100vw - 32px))}
+.help h3{font:600 15px var(--f-display);margin:14px 0 4px}
+.help h3:first-child{margin-top:0}
+.help p,.help li{margin:0 0 4px;line-height:1.5}
+.help ul{margin:0 0 4px;padding-left:20px}
 #docuDlg{width:min(900px,calc(100vw - 32px))}
 .seg{display:flex;flex-wrap:wrap;gap:8px}
 .seg label{flex:1 1 140px;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sheet);cursor:pointer;font-weight:500}
@@ -174,7 +179,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
       <h1>PDF Unterschreiben</h1>
       <p class="lead">PDFs reinziehen – deine Unterschrift landet automatisch über dem Unterschriftsfeld. Verschieben per Ziehen oder Doppelklick auf die Seite. Ankreuzfelder mit einem Klick abhaken.</p>
     </div>
-    <div class="ver"><span id="verText">Version …</span><button class="ghost" id="checkBtn" hidden>Nach Updates suchen</button><button id="ideaBtn" hidden>Verbesserungsvorschlag</button></div>
+    <div class="ver"><span id="verText">Version …</span><button class="ghost" id="checkBtn" hidden>Nach Updates suchen</button><button id="helpBtn">Anleitung</button><button id="ideaBtn" hidden>Verbesserungsvorschlag</button></div>
   </div>
 
   <div class="banner" id="banner" hidden>
@@ -273,6 +278,39 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
     </main>
   </div>
 </div>
+
+<dialog id="helpDlg">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head"><strong>So funktioniert PDF Unterschreiben</strong><button class="ghost" value="close">Schließen</button></div>
+    <div class="dlg-body help">
+      <p>PDF Unterschreiben setzt deine Unterschrift automatisch in Montage-, UVV- und DGUV-V3-Berichte und verschickt sie direkt per E-Mail.</p>
+      <h3>1. Unterschrift anlegen (einmalig)</h3>
+      <p>Links unter „Deine Unterschrift“ zeichnen, als Bild laden oder aus einer schon unterschriebenen PDF ausschneiden. Sie bleibt auf diesem Computer gespeichert.</p>
+      <h3>2. Berichte öffnen</h3>
+      <p>PDFs oder Excel-Dateien ins Fenster ziehen oder „Dateien öffnen“. Die Unterschrift wird automatisch über „Unterschrift Techniker“ bzw. „Servicetechniker“ gesetzt.</p>
+      <ul>
+        <li>Verschieben: Unterschrift mit der Maus ziehen oder doppelt auf die richtige Stelle klicken.</li>
+        <li>Ankreuzfelder (z. B. „o Betriebssicher“) mit einem Klick abhaken.</li>
+        <li>„Datum einfügen“ setzt das heutige Datum neben die Unterschrift.</li>
+        <li>Unter „Platzierung“ lassen sich Suchwörter, Größe der Unterschrift und der Haken einstellen.</li>
+      </ul>
+      <h3>3. Speichern, drucken oder senden</h3>
+      <ul>
+        <li><b>Unterschreiben &amp; speichern</b> – als PDF, bei Excel-Dateien wahlweise auch als Excel.</li>
+        <li><b>Drucken</b> (oder Strg+P) – alle geöffneten Berichte mit allen Seiten.</li>
+        <li><b>Per E-Mail senden</b> – öffnet eine E-Mail mit allen Berichten; der Betreff (Montagebericht, UVV Bericht, DGUV V3 Bericht) wird automatisch gesetzt.</li>
+      </ul>
+      <h3>4. Dokumentation (Umbau, Gewaltschaden, Garantie)</h3>
+      <p>„Dokumentation“ öffnen, Berichte auswählen und alle Fotos auf einmal hinzufügen. Die Fotos werden nach Aufnahmezeit sortiert und über das Typenschild bzw. das Datum dem richtigen Auftrag zugeordnet; falsch einsortierte Fotos einfach mit der Maus verschieben. Pro Auftrag die Art wählen – dann öffnet sich je Auftrag eine E-Mail mit Betreff „Auftragsnummer Art“ und einer PDF (Bericht vorne, danach die Fotos).</p>
+      <h3>Sonstiges</h3>
+      <ul>
+        <li>Updates kommen automatisch: oben erscheint dann „Jetzt aktualisieren“.</li>
+        <li>Ideen und Wünsche über „Verbesserungsvorschlag“ senden.</li>
+        <li>Abmelden und Fenster zuklappen: unter „Deine Unterschrift“ bzw. per Klick auf die Überschriften.</li>
+      </ul>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="docuDlg">
   <form method="dialog" class="dlg" id="docuForm">
@@ -1992,6 +2030,8 @@ $("#docuSend").onclick = async () => {
   }
   finally{ docuBusy = false; btn.disabled = false; renderDocu(); }
 };
+
+$("#helpBtn").onclick = () => $("#helpDlg").showModal();
 
 /* ---------- Abmelden ---------- */
 $("#logoutDlg").addEventListener("close", async () => {
