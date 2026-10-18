@@ -1,2 +1,2 @@
-6
-Deine festen Einträge (Name, Adresse, Messgeräte) bleiben beim Speichern in der Vorlage stehen und lassen sich ändern. Datum im Format 18.10.2026.
+7
+Deine festen Einträge (Name, Adresse, Messgeräte) bleiben beim Speichern in der Vorlage stehen. Leere Vorbelegungsfelder sind gelb markiert. Datum im Format 18.10.2026.
