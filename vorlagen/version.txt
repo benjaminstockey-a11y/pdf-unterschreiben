@@ -1,2 +1,2 @@
 2
-Test-Update: Vorbelegungen (Name, Adresse, Unterschrift) bleiben beim Aktualisieren erhalten.
+Speichern nur noch als Dokument ohne Knöpfe, die Vorlage bleibt immer leer. Deine Einträge (Name, Adresse, Unterschrift, Geräteliste) bleiben erhalten.
