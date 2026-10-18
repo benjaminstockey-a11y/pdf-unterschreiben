@@ -74,7 +74,7 @@ jobs:
 
       - name: Programmsymbol in die exe einbauen
         if: steps.ver.outputs.kind != 'none'
-        run: go run github.com/tc-hib/go-winres@v0.3.3 simply --icon assets/logo_256.png --arch amd64 --product-name "PDF Unterschreiben" --file-description "PDF Unterschreiben"
+        run: go run github.com/tc-hib/go-winres@v0.3.3 simply --icon assets/logo_256.png --arch amd64 --product-name "PDF Unterschreiben & Dokumentation" --file-description "PDF Unterschreiben & Dokumentation"
 
       - name: Bauen
         if: steps.ver.outputs.kind != 'none'
@@ -121,7 +121,7 @@ jobs:
           # alter Testkanal (wurde von Version 1.12.2 auch für Firmen-Adressen abgefragt) – entfernen
           gh release delete testkanal -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" PDF-Unterschreiben-Setup.exe version.json --target "$GITHUB_SHA" --latest \
-            --title "PDF Unterschreiben $VERSION" --notes "$(git log -1 --format=%s "$GITHUB_SHA")"
+            --title "PDF Unterschreiben & Dokumentation $VERSION" --notes "$(git log -1 --format=%s "$GITHUB_SHA")"
 
       - name: Testversion veröffentlichen
         if: steps.ver.outputs.kind == 'test'

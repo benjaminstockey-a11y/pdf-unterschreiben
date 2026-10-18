@@ -76,9 +76,9 @@ func runSetup(self string) {
 	if _, err := os.Stat(installedExe()); err == nil {
 		exists = true
 	}
-	q := fmt.Sprintf("%s %s installieren?\n\nDas Programm wird nur für dein Windows-Konto installiert, Administratorrechte sind nicht nötig. Es kommt eine Verknüpfung auf den Desktop und ins Startmenü.", AppName, Version)
+	q := fmt.Sprintf("%s %s installieren?\n\nDas Programm wird nur für dein Windows-Konto installiert, Administratorrechte sind nicht nötig. Es kommt eine Verknüpfung auf den Desktop und ins Startmenü.", DisplayName, Version)
 	if exists {
-		q = fmt.Sprintf("%s ist schon installiert.\n\nAuf Version %s aktualisieren? Deine Unterschrift und Einstellungen bleiben erhalten.", AppName, Version)
+		q = fmt.Sprintf("%s ist schon installiert.\n\nAuf Version %s aktualisieren? Deine Unterschrift und Einstellungen bleiben erhalten.", DisplayName, Version)
 	}
 	if !ask(q) {
 		return
@@ -91,7 +91,7 @@ func runSetup(self string) {
 	}
 	cleanupOld()
 	if err := copyFile(self, installedExe()); err != nil {
-		fail("Die Installation ist fehlgeschlagen:\n" + err.Error() + "\n\nSchließe PDF Unterschreiben und versuch es nochmal.")
+		fail("Die Installation ist fehlgeschlagen:\n" + err.Error() + "\n\nSchließe das Programm und versuch es nochmal.")
 		return
 	}
 	_ = os.WriteFile(iconPath(), appIcon, 0o644)
@@ -107,7 +107,7 @@ func runSetup(self string) {
 }
 
 func uninstall() {
-	if !ask(AppName + " wirklich vom Computer entfernen?") {
+	if !ask(DisplayName + " wirklich vom Computer entfernen?") {
 		return
 	}
 	quitRunning()
@@ -125,5 +125,5 @@ func uninstall() {
 	}
 	script := "ping 127.0.0.1 -n 3 > nul & " + strings.Join(parts, " & ")
 	_ = detached("cmd.exe", "/c", script)
-	info(AppName + " wurde entfernt.")
+	info(DisplayName + " wurde entfernt.")
 }

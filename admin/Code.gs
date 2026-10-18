@@ -64,11 +64,11 @@ function handle(d) {
     users.getRange(row, 7).setValue('nein');
     MailApp.sendEmail({
       to: mail,
-      subject: 'Dein Freischaltcode für PDF Unterschreiben: ' + code,
-      body: 'Hallo ' + name + ',\n\ndein Freischaltcode für PDF Unterschreiben lautet:\n\n    ' + code +
+      subject: 'Dein Freischaltcode für PDF Unterschreiben & Dokumentation: ' + code,
+      body: 'Hallo ' + name + ',\n\ndein Freischaltcode für PDF Unterschreiben & Dokumentation lautet:\n\n    ' + code +
         '\n\nTrag ihn im Programm ein. Der Code ist ' + CODE_MINUTEN + ' Minuten gültig.\n\n' +
-        'Falls du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.\n\nViele Grüße\nPDF Unterschreiben',
-      name: 'PDF Unterschreiben'
+        'Falls du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.\n\nViele Grüße\nPDF Unterschreiben & Dokumentation',
+      name: 'PDF Unterschreiben & Dokumentation'
     });
     return { ok: true, sent: true };
   }
@@ -103,7 +103,7 @@ function feedback(ss, name, mail, ver, text) {
   s.appendRow([new Date(), name, mail, "'" + ver, t, 'neu']);
   try {
     MailApp.sendEmail({ to: ADMIN_MAILS[0], subject: 'Neuer Verbesserungsvorschlag von ' + name,
-      body: name + ' (' + mail + ', Version ' + ver + ') schreibt:\n\n' + t, name: 'PDF Unterschreiben' });
+      body: name + ' (' + mail + ', Version ' + ver + ') schreibt:\n\n' + t, name: 'PDF Unterschreiben & Dokumentation' });
   } catch (x) {}
   return { ok: true };
 }
@@ -147,10 +147,10 @@ function feedbackReply(ss, users, id, mail, rowNo, text) {
   const when = r[0] instanceof Date ? Utilities.formatDate(r[0], 'Europe/Berlin', 'dd.MM.yyyy') : '';
   MailApp.sendEmail({
     to: to,
-    subject: 'Antwort auf deinen Verbesserungsvorschlag für PDF Unterschreiben',
+    subject: 'Antwort auf deinen Verbesserungsvorschlag für PDF Unterschreiben & Dokumentation',
     body: 'Hallo ' + r[1] + ',\n\ndanke für deinen Vorschlag' + (when ? ' vom ' + when : '') + ':\n\n    „' +
-      String(r[4]).replace(/\n/g, '\n    ') + '“\n\n' + t + '\n\nViele Grüße\nPDF Unterschreiben',
-    name: 'PDF Unterschreiben'
+      String(r[4]).replace(/\n/g, '\n    ') + '“\n\n' + t + '\n\nViele Grüße\nPDF Unterschreiben & Dokumentation',
+    name: 'PDF Unterschreiben & Dokumentation'
   });
   const now = new Date();
   s.getRange(row, 6, 1, 3).setValues([['beantwortet', t, now]]);

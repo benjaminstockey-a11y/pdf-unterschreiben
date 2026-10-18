@@ -21,11 +21,13 @@ var (
 )
 
 const (
-	AppName   = "PDF Unterschreiben"
-	AppID     = "PDFUnterschreiben"
-	ExeName   = "PDF Unterschreiben.exe"
-	Port      = 47613 // fest, damit gespeicherte Einstellungen im Fenster erhalten bleiben
-	Publisher = "PDF Unterschreiben"
+	AppName = "PDF Unterschreiben" // interner Name: Installations- und Datenordner (nicht ändern)
+	// DisplayName ist der sichtbare Programmname (Fenster, Verknüpfungen, Apps & Features).
+	DisplayName = "PDF Unterschreiben & Dokumentation"
+	AppID       = "PDFUnterschreiben"
+	ExeName     = "PDF Unterschreiben.exe"
+	Port        = 47613 // fest, damit gespeicherte Einstellungen im Fenster erhalten bleiben
+	Publisher   = DisplayName
 )
 
 func installDir() string {

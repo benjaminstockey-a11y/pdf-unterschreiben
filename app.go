@@ -50,7 +50,7 @@ func url() string { return fmt.Sprintf("http://127.0.0.1:%d/", Port) }
 func runApp(relaunch bool) {
 	cleanupOld()
 	_ = os.WriteFile(iconPath(), appIcon, 0o644)
-	go refreshIcon()
+	go func() { refreshIcon(); migrateName() }()
 
 	var ln net.Listener
 	var err error

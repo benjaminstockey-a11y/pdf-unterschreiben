@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PDF Unterschreiben</title>
+<title>PDF Unterschreiben &amp; Dokumentation</title>
 <link rel="icon" href="/icon.png">
 <style>
 /* Layout: Werkbank – links die Unterschrift (Werkzeug), rechts die Dokumente auf dem Tisch */
@@ -176,7 +176,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 <div class="wrap">
   <div class="top">
     <div>
-      <h1>PDF Unterschreiben</h1>
+      <h1>PDF Unterschreiben &amp; Dokumentation</h1>
       <p class="lead">PDFs reinziehen – deine Unterschrift landet automatisch über dem Unterschriftsfeld. Verschieben per Ziehen oder Doppelklick auf die Seite. Ankreuzfelder mit einem Klick abhaken.</p>
     </div>
     <div class="ver"><span id="verText">Version …</span><button class="ghost" id="checkBtn" hidden>Nach Updates suchen</button><button id="helpBtn">Anleitung</button><button id="ideaBtn" hidden>Verbesserungsvorschlag</button></div>
@@ -281,9 +281,9 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 
 <dialog id="helpDlg">
   <form method="dialog" class="dlg">
-    <div class="dlg-head"><strong>So funktioniert PDF Unterschreiben</strong><button class="ghost" value="close">Schließen</button></div>
+    <div class="dlg-head"><strong>So funktioniert PDF Unterschreiben &amp; Dokumentation</strong><button class="ghost" value="close">Schließen</button></div>
     <div class="dlg-body help">
-      <p>PDF Unterschreiben setzt deine Unterschrift automatisch in Montage-, UVV- und DGUV-V3-Berichte und verschickt sie direkt per E-Mail.</p>
+      <p>PDF Unterschreiben &amp; Dokumentation setzt deine Unterschrift automatisch in Montage-, UVV- und DGUV-V3-Berichte und verschickt sie direkt per E-Mail.</p>
       <h3>1. Unterschrift anlegen (einmalig)</h3>
       <p>Links unter „Deine Unterschrift“ zeichnen, als Bild laden oder aus einer schon unterschriebenen PDF ausschneiden. Sie bleibt auf diesem Computer gespeichert.</p>
       <h3>2. Berichte öffnen</h3>
@@ -413,7 +413,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 <dialog id="blockDlg">
   <form method="dialog" class="dlg">
     <div class="dlg-head"><strong>Programm gesperrt</strong></div>
-    <div class="dlg-body"><span class="hint">Dein Zugang zu PDF Unterschreiben wurde gesperrt. Bitte wende dich an den Administrator.</span></div>
+    <div class="dlg-body"><span class="hint">Dein Zugang zu PDF Unterschreiben &amp; Dokumentation wurde gesperrt. Bitte wende dich an den Administrator.</span></div>
     <div class="dlg-foot"><span></span><button type="button" class="primary" id="blockRetry">Erneut prüfen</button></div>
   </form>
 </dialog>
@@ -1978,7 +1978,7 @@ async function photoJpeg(file){
 async function buildDocuPdf(o, photos, kurz){
   const {PDFDocument} = PDFLib;
   const out = await PDFDocument.create();
-  out.setTitle(`${o.nr} ${kurz}`); out.setCreator("PDF Unterschreiben");
+  out.setTitle(`${o.nr} ${kurz}`); out.setCreator("PDF Unterschreiben & Dokumentation");
   if(o.doc){
     const d = o.doc, bytes = (d.stamp && state.sig) ? await signed(d) : d.bytes;
     if(!bytes) throw new Error(`„${d.name}“ konnte nicht verarbeitet werden.`);

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -27,7 +28,7 @@ const (
 
 func msgBox(text string, flags uintptr) int {
 	t, _ := syscall.UTF16PtrFromString(text)
-	c, _ := syscall.UTF16PtrFromString(AppName)
+	c, _ := syscall.UTF16PtrFromString(DisplayName)
 	r, _, _ := pMessageBox.Call(0, uintptr(unsafe.Pointer(t)), uintptr(unsafe.Pointer(c)), flags|mbTopmost)
 	return int(r)
 }
@@ -60,7 +61,26 @@ func powershell(script string, env ...string) error {
 }
 
 func startMenuLink() string {
+	return filepath.Join(os.Getenv("APPDATA"), `Microsoft\Windows\Start Menu\Programs`, DisplayName+".lnk")
+}
+
+func oldStartMenuLink() string {
 	return filepath.Join(os.Getenv("APPDATA"), `Microsoft\Windows\Start Menu\Programs`, AppName+".lnk")
+}
+
+// migrateName: Nach der Umbenennung alte Verknüpfungen („PDF Unterschreiben“) durch neue ersetzen.
+func migrateName() {
+	if _, err := os.Stat(oldStartMenuLink()); err != nil {
+		return
+	}
+	_ = os.Remove(oldStartMenuLink())
+	desk := hidden("powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+		`$p = Join-Path ([Environment]::GetFolderPath('Desktop')) ($env:PU_NAME + '.lnk'); if (Test-Path $p) { Remove-Item $p -Force; '1' }`)
+	desk.Env = append(os.Environ(), "PU_NAME="+AppName)
+	out, _ := desk.Output()
+	_ = createShortcuts(strings.TrimSpace(string(out)) == "1")
+	registerUninstall()
+	_ = hidden("ie4uinit.exe", "-show").Run()
 }
 
 // createShortcuts legt Startmenü- und Desktop-Verknüpfung an (Desktop-Pfad über Windows ermittelt,
@@ -78,13 +98,13 @@ foreach ($p in $paths) {
   $s.TargetPath = $env:PU_TARGET
   $s.WorkingDirectory = $env:PU_DIR
   $s.IconLocation = $env:PU_ICON
-  $s.Description = 'PDFs mit deiner Unterschrift versehen'
+  $s.Description = 'PDFs unterschreiben und Dokumentation erstellen'
   $s.Save()
 }`
 	return powershell(script,
 		"PU_START="+startMenuLink(),
 		"PU_DESK="+desk,
-		"PU_NAME="+AppName,
+		"PU_NAME="+DisplayName,
 		"PU_TARGET="+installedExe(),
 		"PU_DIR="+installDir(),
 		"PU_ICON="+iconPath(),
@@ -108,7 +128,7 @@ func refreshIcon() {
 	_ = powershell(`$w = New-Object -ComObject WScript.Shell
 $paths = @($env:PU_START, (Join-Path ([Environment]::GetFolderPath('Desktop')) ($env:PU_NAME + '.lnk')))
 foreach ($p in $paths) { if (Test-Path $p) { $s = $w.CreateShortcut($p); $s.IconLocation = $env:PU_ICON; $s.Save() } }`,
-		"PU_START="+startMenuLink(), "PU_NAME="+AppName, "PU_ICON="+iconPath())
+		"PU_START="+startMenuLink(), "PU_NAME="+DisplayName, "PU_ICON="+iconPath())
 	regSet("DisplayIcon", "REG_SZ", iconPath())
 	for _, o := range olds {
 		_ = os.Remove(o)
@@ -118,7 +138,10 @@ foreach ($p in $paths) { if (Test-Path $p) { $s = $w.CreateShortcut($p); $s.Icon
 
 func removeShortcuts() {
 	_ = os.Remove(startMenuLink())
-	_ = powershell(`$p = Join-Path ([Environment]::GetFolderPath('Desktop')) ($env:PU_NAME + '.lnk'); if (Test-Path $p) { Remove-Item $p -Force }`, "PU_NAME="+AppName)
+	_ = os.Remove(oldStartMenuLink())
+	for _, n := range []string{DisplayName, AppName} {
+		_ = powershell(`$p = Join-Path ([Environment]::GetFolderPath('Desktop')) ($env:PU_NAME + '.lnk'); if (Test-Path $p) { Remove-Item $p -Force }`, "PU_NAME="+n)
+	}
 }
 
 const uninstallKey = `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\` + AppID
@@ -130,7 +153,7 @@ func regSet(name, typ, value string) {
 // registerUninstall trägt das Programm unter „Apps & Features“ ein.
 func registerUninstall() {
 	exe := installedExe()
-	regSet("DisplayName", "REG_SZ", AppName)
+	regSet("DisplayName", "REG_SZ", DisplayName)
 	regSet("DisplayVersion", "REG_SZ", Version)
 	regSet("Publisher", "REG_SZ", Publisher)
 	regSet("DisplayIcon", "REG_SZ", iconPath())
