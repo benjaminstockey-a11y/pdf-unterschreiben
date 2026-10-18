@@ -91,13 +91,18 @@ foreach ($p in $paths) {
 	)
 }
 
-func iconPath() string { return filepath.Join(installDir(), "logo.ico") }
+func iconPath() string { return filepath.Join(installDir(), "logo-2.ico") }
 
 // refreshIcon: Nach einem Update mit neuem Logo vorhandene Verknüpfungen auf die neue Symboldatei
 // umstellen (neuer Dateiname, damit Windows nicht das alte Symbol aus dem Zwischenspeicher zeigt).
 func refreshIcon() {
-	old := filepath.Join(installDir(), "app.ico")
-	if _, err := os.Stat(old); err != nil {
+	var olds []string
+	for _, n := range []string{"app.ico", "logo.ico"} {
+		if _, err := os.Stat(filepath.Join(installDir(), n)); err == nil {
+			olds = append(olds, filepath.Join(installDir(), n))
+		}
+	}
+	if len(olds) == 0 {
 		return
 	}
 	_ = powershell(`$w = New-Object -ComObject WScript.Shell
@@ -105,7 +110,9 @@ $paths = @($env:PU_START, (Join-Path ([Environment]::GetFolderPath('Desktop')) (
 foreach ($p in $paths) { if (Test-Path $p) { $s = $w.CreateShortcut($p); $s.IconLocation = $env:PU_ICON; $s.Save() } }`,
 		"PU_START="+startMenuLink(), "PU_NAME="+AppName, "PU_ICON="+iconPath())
 	regSet("DisplayIcon", "REG_SZ", iconPath())
-	_ = os.Remove(old)
+	for _, o := range olds {
+		_ = os.Remove(o)
+	}
 	_ = hidden("ie4uinit.exe", "-show").Run()
 }
 
