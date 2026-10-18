@@ -48,6 +48,21 @@ label{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:14px;
 .stat b{display:block;font-size:24px;color:var(--pen)}
 .who{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
 h3{font-size:14px;margin:16px 0 8px;color:var(--muted);font-weight:650}
+details.fold{background:var(--sheet);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+details.fold>summary{list-style:none;padding:12px 14px;display:flex;gap:8px;justify-content:space-between;align-items:center;cursor:pointer;font-weight:650}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary .pf{display:inline-block;transition:transform .15s;color:var(--muted);margin-left:6px}
+details.fold[open]>summary .pf{transform:rotate(90deg)}
+details.fold>summary .l{display:flex;gap:8px;align-items:center;min-width:0}
+details.fold>summary .l span{overflow:hidden;text-overflow:ellipsis}
+details.fold .in{padding:0 14px 12px}
+details.fold .in>.card{margin:8px 0 0}
+.ent{display:flex;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--line);font-size:14px}
+.ent .t{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.ent .w{flex:1;min-width:0;overflow-wrap:anywhere}
+.ent .x{flex:none;border:0;background:none;color:var(--warn);padding:6px 8px;font-size:17px;line-height:1}
+.tools{display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px}
+.tools button{padding:6px 10px;font-size:13px}
 #toast{position:fixed;left:16px;right:16px;bottom:20px;background:#141a2a;color:#fff;padding:12px 14px;border-radius:10px;font-size:14px;text-align:center;z-index:20}
 </style>
 </head>
@@ -86,6 +101,52 @@ function ago(z){
   const t = Math.round(h / 24); return t === 1 ? "gestern" : `vor ${t} Tagen`;
 }
 const EV = {register: "Anmeldung", verify: "Freigeschaltet", start: "Programmstart", update: "Daten geändert", resend: "Code neu gesendet"};
+
+/* ---------- Ordner nach Datum, einklappbar ---------- */
+const pad = n => String(n).padStart(2, "0");
+const dayKey = z => { const d = new Date(z); return isNaN(d) ? "ohne Datum" : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const uhr = z => { const d = new Date(z); return isNaN(d) ? "" : `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function dayLabel(k){
+  if(k === "ohne Datum") return k;
+  const heute = dayKey(new Date()), gestern = dayKey(new Date(Date.now() - 864e5));
+  const d = new Date(k + "T12:00:00");
+  const lang = d.toLocaleDateString("de-DE", {weekday: "long", day: "2-digit", month: "2-digit", year: "numeric"});
+  return k === heute ? `Heute · ${lang}` : k === gestern ? `Gestern · ${lang}` : lang;
+}
+function byDay(items){
+  const m = new Map();
+  items.forEach(i => { const k = dayKey(i.zeit); if(!m.has(k)) m.set(k, []); m.get(k).push(i); });
+  return [...m.entries()].sort((a, b) => a[0] < b[0] ? 1 : -1);
+}
+// offen/zu merken (Standard: heute offen, alles andere zu)
+const OPEN = (() => { try{ return JSON.parse(localStorage.getItem("open")) || {}; }catch(e){ return {}; } })();
+function isOpen(key, def){ return key in OPEN ? OPEN[key] : def; }
+function fold(key, def, left, right, inner){
+  return `<details class="fold" data-k="${esc(key)}"${isOpen(key, def) ? " open" : ""}>
+    <summary><span class="l">${left}</span><span class="muted" style="white-space:nowrap">${right}<span class="pf">▸</span></span></summary>${inner}</details>`;
+}
+function bindFolds(root){
+  root.querySelectorAll("details.fold").forEach(d => d.addEventListener("toggle", () => {
+    OPEN[d.dataset.k] = d.open; try{ localStorage.setItem("open", JSON.stringify(OPEN)); }catch(e){}
+  }));
+  root.querySelectorAll("[data-all]").forEach(b => b.onclick = () => {
+    const auf = b.dataset.all === "auf";
+    root.querySelectorAll("details.fold").forEach(d => { d.open = auf; OPEN[d.dataset.k] = auf; });
+    try{ localStorage.setItem("open", JSON.stringify(OPEN)); }catch(e){}
+  });
+  root.querySelectorAll("[data-del]").forEach(b => b.onclick = async e => {
+    e.preventDefault();
+    if(!confirm(`Diesen Eintrag löschen?\n\n${b.dataset.info}\n\nDas lässt sich nicht rückgängig machen.`)) return;
+    b.disabled = true;
+    const r = await call("admindelete", {code: b.dataset.del, text: b.dataset.z});
+    if(!r.ok){ b.disabled = false; return toast(r.error || "Löschen hat nicht geklappt."); }
+    toast("Eintrag gelöscht."); load();
+  });
+}
+const toolsHtml = '<div class="tools"><button data-all="auf">Alle aufklappen</button><button data-all="zu">Alle zuklappen</button></div>';
+function delBtn(sheetName, e, info){
+  return `<button class="x" aria-label="Eintrag löschen" data-del="${esc(sheetName + "|" + e.row)}" data-z="${esc(e.zeit)}" data-info="${esc(info)}">🗑</button>`;
+}
 
 /* ---------- Anmeldung ---------- */
 function renderLogin(step, err = ""){
@@ -163,7 +224,20 @@ function renderTab(){
   m.innerHTML = h;
   if(S.update) $("#upd").onclick = () => N.open(S.update.url);
   if(S.tab === "users") bindUsers();
-  if(S.tab === "ideas"){ if(!(S.loading && !S.users.length)) S.ideas.length ? S.ideas.forEach(i => m.appendChild(ideaCard(i))) : m.insertAdjacentHTML("beforeend", '<p class="empty">Noch keine Vorschläge.</p>'); }
+  if(S.tab === "ideas" && !(S.loading && !S.users.length)){
+    if(!S.ideas.length) m.insertAdjacentHTML("beforeend", '<p class="empty">Noch keine Vorschläge.</p>');
+    else {
+      const heute = dayKey(new Date());
+      const gr = byDay(S.ideas);
+      m.insertAdjacentHTML("beforeend", toolsHtml + gr.map(([k, it]) => {
+        const offen = it.filter(i => !i.antwort).length;
+        return fold("ideas:" + k, k === heute || offen > 0, `<span>📁 ${esc(dayLabel(k))}</span>`,
+          `${it.length} ${it.length === 1 ? "Vorschlag" : "Vorschläge"}${offen ? ` · ${offen} offen` : ""}`, `<div class="in" data-g="${esc(k)}"></div>`);
+      }).join(""));
+      gr.forEach(([k, it]) => { const box = m.querySelector(`.in[data-g="${k}"]`); it.forEach(i => box.appendChild(ideaCard(i))); });
+    }
+  }
+  bindFolds(m);
 }
 
 function usersHtml(){
@@ -173,15 +247,15 @@ function usersHtml(){
   const blocked = S.users.filter(u => u.blocked).length;
   return `<input class="search" id="q" type="search" placeholder="Name oder E-Mail suchen" value="${esc(S.q)}">
     <p class="muted">${S.users.length} Nutzer${blocked ? ` · ${blocked} gesperrt` : ""}</p>` +
-    (list.length ? list.map(u => `<div class="card">
-      <div class="row sp"><span class="name">${esc(u.name)}</span>
-        ${u.blocked ? '<span class="chip warn">gesperrt</span>' : u.verified ? '<span class="chip ok">freigeschaltet</span>' : '<span class="chip">Code offen</span>'}</div>
+    (list.length ? toolsHtml + list.map(u => fold("user:" + u.id, false,
+      `<span>${esc(u.name)}</span>${u.blocked ? '<span class="chip warn">gesperrt</span>' : u.verified ? '<span class="chip ok">frei</span>' : '<span class="chip">Code offen</span>'}`,
+      esc(ago(u.last)), `<div class="in">
       <div class="muted">${esc(u.email)}</div>
       <div class="muted">Version ${esc(u.version)} · zuletzt aktiv ${esc(ago(u.last))} · ${u.starts} Starts</div>
       <div class="muted">Erste Anmeldung ${esc(fmt(u.first))}</div>
       ${u.id === me().id ? "" : `<div class="row" style="margin-top:8px;justify-content:flex-end">
         <button class="${u.blocked ? "" : "danger"}" data-block="${esc(u.id)}" data-v="${u.blocked ? "" : "ja"}">${u.blocked ? "Entsperren" : "Sperren"}</button></div>`}
-    </div>`).join("") : '<p class="empty">Keine Nutzer gefunden.</p>');
+    </div>`)).join("") : '<p class="empty">Keine Nutzer gefunden.</p>');
 }
 function bindUsers(){
   const q = $("#q");
@@ -204,26 +278,31 @@ function listenHtml(){
   let h = `<div class="stat"><div><b>${S.listen.length}</b><span class="muted">Listen im Einsatz</span></div>
     <div><b>${nutzer.size}</b><span class="muted">Nutzer</span></div>
     <div><b>${S.vorlage.length}</b><span class="muted">× Vorlage verwendet</span></div></div>`;
+  h += toolsHtml;
   if(S.vorlage.length){
-    h += `<h3>AUS DER VORLAGE ERSTELLT</h3><div class="card log">${S.vorlage.map(v => `<span class="t">${esc(fmt(v.zeit))}</span><span>${esc(v.liste)} · ${esc(v.name || v.benutzer)}</span>`).join("")}</div>`;
+    h += `<h3>AUS DER VORLAGE ERSTELLT</h3>` + byDay(S.vorlage).map(([k, it]) => fold("vorlage:" + k, false, `<span>📁 ${esc(dayLabel(k))}</span>`, `${it.length}×`,
+      it.map(v => `<div class="ent"><span class="t">${esc(uhr(v.zeit))}</span><span class="w">${esc(v.liste)} · ${esc(v.name || v.benutzer)}</span>${delBtn("Vorlage-Nutzung", v, fmt(v.zeit) + " · " + v.liste)}</div>`).join(""))).join("");
   }
   h += `<h3>ALLE LISTEN</h3>`;
   if(!list.length) return h + '<p class="empty">Noch keine Liste hat sich gemeldet.<br>Das passiert beim ersten Öffnen einer Liste ab Version 3.</p>';
   return h + list.map(l => {
     const opens = l.nutzer.reduce((a, u) => a + u.opens, 0), syncs = l.nutzer.reduce((a, u) => a + u.syncs, 0);
     const us = [...l.nutzer].sort((a, b) => new Date(b.last) - new Date(a.last));
-    return `<div class="card">
-      <div class="row sp"><span class="name">${esc(l.liste.replace(/^Geräteliste\s+/i, "") || l.liste)}</span>${l.vorlage ? '<span class="chip ok">aus Vorlage</span>' : ""}</div>
+    return fold("liste:" + l.id, false, `<span>${esc(l.liste.replace(/^Geräteliste\s+/i, "") || l.liste)}</span>${l.vorlage ? '<span class="chip ok">Vorlage</span>' : ""}`,
+      `${us.length} Nutzer · ${esc(ago(l.last))}`, `<div class="in">
       <div class="muted">${us.length} Nutzer · ${opens}× geöffnet · ${syncs}× synchronisiert · zuletzt ${esc(ago(l.last))}</div>
       ${us.map(u => `<div class="who"><div>${wer(u)}</div>
         <div class="muted">${esc(u.rechner)} · zuletzt ${esc(ago(u.last))} · ${u.opens}× geöffnet · ${u.syncs}× synchronisiert${u.version ? ` · Version ${esc(u.version)}` : ""}</div></div>`).join("")}
-    </div>`;
+    </div>`);
   }).join("");
 }
 
 function logHtml(){
   if(!S.log.length) return '<p class="empty">Noch keine Einträge.</p>';
-  return `<div class="card log">${S.log.map(l => `<span class="t">${esc(fmt(l.zeit))}</span><span>${esc(l.name)} · ${esc(EV[l.event] || l.event)}${l.version ? ` <span class="muted">(${esc(l.version)})</span>` : ""}</span>`).join("")}</div>`;
+  const heute = dayKey(new Date());
+  return toolsHtml + byDay(S.log).map(([k, it]) => fold("log:" + k, k === heute, `<span>📁 ${esc(dayLabel(k))}</span>`,
+    `${it.length} ${it.length === 1 ? "Eintrag" : "Einträge"}`,
+    it.map(l => `<div class="ent"><span class="t">${esc(uhr(l.zeit))}</span><span class="w">${esc(l.name)} · ${esc(EV[l.event] || l.event)}${l.version ? ` <span class="muted">(${esc(l.version)})</span>` : ""}</span>${delBtn("Protokoll", l, fmt(l.zeit) + " · " + l.name + " · " + (EV[l.event] || l.event))}</div>`).join(""))).join("");
 }
 function ideaCard(i){
   const el = document.createElement("div"); el.className = "card";

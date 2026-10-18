@@ -47,6 +47,7 @@ function handle(d) {
   if (ev === 'adminlist') return adminList(ss, users, log, id, mail);
   if (ev === 'feedbackdelete') return feedbackDelete(ss, users, id, mail, d.code, d.text);
   if (ev === 'adminblock') return adminBlock(users, id, mail, d.code, d.text);
+  if (ev === 'admindelete') return adminDelete(ss, users, id, mail, d.code, d.text);
   if (ev !== 'check') log.appendRow([now, name, mail, ev, "'" + ver, n]);
 
   let row = findRow(users, id);
@@ -170,6 +171,21 @@ function feedbackDelete(ss, users, id, mail, rowNo, zeit) {
   return { ok: true };
 }
 
+// Admin-App: einzelnen Eintrag löschen (Protokoll oder Vorlage-Nutzung).
+// code = "Blatt|Zeile", text = Zeitpunkt des Eintrags – passt er nicht mehr, wird nichts gelöscht.
+function adminDelete(ss, users, id, mail, code, zeit) {
+  if (!isAdmin(users, id, mail)) return { ok: false, error: 'Nur für den Administrator.' };
+  const p = String(code || '').split('|'), name = p[0], row = Number(p[1]);
+  if (['Protokoll', 'Vorlage-Nutzung'].indexOf(name) < 0) return { ok: false, error: 'Unbekannte Liste.' };
+  const s = ss.getSheetByName(name);
+  if (!s || !(row >= 2 && row <= s.getLastRow())) return { ok: false, error: 'Eintrag nicht gefunden.' };
+  const v = s.getRange(row, 1).getValue();
+  const iso = v instanceof Date ? v.toISOString() : String(v || '');
+  if (iso !== String(zeit || '')) return { ok: false, error: 'Die Liste hat sich geändert – bitte aktualisieren und nochmal versuchen.' };
+  s.deleteRow(row);
+  return { ok: true };
+}
+
 // Gerätelisten (Excel): eine Zeile je Liste + Windows-Benutzer + Rechner
 const LISTEN_HEAD = ['Listen-ID', 'Liste', 'Herkunft', 'Benutzer', 'Name', 'Rechner', 'Datei', 'Version',
   'Erstes Öffnen', 'Zuletzt', 'Geöffnet', 'Synchronisiert'];
@@ -223,7 +239,7 @@ function listenUebersicht(ss) {
   const vor = v && v.getLastRow() >= 2 ? v.getRange(2, 1, v.getLastRow() - 1, 6).getValues() : [];
   return {
     listen: Object.keys(map).map(k => map[k]),
-    vorlage: vor.map(r => ({ zeit: iso(r[0]), id: String(r[1]), liste: String(r[2]), benutzer: String(r[3]), name: String(r[4]), rechner: String(r[5]) })).reverse()
+    vorlage: vor.map((r, i) => ({ row: i + 2, zeit: iso(r[0]), id: String(r[1]), liste: String(r[2]), benutzer: String(r[3]), name: String(r[4]), rechner: String(r[5]) })).reverse()
   };
 }
 
@@ -233,13 +249,14 @@ function adminList(ss, users, log, id, mail) {
   const iso = x => x instanceof Date ? x.toISOString() : String(x || '');
   const u = users.getLastRow() < 2 ? [] : users.getRange(2, 1, users.getLastRow() - 1, 12).getValues();
   const nLog = Math.min(150, Math.max(0, log.getLastRow() - 1));
-  const l = nLog ? log.getRange(log.getLastRow() - nLog + 1, 1, nLog, 6).getValues().reverse() : [];
+  const first = log.getLastRow() - nLog + 1;
+  const l = nLog ? log.getRange(first, 1, nLog, 6).getValues().map((r, i) => r.concat([first + i])).reverse() : [];
   const lu = listenUebersicht(ss);
   return { ok: true, listen: lu.listen, vorlage: lu.vorlage,
     users: u.map(r => ({ name: String(r[0]), email: String(r[1]), id: String(r[2]), version: String(r[3]).replace(/^'/, ''),
       first: iso(r[4]), last: iso(r[5]), verified: String(r[6]).toLowerCase() === 'ja', blocked: String(r[7]).trim().toLowerCase() === 'ja',
       starts: Number(r[8]) || 0 })),
-    log: l.map(r => ({ zeit: iso(r[0]), name: String(r[1]), email: String(r[2]), event: String(r[3]), version: String(r[4]).replace(/^'/, '') })) };
+    log: l.map(r => ({ row: r[6], zeit: iso(r[0]), name: String(r[1]), email: String(r[2]), event: String(r[3]), version: String(r[4]).replace(/^'/, '') })) };
 }
 
 // Admin-App: Nutzer sperren („ja“) oder entsperren – der eigene Zugang lässt sich nicht sperren
