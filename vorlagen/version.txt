@@ -1,2 +1,2 @@
-3
-Druckeinstellungen: jedes Formular auf einer Seite (Reparaturauftrag/Kostenvoranschlag 2 Seiten). Knopf „Ersatzteile einfügen“ wieder da.
+4
+Speichern: die ganze Datei (alle Formulare) wird als ein Excel-Dokument ohne Knöpfe gespeichert. Druck auf eine Seite, Knopf „Ersatzteile einfügen“.
