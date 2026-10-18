@@ -1,2 +1,2 @@
-4
-Speichern: die ganze Datei (alle Formulare) wird als ein Excel-Dokument ohne Knöpfe gespeichert. Druck auf eine Seite, Knopf „Ersatzteile einfügen“.
+5
+Rot geschriebene Felder bleiben in der Vorlage gespeichert (z. B. Servicetechniker, Messgeräte). Datum im Format 18.10.2026.
