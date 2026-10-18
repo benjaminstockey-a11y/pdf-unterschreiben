@@ -6,10 +6,20 @@ const KEY = 'HIER_SCHLUESSEL_EINTRAGEN';
 const DOMAIN = 'schlueter-gabelstapler.de';
 const ADMIN_MAILS = ['b.stockey@hotmail.de']; // Admin darf sich mit dieser Adresse anmelden
 const CODE_MINUTEN = 30;
+// Gerätelisten (Excel) melden sich mit diesem eigenen Schlüssel. Er erlaubt NUR die Nutzungsmeldung
+// der Listen – keine Anmeldung, keine Admin-Funktionen. Muss mit MELDE_KEY in den Listen übereinstimmen.
+const LISTEN_KEY = 'geraeteliste-v1';
 
 function doPost(e) {
   let d;
   try { d = JSON.parse(e.postData.contents); } catch (x) { return out({ ok: false, error: 'Ungültige Anfrage.' }); }
+  if (d && d.key === LISTEN_KEY && /^liste_/.test(String(d.event || ''))) {
+    const l = LockService.getScriptLock();
+    l.waitLock(20000);
+    try { return out(listeMelden(d)); }
+    catch (x) { return out({ ok: false, error: 'Serverfehler: ' + x.message }); }
+    finally { l.releaseLock(); }
+  }
   if (!d || d.key !== KEY) return out({ ok: false, error: 'Nicht berechtigt.' });
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -160,6 +170,63 @@ function feedbackDelete(ss, users, id, mail, rowNo, zeit) {
   return { ok: true };
 }
 
+// Gerätelisten (Excel): eine Zeile je Liste + Windows-Benutzer + Rechner
+const LISTEN_HEAD = ['Listen-ID', 'Liste', 'Herkunft', 'Benutzer', 'Name', 'Rechner', 'Datei', 'Version',
+  'Erstes Öffnen', 'Zuletzt', 'Geöffnet', 'Synchronisiert'];
+const VORLAGE_HEAD = ['Zeit', 'Listen-ID', 'Liste', 'Benutzer', 'Name', 'Rechner'];
+function listeMelden(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const s = sheet(ss, 'Gerätelisten', LISTEN_HEAD);
+  const ev = clean(d.event, 20), lid = clean(d.listId, 64), liste = clean(d.liste, 120), datei = clean(d.datei, 120);
+  const user = clean(d.user, 60), name = clean(d.name, 100), pc = clean(d.pc, 60), ver = clean(d.version, 20);
+  const vorlage = d.vorlage === true;
+  if (!lid) return { ok: false, error: 'Listen-ID fehlt.' };
+  if (['liste_start', 'liste_sync', 'liste_vorlage'].indexOf(ev) < 0) return { ok: false, error: 'Unbekanntes Ereignis.' };
+  const now = new Date();
+  if (ev === 'liste_vorlage') {
+    const v = sheet(ss, 'Vorlage-Nutzung', VORLAGE_HEAD);
+    const ids = v.getLastRow() < 2 ? [] : v.getRange(2, 2, v.getLastRow() - 1, 1).getValues().map(r => String(r[0]));
+    if (ids.indexOf(lid) < 0) v.appendRow([now, lid, liste, user, name, pc]);
+    return { ok: true };
+  }
+  let row = -1;
+  const last = s.getLastRow();
+  if (last >= 2) {
+    const v = s.getRange(2, 1, last - 1, 6).getValues();
+    for (let i = 0; i < v.length; i++) if (String(v[i][0]) === lid && String(v[i][3]) === user && String(v[i][5]) === pc) { row = i + 2; break; }
+  }
+  if (row < 0) { s.appendRow([lid, liste, vorlage ? 'Vorlage' : '', user, name, pc, datei, "'" + ver, now, now, 0, 0]); row = s.getLastRow(); }
+  s.getRange(row, 2).setValue(liste);
+  if (vorlage) s.getRange(row, 3).setValue('Vorlage');
+  s.getRange(row, 5, 1, 6).setValues([[name, pc, datei, "'" + ver, s.getRange(row, 9).getValue() || now, now]]);
+  const col = ev === 'liste_sync' ? 12 : 11, c = s.getRange(row, col);
+  c.setValue((Number(c.getValue()) || 0) + 1);
+  return { ok: true };
+}
+
+// Admin-App: Gerätelisten zusammenfassen (je Liste alle Nutzer)
+function listenUebersicht(ss) {
+  const iso = x => x instanceof Date ? x.toISOString() : String(x || '');
+  const s = ss.getSheetByName('Gerätelisten'), v = ss.getSheetByName('Vorlage-Nutzung');
+  const rows = s && s.getLastRow() >= 2 ? s.getRange(2, 1, s.getLastRow() - 1, 12).getValues() : [];
+  const map = {};
+  rows.forEach(r => {
+    const id = String(r[0]);
+    const l = map[id] || (map[id] = { id: id, liste: '', vorlage: false, last: '', nutzer: [] });
+    l.liste = String(r[1]) || l.liste;
+    if (String(r[2]) === 'Vorlage') l.vorlage = true;
+    const u = { benutzer: String(r[3]), name: String(r[4]), rechner: String(r[5]), datei: String(r[6]),
+      version: String(r[7]).replace(/^'/, ''), first: iso(r[8]), last: iso(r[9]), opens: Number(r[10]) || 0, syncs: Number(r[11]) || 0 };
+    l.nutzer.push(u);
+    if (!l.last || new Date(u.last) > new Date(l.last)) l.last = u.last;
+  });
+  const vor = v && v.getLastRow() >= 2 ? v.getRange(2, 1, v.getLastRow() - 1, 6).getValues() : [];
+  return {
+    listen: Object.keys(map).map(k => map[k]),
+    vorlage: vor.map(r => ({ zeit: iso(r[0]), id: String(r[1]), liste: String(r[2]), benutzer: String(r[3]), name: String(r[4]), rechner: String(r[5]) })).reverse()
+  };
+}
+
 // Admin-App: Nutzerliste und Protokoll lesen
 function adminList(ss, users, log, id, mail) {
   if (!isAdmin(users, id, mail)) return { ok: false, error: 'Nur für den Administrator.' };
@@ -167,7 +234,8 @@ function adminList(ss, users, log, id, mail) {
   const u = users.getLastRow() < 2 ? [] : users.getRange(2, 1, users.getLastRow() - 1, 12).getValues();
   const nLog = Math.min(150, Math.max(0, log.getLastRow() - 1));
   const l = nLog ? log.getRange(log.getLastRow() - nLog + 1, 1, nLog, 6).getValues().reverse() : [];
-  return { ok: true,
+  const lu = listenUebersicht(ss);
+  return { ok: true, listen: lu.listen, vorlage: lu.vorlage,
     users: u.map(r => ({ name: String(r[0]), email: String(r[1]), id: String(r[2]), version: String(r[3]).replace(/^'/, ''),
       first: iso(r[4]), last: iso(r[5]), verified: String(r[6]).toLowerCase() === 'ja', blocked: String(r[7]).trim().toLowerCase() === 'ja',
       starts: Number(r[8]) || 0 })),

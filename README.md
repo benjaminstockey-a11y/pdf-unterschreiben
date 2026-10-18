@@ -34,3 +34,7 @@ Es gibt zwei Kanäle:
 2. **Freigeben:** In `VERSION` dieselbe Nummer eintragen (z. B. `1.14.0`) und pushen. Dann wird die fertige Version als normales Release für alle veröffentlicht.
 
 Die erste Zeile der Commit-Nachricht erscheint im Programm als Update-Hinweis.
+
+### Gerätelisten (Excel) in der Admin-App
+
+Die Excel-Gerätelisten (ab Listen-Version 3) melden beim Öffnen und Synchronisieren Listenname, Windows-Benutzer, Office-Name und Rechner an dieselbe Apps-Script-Web-App – mit dem eigenen Schlüssel `LISTEN_KEY` aus `admin/Code.gs`, der nur diese Meldung erlaubt. Die Daten landen in den Blättern „Gerätelisten“ und „Vorlage-Nutzung“ und erscheinen in der Admin-App im Reiter **Listen** (wer nutzt welche Liste, wie oft die Vorlage verwendet wurde).

@@ -43,6 +43,11 @@ label{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:14px;
 .log{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:14px}
 .log .t{color:var(--muted);white-space:nowrap}
 .search{margin-bottom:10px}
+.stat{display:flex;gap:10px;margin-bottom:10px}
+.stat div{flex:1;background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font-size:24px;color:var(--pen)}
+.who{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+h3{font-size:14px;margin:16px 0 8px;color:var(--muted);font-weight:650}
 #toast{position:fixed;left:16px;right:16px;bottom:20px;background:#141a2a;color:#fff;padding:12px 14px;border-radius:10px;font-size:14px;text-align:center;z-index:20}
 </style>
 </head>
@@ -126,13 +131,14 @@ function renderLogin(step, err = ""){
 }
 
 /* ---------- Hauptansicht ---------- */
-const S = {tab: "users", users: [], log: [], ideas: [], q: "", loading: false, err: "", update: null};
+const S = {tab: "users", users: [], log: [], ideas: [], listen: [], vorlage: [], q: "", loading: false, err: "", update: null};
 function shell(){
   const newIdeas = S.ideas.filter(i => !i.antwort).length;
   $("#app").innerHTML = `<header>
       <h1>PDF Admin <span><button id="reload" aria-label="Aktualisieren">↻ Aktualisieren</button><button id="menu" aria-label="Menü">⋮</button></span></h1>
       <nav role="tablist">
         <button role="tab" data-t="users" aria-selected="${S.tab === "users"}">Nutzer<span class="n">${S.users.length}</span></button>
+        <button role="tab" data-t="listen" aria-selected="${S.tab === "listen"}">Listen<span class="n">${S.listen.length}</span></button>
         <button role="tab" data-t="ideas" aria-selected="${S.tab === "ideas"}">Vorschläge${newIdeas ? `<span class="n">${newIdeas}</span>` : ""}</button>
         <button role="tab" data-t="log" aria-selected="${S.tab === "log"}">Protokoll</button>
       </nav>
@@ -153,6 +159,7 @@ function renderTab(){
   if(S.loading && !S.users.length) h += '<p class="empty">Wird geladen …</p>';
   else if(S.tab === "users") h += usersHtml();
   else if(S.tab === "log") h += logHtml();
+  else if(S.tab === "listen") h += listenHtml();
   m.innerHTML = h;
   if(S.update) $("#upd").onclick = () => N.open(S.update.url);
   if(S.tab === "users") bindUsers();
@@ -188,6 +195,32 @@ function bindUsers(){
     u.blocked = !!r.blocked; toast(u.blocked ? `${u.name} ist gesperrt.` : `${u.name} ist wieder frei.`); renderTab();
   });
 }
+/* ---------- Gerätelisten (Excel) ---------- */
+function listenHtml(){
+  const nutzer = new Set();
+  S.listen.forEach(l => l.nutzer.forEach(u => nutzer.add((u.benutzer + "@" + u.rechner).toLowerCase())));
+  const list = [...S.listen].sort((a, b) => new Date(b.last) - new Date(a.last));
+  const wer = u => esc(u.name || u.benutzer) + (u.name && u.benutzer ? ` <span class="muted">(${esc(u.benutzer)})</span>` : "");
+  let h = `<div class="stat"><div><b>${S.listen.length}</b><span class="muted">Listen im Einsatz</span></div>
+    <div><b>${nutzer.size}</b><span class="muted">Nutzer</span></div>
+    <div><b>${S.vorlage.length}</b><span class="muted">× Vorlage verwendet</span></div></div>`;
+  if(S.vorlage.length){
+    h += `<h3>AUS DER VORLAGE ERSTELLT</h3><div class="card log">${S.vorlage.map(v => `<span class="t">${esc(fmt(v.zeit))}</span><span>${esc(v.liste)} · ${esc(v.name || v.benutzer)}</span>`).join("")}</div>`;
+  }
+  h += `<h3>ALLE LISTEN</h3>`;
+  if(!list.length) return h + '<p class="empty">Noch keine Liste hat sich gemeldet.<br>Das passiert beim ersten Öffnen einer Liste ab Version 3.</p>';
+  return h + list.map(l => {
+    const opens = l.nutzer.reduce((a, u) => a + u.opens, 0), syncs = l.nutzer.reduce((a, u) => a + u.syncs, 0);
+    const us = [...l.nutzer].sort((a, b) => new Date(b.last) - new Date(a.last));
+    return `<div class="card">
+      <div class="row sp"><span class="name">${esc(l.liste.replace(/^Geräteliste\s+/i, "") || l.liste)}</span>${l.vorlage ? '<span class="chip ok">aus Vorlage</span>' : ""}</div>
+      <div class="muted">${us.length} Nutzer · ${opens}× geöffnet · ${syncs}× synchronisiert · zuletzt ${esc(ago(l.last))}</div>
+      ${us.map(u => `<div class="who"><div>${wer(u)}</div>
+        <div class="muted">${esc(u.rechner)} · zuletzt ${esc(ago(u.last))} · ${u.opens}× geöffnet · ${u.syncs}× synchronisiert${u.version ? ` · Version ${esc(u.version)}` : ""}</div></div>`).join("")}
+    </div>`;
+  }).join("");
+}
+
 function logHtml(){
   if(!S.log.length) return '<p class="empty">Noch keine Einträge.</p>';
   return `<div class="card log">${S.log.map(l => `<span class="t">${esc(fmt(l.zeit))}</span><span>${esc(l.name)} · ${esc(EV[l.event] || l.event)}${l.version ? ` <span class="muted">(${esc(l.version)})</span>` : ""}</span>`).join("")}</div>`;
@@ -240,7 +273,7 @@ async function load(){
   S.loading = true; S.err = ""; renderTab();
   const [a, f] = await Promise.all([call("adminlist"), call("feedbacklist")]);
   S.loading = false;
-  if(a.ok){ S.users = a.users || []; S.log = a.log || []; }
+  if(a.ok){ S.users = a.users || []; S.log = a.log || []; S.listen = a.listen || []; S.vorlage = a.vorlage || []; }
   if(f.ok) S.ideas = f.items || [];
   const bad = [a, f].find(r => !r.ok);
   if(bad){
