@@ -38,3 +38,15 @@ Die erste Zeile der Commit-Nachricht erscheint im Programm als Update-Hinweis.
 ### Gerätelisten (Excel) in der Admin-App
 
 Die Excel-Gerätelisten (ab Listen-Version 3) melden beim Öffnen und Synchronisieren Listenname, Windows-Benutzer, Office-Name und Rechner an dieselbe Apps-Script-Web-App – mit dem eigenen Schlüssel `LISTEN_KEY` aus `admin/Code.gs`, der nur diese Meldung erlaubt. Die Daten landen in den Blättern „Gerätelisten“ und „Vorlage-Nutzung“ und erscheinen in der Admin-App im Reiter **Listen** (wer nutzt welche Liste, wie oft die Vorlage verwendet wurde).
+
+### Allgemeine Vorlagen (Excel) – Updates
+
+Die Excel-Datei „Allgemeine Vorlagen“ sucht beim Öffnen nach einer neuen Version im Ordner `vorlagen/`:
+
+- `vorlagen/version.txt` – erste Zeile: Versionsnummer, darunter ein kurzer Hinweistext für die Kollegen.
+- `vorlagen/Allgemeine-Vorlagen.xlsm` – die Datei, die beim Update heruntergeladen wird. **Ohne persönliche Daten** (keine Namen, Adressen, Unterschrift, leere Geräteliste) – das Repository ist öffentlich.
+
+Neue Version veröffentlichen:
+1. In der Vorlage (VBA-Editor, Modul2) `VORLAGEN_VERSION` um 1 erhöhen und die Vorlage mit Alt+F8 → „VorlageDirektSpeichern“ speichern.
+2. Persönliche Daten entfernen, Datei als `vorlagen/Allgemeine-Vorlagen.xlsm` hochladen.
+3. In `vorlagen/version.txt` dieselbe Nummer eintragen (erste Zeile) – erst dann bekommen die Kollegen das Update angeboten.
