@@ -1,2 +1,2 @@
-1
-Erste Version mit Update-Funktion.
+2
+Test-Update: Vorbelegungen (Name, Adresse, Unterschrift) bleiben beim Aktualisieren erhalten.
