@@ -1,2 +1,2 @@
-2
-Speichern nur noch als Dokument ohne Knöpfe, die Vorlage bleibt immer leer. Deine Einträge (Name, Adresse, Unterschrift, Geräteliste) bleiben erhalten.
+3
+Druckeinstellungen: jedes Formular auf einer Seite (Reparaturauftrag/Kostenvoranschlag 2 Seiten). Knopf „Ersatzteile einfügen“ wieder da.
