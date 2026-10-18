@@ -1,2 +1,2 @@
-5
-Rot geschriebene Felder bleiben in der Vorlage gespeichert (z. B. Servicetechniker, Messgeräte). Datum im Format 18.10.2026.
+6
+Deine festen Einträge (Name, Adresse, Messgeräte) bleiben beim Speichern in der Vorlage stehen und lassen sich ändern. Datum im Format 18.10.2026.
