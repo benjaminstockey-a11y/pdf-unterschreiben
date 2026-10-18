@@ -1,2 +1,2 @@
-7
-Deine festen Einträge (Name, Adresse, Messgeräte) bleiben beim Speichern in der Vorlage stehen. Leere Vorbelegungsfelder sind gelb markiert. Datum im Format 18.10.2026.
+8
+Gespeicherte Berichte sehen jetzt genau aus wie die Vorlage (Farben). Feste Einträge bleiben in der Vorlage, leere Vorbelegungsfelder sind gelb.
