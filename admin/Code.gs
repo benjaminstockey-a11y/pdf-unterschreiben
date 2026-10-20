@@ -20,6 +20,10 @@ function doPost(e) {
     catch (x) { return out({ ok: false, error: 'Serverfehler: ' + x.message }); }
     finally { l.releaseLock(); }
   }
+  // Texterkennung (Typenschilder) – ohne Sperre, damit andere Anfragen nicht warten müssen
+  if (d && d.key === KEY && d.event === 'ocr') {
+    try { return out(ocrAnfrage(d)); } catch (x) { return out({ ok: false, error: 'Texterkennung: ' + x.message }); }
+  }
   if (!d || d.key !== KEY) return out({ ok: false, error: 'Nicht berechtigt.' });
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -308,4 +312,42 @@ function einrichten() {
   const s1 = ss.getSheetByName('Tabellenblatt1') || ss.getSheetByName('Sheet1');
   if (s1 && ss.getSheets().length > 2) ss.deleteSheet(s1);
   MailApp.getRemainingDailyQuota();
+}
+
+// ---------------- Texterkennung mit Google ----------------
+// Das Foto wird kurz als Google-Dokument mit Texterkennung in Drive abgelegt, der Text gelesen und
+// die Datei sofort wieder endgültig gelöscht. (DriveApp wird nur für die Drive-Berechtigung genannt.)
+function ocrAnfrage(d) {
+  const mail = clean(d.email, 150).toLowerCase();
+  if (ADMIN_MAILS.indexOf(mail) < 0 && !mail.endsWith('@' + DOMAIN)) return { ok: false, error: 'Nicht berechtigt.' };
+  const b64 = String(d.b64 || '');
+  if (b64.length < 100 || b64.length > 15000000) return { ok: false, error: 'Kein gültiges Foto.' };
+  const mime = /^image\/(jpeg|png|gif|bmp|webp)$/.test(String(d.mime || '')) ? d.mime : 'image/jpeg';
+  return { ok: true, text: googleOcr(b64, mime) };
+}
+
+function googleOcr(b64, mime) {
+  DriveApp.getRootFolder();
+  const tok = ScriptApp.getOAuthToken();
+  const auth = { Authorization: 'Bearer ' + tok };
+  const bd = 'puocr' + Date.now();
+  const meta = { name: 'Typenschild-OCR', mimeType: 'application/vnd.google-apps.document' };
+  const body = Utilities.newBlob('--' + bd + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) +
+    '\r\n--' + bd + '\r\nContent-Type: ' + (mime || 'image/jpeg') + '\r\nContent-Transfer-Encoding: base64\r\n\r\n' + b64 + '\r\n--' + bd + '--').getBytes();
+  const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&ocrLanguage=de',
+    { method: 'post', contentType: 'multipart/related; boundary=' + bd, payload: body, headers: auth, muteHttpExceptions: true });
+  if (r.getResponseCode() >= 300) throw new Error('Hochladen fehlgeschlagen (' + r.getResponseCode() + ')');
+  const id = JSON.parse(r.getContentText()).id;
+  try {
+    return UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '/export?mimeType=text/plain', { headers: auth }).getContentText();
+  } finally {
+    UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id, { method: 'delete', headers: auth, muteHttpExceptions: true });
+  }
+}
+
+
+// Einmal im Editor ausführen, damit Google die Drive-Berechtigung für die Texterkennung abfragt.
+function berechtigungenPruefen() {
+  DriveApp.getRootFolder();
+  UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/about?fields=user', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } });
 }

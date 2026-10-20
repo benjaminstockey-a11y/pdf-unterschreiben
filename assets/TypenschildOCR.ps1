@@ -1,35 +1,40 @@
-param(
+﻿param(
   [string]$Image = "",
   [string]$Folder = "",
-  [string]$Out = ""
+  [string]$Out = "",
+  [string]$TextFile = ""
 )
 # Typenschild-Erkennung mit der in Windows eingebauten Texterkennung (offline, kostenlos).
 # -Image <Foto> -Out <Datei>   : liest ein Foto, schreibt SCHLUESSEL=Wert-Zeilen, danach #ROH und den erkannten Text
 # -Folder <Ordner> -Out <Datei>: Testlauf ueber alle Fotos im Ordner
+# -TextFile <Datei>            : Text wurde schon erkannt (z. B. von Google) - nur noch auswerten
 $ErrorActionPreference = "Stop"
 $log = $Out + ".log"
 function Log($m) { Add-Content -LiteralPath $log -Value ((Get-Date -Format "HH:mm:ss") + " " + $m) -Encoding UTF8 }
 Log "start"
 trap { Log ("FEHLER: " + $_.Exception.Message + " @ " + $_.InvocationInfo.ScriptLineNumber); break }
 
-Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-$null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
-$null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
-$null = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]
-$null = [Windows.Graphics.Imaging.SoftwareBitmap, Windows.Graphics, ContentType = WindowsRuntime]
-$null = [Windows.Storage.Streams.IRandomAccessStream, Windows.Storage.Streams, ContentType = WindowsRuntime]
+# Windows-Texterkennung nur laden, wenn das Foto selbst gelesen wird (nicht bei -TextFile)
+if (-not $TextFile) {
+  Add-Type -AssemblyName System.Drawing
+  Add-Type -AssemblyName System.Runtime.WindowsRuntime
+  $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
+  $null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
+  $null = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]
+  $null = [Windows.Graphics.Imaging.SoftwareBitmap, Windows.Graphics, ContentType = WindowsRuntime]
+  $null = [Windows.Storage.Streams.IRandomAccessStream, Windows.Storage.Streams, ContentType = WindowsRuntime]
 
-$asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
-    $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
-function Await($op, [Type]$t) {
-  $task = $asTaskGeneric.MakeGenericMethod($t).Invoke($null, @($op))
-  $null = $task.Wait(-1)
-  $task.Result
+  $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+      $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
+  function Await($op, [Type]$t) {
+    $task = $asTaskGeneric.MakeGenericMethod($t).Invoke($null, @($op))
+    $null = $task.Wait(-1)
+    $task.Result
+  }
+  $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
+  if ($null -eq $engine) { throw "Keine Windows-Texterkennung verfuegbar (Sprachpaket fehlt)." }
+  Log ("engine: " + $engine.RecognizerLanguage.LanguageTag)
 }
-$engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
-if ($null -eq $engine) { throw "Keine Windows-Texterkennung verfuegbar (Sprachpaket fehlt)." }
-Log ("engine: " + $engine.RecognizerLanguage.LanguageTag)
 
 function Ocr-Bitmap([System.Drawing.Bitmap]$bmp) {
   $tmp = Join-Path $env:TEMP ("tsocr_" + [guid]::NewGuid().ToString("N") + ".bmp")
@@ -367,6 +372,43 @@ function Merge-Results($dA, $dB) {
 }
 function Format-Result($d) { (@($d.Keys | ForEach-Object { $_ + '=' + $d[$_] }) -join "`r`n") }
 
+# Google liefert Beschriftung und Wert oft in getrennten Zeilen ("S/N" / "123456").
+# Stehen mehrere Beschriftungen untereinander, gehoeren die folgenden Werte der Reihe nach dazu.
+$LabelRx = '^\s*(TYPE?|Typ|MODEL|S\s*/\s*N|SN|C?P\s*/\s*N|Ser(?:ial)?\.?\s*(?:No|Nr|#+)?\.?|Art\.?\s*No\.?|Volts?|Amps?|Ue|Ua|[lI]e\s*N?|[iI]a\s*N?|Date|DAT\.?|Baujahr)\s*[:.#]*\s*$'
+function Join-Labels($lines) {
+  $out = New-Object System.Collections.ArrayList
+  $i = 0
+  while ($i -lt $lines.Count) {
+    $labs = @()
+    while ($i -lt $lines.Count -and $lines[$i] -match $LabelRx) { $labs += $lines[$i].Trim(); $i++ }
+    if ($labs.Count -eq 0) {
+      $l = $lines[$i]
+      # "3 N PE" / "50 Hz" und darunter "12,9 A"
+      if ($i + 1 -lt $lines.Count -and $l -match '(N\s*/?\s*PE|Hz)\s*$' -and $lines[$i + 1] -match '^\s*\d{1,2}(?:[.,]\d+)?\s*A\s*$') { $l = $l + ' ' + $lines[$i + 1].Trim(); $i++ }
+      # "Geraete-Nr 630 912033" und darunter "0419"
+      if ($i + 1 -lt $lines.Count -and $l -match 'Ger(ä|a)te-?\s*Nr' -and $lines[$i + 1] -match '^\s*\d{3,5}\s*$') { $l = $l + ' ' + $lines[$i + 1].Trim(); $i++ }
+      [void]$out.Add($l); $i++; continue
+    }
+    $k = 0
+    while ($k -lt $labs.Count -and ($i + $k) -lt $lines.Count) {
+      $v = $lines[$i + $k]
+      if ($v -match $LabelRx -or $v -match '^\s*(Input|Output|IN|OUT|Eingang|Ausgang)\b' -or $v -notmatch '\d') { break }
+      $k++
+    }
+    for ($j = 0; $j -lt $labs.Count; $j++) {
+      $lab = $labs[$j] -creplace '^\s*le', 'Ie' -creplace '^\s*ia', 'Ia'
+      if ($j -lt $k) {
+        $v = $lines[$i + $j].Trim()
+        # Einheit steht manchmal in der naechsten Zeile ("50" / "A ...")
+        if ($k -eq 1 -and $v -match '^\d+(?:[.,]\d+)?$' -and ($i + 1) -lt $lines.Count -and $lines[$i + 1] -match '^\s*A\b' -and $lab -match '^(Ie|Ia)') { $v += ' A' }
+        [void]$out.Add($lab + ' ' + $v)
+      } else { [void]$out.Add($lab) }
+    }
+    $i += $k
+  }
+  return @($out)
+}
+
 function Run-One([string]$path) {
   Log ("bild " + (Split-Path $path -Leaf))
   $r = Read-Plate $path
@@ -380,6 +422,31 @@ if ($Folder) {
     $part = "=== " + $_.Name + " | rot " + $x.R.Rot + " | " + $x.R.Scores + "`r`n" + (Format-Result $x.Res) + "`r`n#ROWS`r`n" + (($x.R.RowsA) -join "`r`n") + "`r`n#ROWSB`r`n" + (($x.R.RowsB) -join "`r`n") + "`r`n#ROWSC`r`n" + (($x.R.RowsC) -join "`r`n") + "`r`n"
     [System.IO.File]::AppendAllText($Out, $part, (New-Object System.Text.UTF8Encoding $false))
   }
+} elseif ($TextFile) {
+  $lines = @([System.IO.File]::ReadAllLines($TextFile, [System.Text.Encoding]::UTF8) | Where-Object { $_.Trim() })
+  Log ("text " + $lines.Count + " Zeilen")
+  $joined = Join-Labels $lines
+  $res = Parse-Plate $joined
+  # Ladestrom in eigener Zeile unter OUTPUT ("125 A 6 kW")
+  if (-not $res.Contains('LEISTUNG')) {
+    $o = $false
+    foreach ($l in $joined) {
+      if ($l -match '^\s*(Output|OUT)\b') { $o = $true; continue }
+      if ($o -and $l -match '^\s*(\d{2,3})\s*A\b' -and [int]$Matches[1] -ge 20) { $res['LEISTUNG'] = $Matches[1]; $res['EINHEIT'] = 'A'; break }
+    }
+  }
+  # Plausibilitaet: Ladestrom kann nicht die Netzspannung sein
+  if ($res.Contains('LEISTUNG') -and $res.Contains('SPANNUNG') -and $res['LEISTUNG'] -eq $res['SPANNUNG']) { $res.Remove('LEISTUNG'); $res.Remove('EINHEIT') }
+  if ($res.Contains('TYP')) { $res['TYP'] = ($res['TYP'] -replace '^\s*MODEL\s+', '').Trim() }
+  # Exide-Ladegeraete: Typ steht ohne Beschriftung ganz oben ("SP24S030S-77002")
+  if (-not $res.Contains('TYP')) {
+    foreach ($l in $lines) { if ($l -match '^\s*(SP\d{2}[A-Z0-9 ]{3,}-\d{4,5})\s*$') { $res['TYP'] = $Matches[1]; break } }
+  }
+  $sb = New-Object System.Text.StringBuilder
+  [void]$sb.AppendLine((Format-Result $res))
+  [void]$sb.AppendLine("#ROH")
+  foreach ($l in $lines) { [void]$sb.AppendLine($l) }
+  [System.IO.File]::WriteAllText($Out, $sb.ToString(), (New-Object System.Text.UTF8Encoding $true))
 } else {
   $x = Run-One $Image
   $sb = New-Object System.Text.StringBuilder

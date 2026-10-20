@@ -62,7 +62,18 @@ func (a *app) handleTypenschild(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	cmd := hidden("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ps1, "-Image", img, "-Out", out)
+	args := []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ps1, "-Image", img, "-Out", out}
+	// Zuerst Google lesen lassen (genauer); das Skript wertet dann nur noch den Text aus.
+	// Ohne Internet oder bei einem Fehler liest Windows das Foto wie bisher selbst.
+	if data, err := os.ReadFile(img); err == nil {
+		if txt, err := googleOCR(data); err == nil && len(strings.TrimSpace(txt)) >= 8 {
+			tf := filepath.Join(dir, "google.txt")
+			if os.WriteFile(tf, []byte(txt), 0o600) == nil {
+				args = append(args, "-TextFile", tf)
+			}
+		}
+	}
+	cmd := hidden("powershell.exe", args...)
 	var errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &errb, &errb
 	runErr := runWithTimeout(cmd, 170*time.Second)

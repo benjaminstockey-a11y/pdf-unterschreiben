@@ -57,16 +57,33 @@ func (a *app) handleOCR(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "Keine Bilder."})
 		return
 	}
+	imgs := make([][]byte, len(req.Images))
+	for i, s := range req.Images {
+		if b, err := base64.StdEncoding.DecodeString(s); err == nil {
+			imgs[i] = b
+		}
+	}
+	// Zuerst Google (genauer), nur was dort nicht klappt, mit Windows lesen
+	gTexts, gOK := googleOCRAll(imgs)
+	need := false
+	for i := range imgs {
+		if imgs[i] != nil && !gOK[i] {
+			need = true
+		}
+	}
+	if !need {
+		writeJSON(w, map[string]any{"ok": true, "texts": gTexts, "engine": "google"})
+		return
+	}
 	dir, err := os.MkdirTemp("", "pu-ocr-")
 	if err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 	defer os.RemoveAll(dir)
-	paths := make([]string, len(req.Images))
-	for i, s := range req.Images {
-		b, err := base64.StdEncoding.DecodeString(s)
-		if err != nil {
+	paths := make([]string, len(imgs))
+	for i, b := range imgs {
+		if b == nil || gOK[i] {
 			continue
 		}
 		p := filepath.Join(dir, fmt.Sprintf("%03d.jpg", i))
@@ -74,11 +91,21 @@ func (a *app) handleOCR(w http.ResponseWriter, r *http.Request) {
 			paths[i] = p
 		}
 	}
+	var list []string
+	for _, p := range paths {
+		if p != "" {
+			list = append(list, p)
+		}
+	}
 	cmd := hidden("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ocrScript)
-	cmd.Env = append(os.Environ(), "PU_OCR="+strings.Join(paths, "|"))
+	cmd.Env = append(os.Environ(), "PU_OCR="+strings.Join(list, "|"))
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
-	if err := runWithTimeout(cmd, time.Duration(30+5*len(paths))*time.Second); err != nil {
+	if err := runWithTimeout(cmd, time.Duration(30+5*len(list))*time.Second); err != nil {
+		if hasAny(gOK) {
+			writeJSON(w, map[string]any{"ok": true, "texts": gTexts, "engine": "google"})
+			return
+		}
 		writeJSON(w, map[string]any{"ok": false, "error": "Texterkennung nicht möglich: " + strings.TrimSpace(errb.String()+" "+err.Error())})
 		return
 	}
@@ -89,11 +116,15 @@ func (a *app) handleOCR(w http.ResponseWriter, r *http.Request) {
 	}
 	var texts []string
 	if json.Unmarshal([]byte(strings.TrimSpace(s)), &texts) != nil {
+		if hasAny(gOK) {
+			writeJSON(w, map[string]any{"ok": true, "texts": gTexts, "engine": "google"})
+			return
+		}
 		writeJSON(w, map[string]any{"ok": false, "error": "Texterkennung lieferte keine Antwort."})
 		return
 	}
-	// Leere Pfade (defekte Bilder) wurden übersprungen – Liste an die Bilder angleichen
-	res := make([]string, len(paths))
+	// Windows-Ergebnisse an die richtigen Stellen setzen, Google-Treffer behalten
+	res := gTexts
 	j := 0
 	for i, p := range paths {
 		if p != "" && j < len(texts) {
@@ -102,4 +133,13 @@ func (a *app) handleOCR(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, map[string]any{"ok": true, "texts": res})
+}
+
+func hasAny(b []bool) bool {
+	for _, x := range b {
+		if x {
+			return true
+		}
+	}
+	return false
 }
