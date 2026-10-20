@@ -400,8 +400,8 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
   <form method="dialog" class="dlg">
     <div class="dlg-head"><strong>Abmelden</strong></div>
     <div class="dlg-body col" style="gap:12px">
-      <span class="hint">Nach dem Abmelden muss sich jemand neu anmelden, bevor das Programm wieder benutzt werden kann.</span>
-      <label class="check"><input type="checkbox" id="logoutSig" checked> Gespeicherte Unterschrift auch entfernen</label>
+      <span class="hint">Nach dem Abmelden muss sich jemand neu anmelden, bevor das Programm wieder benutzt werden kann. Deine Unterschrift wird dabei weggeräumt und kommt erst wieder, wenn du dich an diesem Rechner erneut anmeldest.</span>
+      <label class="check"><input type="checkbox" id="logoutSig"> Meine Unterschrift von diesem Rechner löschen</label>
     </div>
     <div class="dlg-foot">
       <button class="ghost" value="cancel">Abbrechen</button>
@@ -482,8 +482,8 @@ const state = {sig: null, keyword: "Unterschrift Techniker, Servicetechniker", w
 let saveT;
 function persistNow(){
   clearTimeout(saveT);
-  const {sig, keyword, width, addDate, ink, tick, user, lastStart, blocked, testChannel, fold} = state;
-  return fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick, user, lastStart, blocked, testChannel, fold})})
+  const {sig, keyword, width, addDate, ink, tick, user, lastStart, blocked, testChannel, fold, people} = state;
+  return fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sig, keyword, width, addDate, ink, tick, user, lastStart, blocked, testChannel, fold, people})})
     .catch(() => toast("Einstellungen konnten nicht gespeichert werden."));
 }
 function persist(){
@@ -1564,14 +1564,27 @@ $("#regForm").addEventListener("submit", async e => {
     if(!/^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+([.-][a-z0-9]+)*$/.test(local)) return regErr("Die E-Mail hat die Form v.nachname@" + MAIL_DOMAIN + ".");
     email = `${local}@${MAIL_DOMAIN}`;
   }
-  const id = (state.user && state.user.id) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
-  const same = state.user && state.user.verified && state.user.email === email;
+  // Jede Person behält ihre eigene ID und ihre eigene Unterschrift – auch wenn sich mehrere
+  // Personen an einem Rechner abwechseln. Nur dieselbe E-Mail-Adresse nutzt dieselbe ID.
+  const people = state.people = state.people || {};
+  const prev = state.user;
+  if(prev && prev.email) people[prev.email] = {...(people[prev.email] || {}), id: prev.id, name: prev.name, sig: state.sig};
+  const switched = !prev || prev.email !== email;
+  const known = people[email];
+  const id = (prev && prev.email === email && prev.id) || (known && known.id) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+  const same = prev && prev.verified && prev.email === email;
+  if(switched){ state.sig = (known && known.sig) || null; state.blocked = false; renderSig(); renderAll(); }
   state.user = {id, name, email, verified: same || !reportOn};
   state.lastStart = new Date().toISOString().slice(0, 10);
   await persistNow(); renderUser();
   if(!reportOn || same){ $("#regDlg").close(); if(same) call("update"); return; }
   $("#regOk").disabled = true; regErr("");
-  const r = await call("register");
+  // Schon einmal an diesem Rechner freigeschaltet? Dann ohne neuen Code zurückwechseln.
+  const r = await call(known ? "update" : "register");
+  if(r.ok && r.verified){
+    $("#regOk").disabled = false; state.user.verified = true; state.blocked = !!r.blocked; await persistNow(); renderUser();
+    $("#regDlg").close(); if(state.blocked) $("#blockDlg").showModal(); else toast(`Angemeldet als ${name}.`); return;
+  }
   $("#regOk").disabled = false;
   if(!r.ok) return regErr(r.error || "Anmeldung fehlgeschlagen.");
   $("#regDlg").close(); openCode(false);
@@ -1635,7 +1648,7 @@ function renderUser(){
   el.hidden = false;
   el.innerHTML = `Angemeldet als ${esc(state.user.name)} (${esc(state.user.email)}) · <button class="ghost" id="userChange" style="padding:0;font-size:13px;text-decoration:underline">ändern</button> · <button class="ghost" id="userLogout" style="padding:0;font-size:13px;text-decoration:underline">abmelden</button>`;
   $("#userChange").onclick = openRegistration;
-  $("#userLogout").onclick = () => { $("#logoutSig").checked = true; $("#logoutDlg").showModal(); };
+  $("#userLogout").onclick = () => { $("#logoutSig").checked = false; $("#logoutDlg").showModal(); };
 }
 // Sperre wird bei jedem Start und danach alle 10 Minuten geprüft. Ohne Internet gilt der letzte bekannte Stand.
 async function checkAccess(){
@@ -2037,8 +2050,12 @@ $("#helpBtn").onclick = () => $("#helpDlg").showModal();
 /* ---------- Abmelden ---------- */
 $("#logoutDlg").addEventListener("close", async () => {
   if($("#logoutDlg").returnValue !== "ok") return;
+  const people = state.people = state.people || {};
+  if(state.user && state.user.email){
+    people[state.user.email] = {...(people[state.user.email] || {}), id: state.user.id, name: state.user.name, sig: $("#logoutSig").checked ? null : state.sig};
+  }
   state.user = null; state.blocked = false; state.lastStart = null;
-  if($("#logoutSig").checked) state.sig = null;
+  state.sig = null; // die nächste Person bekommt nicht die Unterschrift der vorherigen
   await persistNow();
   renderSig(); renderAll(); renderUser();
   toast("Abgemeldet.");
@@ -2064,7 +2081,7 @@ function initFold(){
 (async () => {
   try{
     const s = await (await fetch("/api/settings", {cache: "no-store"})).json();
-    for(const k of ["sig","keyword","width","addDate","ink","tick","user","lastStart","blocked","testChannel","fold"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
+    for(const k of ["sig","keyword","width","addDate","ink","tick","user","lastStart","blocked","testChannel","fold","people"]) if(s[k] !== undefined && s[k] !== null) state[k] = s[k];
     if(state.keyword.trim() === "Unterschrift Techniker"){ state.keyword = "Unterschrift Techniker, Servicetechniker"; persist(); }
   }catch(e){}
   initFold(); renderSettings(); renderSig(); renderAll(); renderUser();
