@@ -1,2 +1,2 @@
-10
+11
 Typenschild einlesen funktioniert jetzt auch ohne geöffnetes Programm: das Foto wird direkt über das Internet gelesen (Google, deutlich genauer).
