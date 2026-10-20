@@ -1,2 +1,2 @@
-11
-Typenschild einlesen funktioniert jetzt auch ohne geöffnetes Programm: das Foto wird direkt über das Internet gelesen (Google, deutlich genauer).
+12
+Nach dem Speichern bleiben die Einträge stehen, bis die Vorlage geschlossen wird. Prüfung elektr. Geräte: Geräteart Ladegerät, Schutzklasse 1 und Einheit A sind fest vorausgefüllt.
