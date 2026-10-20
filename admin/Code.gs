@@ -2,6 +2,7 @@
 // Läuft als Apps Script in der Google-Tabelle „PDF Unterschreiben – Nutzer“ und ist als Web-App
 // veröffentlicht (Ausführen als: Ich, Zugriff: Jeder). In KEY steht derselbe Schlüssel wie im
 // GitHub-Secret REPORT_KEY – im Repository steht hier nur ein Platzhalter.
+// Beim Einspielen wird admin/Typenschild.js unten an diese Datei angehängt (ohne die letzte module.exports-Zeile).
 const KEY = 'HIER_SCHLUESSEL_EINTRAGEN';
 const DOMAIN = 'schlueter-gabelstapler.de';
 const ADMIN_MAILS = ['b.stockey@hotmail.de']; // Admin darf sich mit dieser Adresse anmelden
@@ -9,6 +10,8 @@ const CODE_MINUTEN = 30;
 // Gerätelisten (Excel) melden sich mit diesem eigenen Schlüssel. Er erlaubt NUR die Nutzungsmeldung
 // der Listen – keine Anmeldung, keine Admin-Funktionen. Muss mit MELDE_KEY in den Listen übereinstimmen.
 const LISTEN_KEY = 'geraeteliste-v1';
+// Die Excel-Vorlage „Allgemeine Vorlagen“ darf damit NUR Typenschilder lesen lassen.
+const VORLAGEN_KEY = 'allgemeine-vorlagen-v1';
 
 function doPost(e) {
   let d;
@@ -19,6 +22,17 @@ function doPost(e) {
     try { return out(listeMelden(d)); }
     catch (x) { return out({ ok: false, error: 'Serverfehler: ' + x.message }); }
     finally { l.releaseLock(); }
+  }
+  // Typenschild direkt aus der Excel-Vorlage: Antwort als Text „OK“ + Ergebnis bzw. „FEHLER“ + Meldung
+  if (d && d.key === VORLAGEN_KEY && d.event === 'typenschild') {
+    let t;
+    try {
+      const b64 = String(d.b64 || '').replace(/\s/g, '');
+      if (b64.length < 100 || b64.length > 15000000) throw new Error('Kein gültiges Foto.');
+      const mime = /^image\/(jpeg|png|gif|bmp|webp)$/.test(String(d.mime || '')) ? d.mime : 'image/jpeg';
+      t = 'OK\n' + typenschildAuswerten(googleOcr(b64, mime));
+    } catch (x) { t = 'FEHLER\n' + x.message; }
+    return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.TEXT);
   }
   // Texterkennung (Typenschilder) – ohne Sperre, damit andere Anfragen nicht warten müssen
   if (d && d.key === KEY && d.event === 'ocr') {
