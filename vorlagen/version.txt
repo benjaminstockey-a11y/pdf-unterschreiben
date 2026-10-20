@@ -1,2 +1,2 @@
-8
-Gespeicherte Berichte sehen jetzt genau aus wie die Vorlage (Farben). Feste Einträge bleiben in der Vorlage, leere Vorbelegungsfelder sind gelb.
+9
+Typenschild einlesen läuft jetzt über das Programm PDF Unterschreiben (kein Abbruch mehr durch den Virenscanner) und liest die Schilder mit Google deutlich genauer.
