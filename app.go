@@ -68,6 +68,7 @@ func runApp(relaunch bool) {
 	a := &app{started: time.Now(), lastSeen: time.Now(), quit: make(chan struct{})}
 	a.srv = &http.Server{Handler: a.routes(), ReadHeaderTimeout: 10 * time.Second}
 	go a.srv.Serve(ln)
+	writePortFile()
 	if relaunch && Port != legacyPort {
 		// Update von einer Version mit fester Adresse: das alte Fenster findet die neue Adresse
 		// nicht – darum ein neues Fenster öffnen (keine Weiterleitung, die auf einem Server mit
@@ -138,6 +139,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/excel/sign", a.handleExcelSign)
 	mux.HandleFunc("/api/mail", a.handleMail)
 	mux.HandleFunc("/api/ocr", a.handleOCR)
+	mux.HandleFunc("/api/typenschild", a.handleTypenschild)
 	mux.HandleFunc("/api/report", a.handleReport)
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		// Nur feste Adressen im Standardbrowser öffnen (dort ist man bei Google angemeldet)
