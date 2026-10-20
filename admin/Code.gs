@@ -327,6 +327,7 @@ function ocrAnfrage(d) {
 }
 
 function googleOcr(b64, mime) {
+  // Braucht vollen Drive-Zugriff (Datei anlegen/löschen), nicht nur Lesen: DriveApp.createFile
   DriveApp.getRootFolder();
   const tok = ScriptApp.getOAuthToken();
   const auth = { Authorization: 'Bearer ' + tok };
@@ -336,7 +337,7 @@ function googleOcr(b64, mime) {
     '\r\n--' + bd + '\r\nContent-Type: ' + (mime || 'image/jpeg') + '\r\nContent-Transfer-Encoding: base64\r\n\r\n' + b64 + '\r\n--' + bd + '--').getBytes();
   const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&ocrLanguage=de',
     { method: 'post', contentType: 'multipart/related; boundary=' + bd, payload: body, headers: auth, muteHttpExceptions: true });
-  if (r.getResponseCode() >= 300) throw new Error('Hochladen fehlgeschlagen (' + r.getResponseCode() + ')');
+  if (r.getResponseCode() >= 300) throw new Error('Hochladen fehlgeschlagen (' + r.getResponseCode() + ') ' + r.getContentText().slice(0, 400));
   const id = JSON.parse(r.getContentText()).id;
   try {
     return UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '/export?mimeType=text/plain', { headers: auth }).getContentText();
