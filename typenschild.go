@@ -58,7 +58,7 @@ func (a *app) handleTypenschild(w http.ResponseWriter, r *http.Request) {
 	ps1 := filepath.Join(dir, "TypenschildOCR.ps1")
 	out := filepath.Join(dir, "ergebnis.txt")
 	// UTF-8 mit BOM, damit Windows PowerShell 5.1 Umlaute im Skript richtig liest
-	if err := os.WriteFile(ps1, append([]byte{0xEF, 0xBB, 0xBF}, typenschildScript...), 0o600); err != nil {
+	if err := os.WriteFile(ps1, append([]byte{0xEF, 0xBB, 0xBF}, bytes.TrimPrefix(typenschildScript, []byte{0xEF, 0xBB, 0xBF})...), 0o600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
