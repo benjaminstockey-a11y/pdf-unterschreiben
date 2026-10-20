@@ -26,9 +26,11 @@ const (
 	DisplayName = "PDF Unterschreiben & Dokumentation"
 	AppID       = "PDFUnterschreiben"
 	ExeName     = "PDF Unterschreiben.exe"
-	Port        = 47613 // fest, damit gespeicherte Einstellungen im Fenster erhalten bleiben
 	Publisher   = DisplayName
 )
+
+// Port wird beim Start je Windows-Benutzer festgelegt (siehe instance.go).
+var Port = 47613
 
 func installDir() string {
 	return filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", AppName)

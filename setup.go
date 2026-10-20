@@ -18,8 +18,13 @@ var appIcon []byte
 
 // quitRunning bittet eine laufende Instanz, sich zu beenden (damit die exe ersetzt werden kann).
 func quitRunning() {
+	// Nur die eigene Instanz beenden – nicht die eines anderen Windows-Benutzers am selben Rechner.
+	p := ownPort()
+	if p == 0 {
+		return
+	}
 	c := &http.Client{Timeout: 2 * time.Second}
-	resp, err := c.Post(fmt.Sprintf("http://127.0.0.1:%d/api/quit", Port), "text/plain", nil)
+	resp, err := c.Post(fmt.Sprintf("http://127.0.0.1:%d/api/quit", p), "text/plain", nil)
 	if err == nil {
 		resp.Body.Close()
 		time.Sleep(1200 * time.Millisecond)

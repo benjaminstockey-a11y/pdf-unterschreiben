@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -52,18 +51,14 @@ func runApp(relaunch bool) {
 	_ = os.WriteFile(iconPath(), appIcon, 0o644)
 	go func() { refreshIcon(); migrateName() }()
 
-	var ln net.Listener
-	var err error
-	for i := 0; i < 40; i++ {
-		ln, err = net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", Port))
-		if err == nil || !relaunch {
-			break
+	ln, mine := listenOwn(relaunch)
+	if ln == nil {
+		if mine {
+			// Läuft für diesen Windows-Benutzer schon – einfach das Fenster öffnen.
+			openWindow(url())
+			return
 		}
-		time.Sleep(250 * time.Millisecond)
-	}
-	if err != nil {
-		// Läuft schon – einfach das Fenster nach vorn holen bzw. neu öffnen.
-		openWindow(url())
+		fail("Das Programm konnte nicht gestartet werden (kein freier Anschluss).")
 		return
 	}
 	if relaunch {
@@ -73,6 +68,9 @@ func runApp(relaunch bool) {
 	a := &app{started: time.Now(), lastSeen: time.Now(), quit: make(chan struct{})}
 	a.srv = &http.Server{Handler: a.routes(), ReadHeaderTimeout: 10 * time.Second}
 	go a.srv.Serve(ln)
+	if relaunch && Port != legacyPort {
+		go legacyBridge()
+	}
 	if !relaunch {
 		openWindow(url())
 	}
@@ -121,6 +119,10 @@ func (a *app) routes() http.Handler {
 		static.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("/lib/pdf-lib.min.js", a.handlePdfLib)
+	mux.HandleFunc("/api/owner", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write([]byte(ownerToken()))
+	})
 	mux.HandleFunc("/api/info", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"version": Version, "repo": repoSlug(), "updates": RepoOwner != "", "report": ReportURL != ""})
 	})
