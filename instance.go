@@ -93,31 +93,5 @@ func listenOwn(relaunch bool) (net.Listener, bool) {
 	return nil, false
 }
 
-// Bis Version 1.15.0 lief das Programm fest auf diesem Port. Nach dem Update wartet das alte Fenster
-// dort auf die neue Version – eine Weile lang leiten wir es deshalb auf den neuen Port um.
+// Bis Version 1.15.0 lief das Programm fest auf diesem Port (für alle Benutzer gemeinsam).
 const legacyPort = 47613
-
-func legacyBridge() {
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", legacyPort))
-	if err != nil {
-		return // belegt (z. B. anderer Benutzer) – dann nicht
-	}
-	srv := &http.Server{ReadHeaderTimeout: 5 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/info" { // das alte Fenster prüft hier die Version und lädt dann neu
-			resp, err := http.Get(url() + "api/info")
-			if err != nil {
-				http.Error(w, "", http.StatusBadGateway)
-				return
-			}
-			defer resp.Body.Close()
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Cache-Control", "no-store")
-			io.Copy(w, resp.Body)
-			return
-		}
-		http.Redirect(w, r, url(), http.StatusFound)
-	})}
-	go srv.Serve(ln)
-	time.Sleep(3 * time.Minute)
-	srv.Close()
-}

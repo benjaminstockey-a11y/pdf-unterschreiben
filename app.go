@@ -69,7 +69,10 @@ func runApp(relaunch bool) {
 	a.srv = &http.Server{Handler: a.routes(), ReadHeaderTimeout: 10 * time.Second}
 	go a.srv.Serve(ln)
 	if relaunch && Port != legacyPort {
-		go legacyBridge()
+		// Update von einer Version mit fester Adresse: das alte Fenster findet die neue Adresse
+		// nicht – darum ein neues Fenster öffnen (keine Weiterleitung, die auf einem Server mit
+		// mehreren Benutzern das Fenster eines anderen erwischen könnte).
+		openWindow(url())
 	}
 	if !relaunch {
 		openWindow(url())
