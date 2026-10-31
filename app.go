@@ -89,6 +89,10 @@ func (a *app) stop() {
 func (a *app) watchLifetime() {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
+	// Erst beenden, wenn 90 Sekunden lang (gezählte Sekunden, nicht Uhrzeit) kein Fenster verbunden war.
+	// Vorher reichten 10 Sekunden: Nach Standby, im Hintergrund oder bei kurzen Aussetzern war das
+	// Programm dann weg und das Fenster zeigte „Seite nicht gefunden“.
+	ohne := 0
 	for {
 		select {
 		case <-a.quit:
@@ -96,8 +100,13 @@ func (a *app) watchLifetime() {
 			return
 		case <-t.C:
 			a.mu.Lock()
-			idle := a.clients == 0 && time.Since(a.lastSeen) > 10*time.Second && a.hadOne
-			never := !a.hadOne && time.Since(a.started) > 2*time.Minute
+			if a.clients == 0 && a.hadOne {
+				ohne++
+			} else {
+				ohne = 0
+			}
+			idle := ohne >= 90
+			never := !a.hadOne && time.Since(a.started) > 5*time.Minute
 			a.mu.Unlock()
 			if idle || never {
 				a.shutdown()
