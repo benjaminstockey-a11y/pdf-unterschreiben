@@ -204,23 +204,32 @@ $("g").onchange = function (e) { tsSenden(e.target.files[0]); e.target.value = "
 
 // ---- Vorschau der Berichte (vom Programm hochgeladen) ----
 function vorschauLaden() {
-  anfrage({ event: "h_vorschau" }).then(function (t) {
-    var l = []; try { l = JSON.parse(t) || []; } catch (e) {}
-    if (!l.length) return;
-    $("vor").hidden = false;
-    var box = $("vorSeiten"), i = 0;
-    l.forEach(function (s) {
-      var f = document.createElement("figure"), c = document.createElement("figcaption"), im = document.createElement("img");
-      c.textContent = s.titel || ""; im.alt = s.titel || "Bericht"; f.appendChild(c); f.appendChild(im); box.appendChild(f); s.img = im;
-      im.style.minHeight = "120px"; im.style.background = "#eee";
-    });
-    function naechste() {
-      if (i >= l.length) return;
-      var s = l[i++];
-      anfrage({ event: "h_vorschaubild", id: s.id }).then(function (b) { s.img.src = "data:image/jpeg;base64," + b; s.img.style.minHeight = ""; naechste(); }).catch(naechste);
-    }
-    naechste(); naechste(); naechste();   // 3 Seiten gleichzeitig laden
-  }).catch(function () {});
+  // Das Programm lädt die Seiten gerade hoch: Liste so lange nachladen, bis keine neuen mehr kommen
+  var bekannt = {}, warteschlange = [], laeuft = 0, gleich = 0, letzte = -1, start = Date.now();
+  function bild() {
+    if (laeuft >= 3 || !warteschlange.length) return;
+    var s = warteschlange.shift(); laeuft++;
+    anfrage({ event: "h_vorschaubild", id: s.id }).then(function (b) { s.img.src = "data:image/jpeg;base64," + b; s.img.style.minHeight = ""; })
+      .catch(function () {}).then(function () { laeuft--; bild(); });
+    bild();
+  }
+  function liste() {
+    anfrage({ event: "h_vorschau" }).then(function (t) {
+      var l = []; try { l = JSON.parse(t) || []; } catch (e) {}
+      if (l.length) $("vor").hidden = false;
+      l.forEach(function (s) {
+        if (bekannt[s.id]) return; bekannt[s.id] = 1;
+        var f = document.createElement("figure"), c = document.createElement("figcaption"), im = document.createElement("img");
+        c.textContent = s.titel || ""; im.alt = s.titel || "Bericht"; im.style.minHeight = "120px"; im.style.background = "#eee";
+        f.appendChild(c); f.appendChild(im); $("vorSeiten").appendChild(f); s.img = im; warteschlange.push(s);
+      });
+      bild();
+      gleich = l.length === letzte ? gleich + 1 : 0; letzte = l.length;
+      if ((l.length && gleich >= 4) || Date.now() - start > 120000) return;
+      setTimeout(liste, 2000);
+    }).catch(function () { if (Date.now() - start < 120000) setTimeout(liste, 3000); });
+  }
+  liste();
 }
 
 // ---- Unterschrift des Kunden ----

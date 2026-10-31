@@ -3103,11 +3103,11 @@ async function auftragLesen(f, w, bytes, st, typ){
 async function seitenBilder(pdf, titel, max = 60){
   const out = [];
   for(let n = 1; n <= Math.min(pdf.numPages, max); n++){
-    const pg = await pdf.getPage(n), vp1 = pg.getViewport({scale: 1}), sc = 950 / vp1.width, vp = pg.getViewport({scale: sc});
+    const pg = await pdf.getPage(n), vp1 = pg.getViewport({scale: 1}), sc = 820 / vp1.width, vp = pg.getViewport({scale: sc});
     const c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
     const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
     await pg.render({canvasContext: g, viewport: vp}).promise;
-    out.push({titel: titel + (pdf.numPages > 1 ? " – Seite " + n + " von " + pdf.numPages : ""), b64: c.toDataURL("image/jpeg", 0.66).split(",")[1]});
+    out.push({titel: titel + (pdf.numPages > 1 ? " – Seite " + n + " von " + pdf.numPages : ""), b64: c.toDataURL("image/jpeg", 0.62).split(",")[1]});
   }
   return out;
 }
@@ -3115,22 +3115,24 @@ async function handyUnterschrift(box, abbruch, vorschau){
   const api = async (event, extra = {}) => (await fetch("/api/fotos", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event, ...extra})})).json();
   box.innerHTML = '<span class="hint">QR-Code wird erstellt …</span>';
   let s; try{ s = await api("fotostart"); if(!s.ok) throw new Error(s.error); }catch(e){ box.innerHTML = '<span class="hint">Handy: ' + esc(e.message || String(e)) + '</span>'; return null; }
-  // Vorschau der Berichte hochladen, damit der Kunde sieht, was er unterschreibt
-  if(vorschau){
-    try{
-      box.innerHTML = '<span class="hint">Vorschau für das Handy wird vorbereitet …</span>';
-      const seiten = await vorschau();
-      // 4 Seiten gleichzeitig übertragen – auch 30 Seiten sind so in ein paar Sekunden oben
-      let fertig = 0, naechste = 0;
-      const arbeiter = async () => { while(naechste < seiten.length && !abbruch()){ const i = naechste++;
-        await api("fotovorschau", {token: s.token, nr: i + 1, titel: seiten[i].titel, b64: seiten[i].b64}).catch(() => {});
-        box.innerHTML = `<span class="hint">Vorschau wird übertragen (${++fertig} von ${seiten.length} Seiten) …</span>`; } };
-      await Promise.all([arbeiter(), arbeiter(), arbeiter(), arbeiter()]);
-    }catch(e){ console.log("Vorschau", e); }
-  }
   const url = s.url + (s.url.includes("?") ? "&" : "?") + "u=1";
   box.innerHTML = '<div class="sig-qr"><img alt="QR-Code"><span class="hint">Den Kunden den QR-Code mit seinem Handy scannen lassen – oder mit deinem Handy scannen und dem Kunden geben. Die Unterschrift erscheint dann automatisch hier.</span></div>';
   box.querySelector("img").src = "/api/fotos/qr?u=" + encodeURIComponent(url);
+  // Vorschau der Berichte im Hintergrund hochladen – der QR-Code ist sofort da, das Handy lädt die Seiten nach
+  if(vorschau){
+    const info = document.createElement("span"); info.className = "hint"; box.querySelector(".sig-qr span").appendChild(info);
+    (async () => {
+      try{
+        info.textContent = " Vorschau wird vorbereitet …";
+        const seiten = await vorschau();
+        let fertig = 0, naechste = 0;
+        const arbeiter = async () => { while(naechste < seiten.length && !abbruch()){ const i = naechste++;
+          await api("fotovorschau", {token: s.token, nr: i + 1, titel: seiten[i].titel, b64: seiten[i].b64}).catch(() => {});
+          info.textContent = ` Vorschau: ${++fertig} von ${seiten.length} Seiten übertragen.`; } };
+        await Promise.all(Array.from({length: 6}, arbeiter));
+      }catch(e){ info.textContent = ""; }
+    })();
+  }
   const ende = () => api("fotoende", {token: s.token}).catch(() => {});
   const bis = Date.now() + 20 * 60000;
   while(Date.now() < bis && !abbruch()){
