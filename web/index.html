@@ -513,6 +513,7 @@ body{padding-bottom:172px}
       <button type="button" class="ghost" id="formNeu">Neues Formular</button>
       <label class="row" style="gap:4px"><input type="checkbox" id="formAlsXlsx"> Excel</label>
       <label class="row" style="gap:4px"><input type="checkbox" id="formAlsPdf" checked> PDF</label>
+      <label class="row" style="gap:4px" title="Deine Unterschrift über „Servicetechniker“ einsetzen. Aus, wenn du den Bericht danach noch bei „Berichte unterschreiben“ unterschreibst."><input type="checkbox" id="formMeineSig"> Meine Unterschrift</label>
       <button type="button" id="formSig" hidden>📱 Kunde unterschreibt</button>
       <button type="button" id="formDispo">📧 An Dispo senden</button>
       <button type="button" id="formDrucken">🖨 Drucken</button>
@@ -3392,6 +3393,10 @@ function zusatz(f, w, werte){
   for(const k of Object.keys(werte)){ const m = /^([A-Z]+)(\d+)$/.exec(k); if(m && +m[2] > l + n && +m[2] <= l + w["#mehr"]) delete werte[k]; }
   return n ? {nach: l, anzahl: n} : {};
 }
+// eigene Unterschrift in Formulare einsetzen? (wird pro Benutzer gemerkt, Standard: ja)
+function meineSigAn(){ try{ return localStorage.getItem("formMeineSig") !== "0"; }catch(e){ return true; } }
+$("#formMeineSig").checked = meineSigAn();
+$("#formMeineSig").onchange = e => { try{ localStorage.setItem("formMeineSig", e.target.checked ? "1" : "0"); }catch(x){} formMeldung(e.target.checked ? "Deine Unterschrift wird ins Formular eingesetzt." : "Ohne deine Unterschrift – z. B. wenn du danach bei „Berichte unterschreiben“ unterschreibst.", 5000); };
 // baut die Anfrage für Excel (Werte, Kreuze, Unterschriften)
 function formAnfrage(f, w, o){
   const werte = {}, kreuze = {};
@@ -3410,7 +3415,7 @@ function formAnfrage(f, w, o){
   const bilder = [];
   const sigBild = (url, pl) => pl && url && bilder.push({zelle: pl[0], png: url.split(",")[1], hoehe: pl[1], breite: 150, modus: pl[2] || ""});
   if(!o.ohneKunde) sigBild(w._sigKunde, SIG_PLATZ.kunde[f.id]);
-  sigBild(state.sig && state.sig.url, SIG_PLATZ.technik[f.id]);   // eigene Unterschrift (aus „Deine Unterschrift“)
+  if(meineSigAn()) sigBild(state.sig && state.sig.url, SIG_PLATZ.technik[f.id]);   // eigene Unterschrift (aus „Deine Unterschrift“) – abschaltbar
   const anfrage = {bilder, ...zusatz(f, w, werte), blatt: f.blatt || "", quelle: f.quelle ? ((formState.register || []).find(g => g.name === f.quelle) || {}).id || "-" : "", werte, kreuze, xlsx: !!o.xlsx, pdf: !!o.pdf, drucken: !!o.drucken};
   return anfrage;
 }
