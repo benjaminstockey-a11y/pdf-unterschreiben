@@ -111,7 +111,8 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 .empty b{font:600 17px var(--f-display);color:var(--ink)}
 #printArea{display:none}
 @media print{
-  body{padding:0;background:#fff}
+  body{padding:0!important;margin:0!important;background:#fff!important}
+  body::before,body::after{display:none!important}
   body > *:not(#printArea){display:none!important}
   #printArea{display:block}
   .print-page{height:100vh;display:flex;align-items:center;justify-content:center;break-after:page;overflow:hidden}
