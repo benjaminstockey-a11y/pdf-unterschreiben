@@ -222,6 +222,15 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .form-chips{display:flex;flex-wrap:wrap;gap:6px}
 .form-chips button{padding:6px 12px;border-radius:999px;font-size:13px}
 .form-chips button[aria-pressed="true"]{background:var(--accent,#c8102e);color:#fff;border-color:transparent}
+.form-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px 14px}
+.form-raster table{border-collapse:collapse;font-size:13px;width:100%}
+.form-raster th{font-weight:600;text-align:left;padding:1px 3px;color:var(--muted,#667)}
+.form-raster td{padding:1px 3px}.form-raster td:first-child{width:30px;text-align:right;color:var(--muted,#667)}
+.form-raster input{font:inherit;width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid var(--line,#ccc);border-radius:6px;background:var(--bg,#fff);color:inherit;min-width:0}
+.form-jn{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;font-size:13px}
+.form-jn>div{display:flex;gap:6px}.form-jn button{padding:4px 12px;border-radius:999px;font-size:13px;min-width:58px}
+.form-jn button[aria-pressed="true"]{background:var(--accent,#c8102e);color:#fff;border-color:transparent}
+.form-jn>span{padding:3px 0;border-bottom:1px dashed var(--line,#e3e3e3)}
 
 /* ---------- Facelift „Service-Mappe“ ---------- */
 :root{--brand:#c8102e;--brand-soft:#fbe9ec;--accent:var(--brand);--shadow:0 1px 2px rgba(16,24,40,.05),0 4px 14px rgba(16,24,40,.06);--paper:#eef1f6}
@@ -2666,6 +2675,27 @@ const FORMULARE = [
     {titel: "Ladegerät", werkzeug: "typenschild", felder: [{t: "text", z: "B11", l: "Hersteller", ts: "HERSTELLER"}, {t: "text", z: "B13", l: "Type", ts: "TYP"}, {t: "text", z: "B15", l: "Seriennummer", ts: "FABRNR", geraet: true}, {t: "text", z: "B17", l: "Fahrgestell-Nr."}, {t: "text", z: "B19", l: "Betr. Std."}]},
     {titel: "Rückgabegrund", felder: [{t: "x", z: "D23", l: "Defekt"}, {t: "x", z: "D25", l: "Gebraucht"}, {t: "x", z: "D27", l: "Batteriedienst beauftragen"}, {t: "x", z: "D29", l: "Garantie"},
       {t: "text", z: "B31", l: "Fehlercode"}, {t: "text", z: "B33", l: "Fehlerbeschreibung"}, {t: "text", z: "B35", l: "Weitere Gründe"}, {t: "zeilen", l: "Bemerkungen", z: ["B37", "B39"]}]}]},
+  {id: "batterie", titel: "Batterieprüfprotokoll", datei: "batterie", typenschild: true, abschnitte: [
+    {titel: "Kunde und Auftrag", werkzeug: "auftrag", felder: [
+      {t: "text", z: "E6", l: "Firma"}, {t: "text", z: "E7", l: "Straße / Hausnummer"}, {t: "text", z: "E8", l: "PLZ / Ort"}, {t: "text", z: "E9", l: "Ansprechpartner"},
+      {t: "datum", z: "AC6", l: "Datum", d: HEUTE, echt: true}, {t: "text", z: "AC7", l: "Auftragsnummer"}, {t: "text", z: "AC8", l: "Fahrgestellnummer"}, {t: "text", z: "AC9", l: "Servicetechniker", d: TECHNIKER}]},
+    {titel: "1. Batterie", felder: [
+      {t: "text", z: "G11", l: "Batterie Nr."}, {t: "text", z: "X11", l: "in Betrieb seit"}, {t: "text", z: "AH11", l: "Hersteller"},
+      {t: "text", z: "J13", l: "Besteht aus (Anzahl Zellen)"}, {t: "text", z: "X13", l: "Zellen der Type"}, {t: "text", z: "AH13", l: "Stecker"}]},
+    {titel: "2. Einsatz / 3. Zur Zeit der Prüfung", felder: [
+      {t: "xeins", l: "Einsatz als Wechselbatterie", o: [["O16", "Ja"], ["S16", "Nein"]]},
+      {t: "xeins", l: "Zur Zeit der Prüfung", o: [["M19", "auf Ladung"], ["S19", "in Einsatz"], ["AA19", "nicht im Einsatz"], ["AH19", "Außer Betrieb"]]},
+      {t: "text", z: "AA16", l: "Einsatzzeit"}, {t: "text", z: "AH16", l: "Stunden"}]},
+    {titel: "4. Säuredichte und Spannung der Zellen (von + nach −)", felder: [
+      {t: "text", z: "AE21", l: "Säuretemperatur (°C)"}, {t: "text", z: "M31", l: "Gesamtspannung (Volt) – leer = wird addiert"},
+      {t: "raster", l: "Zellen", r: [23, 24, 25, 26, 27, 28, 29, 30], g: [["G", "I"], ["M", "O"], ["S", "U"], ["Y", "AA"], ["AE", "AG"]]}]},
+    {titel: "Befund", felder: [{t: "jn", ja: "P", nein: "R", o: [[35, "Zellenzustand OK"], [36, "Trogzustand normal"], [37, "Trog angesäuert"], [38, "Flüssigkeit im Trog"],
+      [39, "Tiefentladung"], [40, "Zustand d. Nachfüllsystems i. O."], [41, "übermäßige Batterie-Beanspruchung"], [42, "Kunde wünscht Angebot"]]}]},
+    {titel: "Erforderliche Maßnahmen", felder: [{t: "jn", ja: "AH", nein: "AJ", o: [[35, "gereinigtes Wasser nachfüllen"], [36, "Ladebehandlung / Säureausgleich"], [37, "Zellen, Verbinder säubern"],
+      [38, "Trog trocken und streichen"], [39, "Erneuerung der Zellen"], [40, "Erneuerung des Troges"], [41, "Erneuerung der kpl. Batterie"], [42, "Wechselbatterie erforderlich"], [43, "Ladetechnik verbessern"]]}]},
+    {titel: "Ladegerät", werkzeug: "typenschild", felder: [{t: "text", z: "N43", l: "Fabrikat", ts: "HERSTELLER"}, {t: "text", z: "O44", l: "Typenbezeichnung", ts: "TYP"}, {t: "text", z: "P45", l: "Leistung"}, {t: "text", z: "P46", l: "Kennlinie"}]},
+    {titel: "Fahrzeug", felder: [{t: "text", z: "AG44", l: "Fabrikat"}, {t: "text", z: "AG45", l: "Typ / Baujahr"}, {t: "text", z: "AG46", l: "Fahrzeugnr."}]},
+    {titel: "Bemerkung", felder: [{t: "flaeche", z: "Y48", l: "Bemerkung"}]}]},
   {id: "toyota", titel: "Toyota Checkliste", quelle: "Toyota Checkliste", abschnitte: [
     {titel: "Allgemein", felder: [{t: "text", z: "A4", l: "Name Servicetechniker", d: TECHNIKER}, {t: "text", z: "M4", l: "Firma / SC", d: () => "Schlüter"}, {t: "text", z: "S4", l: "Telefon", d: () => "05424233115"}, {t: "datum", z: "AA4", l: "Datum", d: HEUTE, echt: true},
       {t: "text", z: "A6", l: "Gerätenummer"}, {t: "text", z: "M6", l: "Betriebsstunden"}, {t: "text", z: "Q6", l: "Letzte Wartung"}, {t: "text", z: "V6", l: "Endkunde"}, {t: "text", z: "A8", l: "Anbaugerät"}]},
@@ -2825,6 +2855,40 @@ function formRender(){
           r.appendChild(b);
         }
         g.appendChild(r); sek.appendChild(g);
+      } else if(x.t === "raster"){
+        // Zellenmessung: Blöcke wie auf dem Blatt (Zelle 1–8, 9–16 …); Enter springt ins nächste Feld
+        kreuze = null; felder = null;
+        const ra = document.createElement("div"); ra.className = "form-raster"; let nr = 1;
+        for(const [cv, cs] of x.g){
+          const t = document.createElement("table"); t.innerHTML = "<thead><tr><th></th><th>Volt</th><th>Säure</th></tr></thead>";
+          const tb = document.createElement("tbody");
+          for(const row of x.r){
+            const tr = document.createElement("tr"); const n = document.createElement("td"); n.textContent = (nr++) + "."; tr.appendChild(n);
+            for(const sp of [cv, cs]){ const td = document.createElement("td"); const i = document.createElement("input"); const z = sp + row; i.inputMode = "decimal";
+              i.value = w[z] || ""; i.oninput = () => set(z, i.value); td.appendChild(i); tr.appendChild(td); }
+            tb.appendChild(tr);
+          }
+          t.appendChild(tb); ra.appendChild(t);
+        }
+        ra.addEventListener("keydown", e => { if(e.key !== "Enter") return; e.preventDefault();
+          const alle = [...ra.querySelectorAll("tbody tr")].flatMap(tr => [...tr.querySelectorAll("input")]); const i = alle.indexOf(e.target); if(alle[i + 1]) alle[i + 1].focus(); });
+        sek.appendChild(ra);
+      } else if(x.t === "jn"){
+        // Ja/Nein je Zeile (X in die Ja- oder Nein-Spalte des Blatts)
+        kreuze = null; felder = null;
+        const g = document.createElement("div"); g.className = "form-jn";
+        for(const [row, t] of x.o){
+          const sp = document.createElement("span"); sp.textContent = t; const r = document.createElement("div");
+          const zj = x.ja + row, zn = x.nein + row;
+          for(const [z, txt] of [[zj, "Ja"], [zn, "Nein"]]){
+            const b = document.createElement("button"); b.type = "button"; b.textContent = txt; b.setAttribute("aria-pressed", w[z] ? "true" : "false");
+            b.onclick = () => { const an = !w[z]; w[zj] = ""; w[zn] = ""; w[z] = an ? "X" : ""; formMerken();
+              r.querySelectorAll("button").forEach((k, i) => k.setAttribute("aria-pressed", w[i ? zn : zj] ? "true" : "false")); };
+            r.appendChild(b);
+          }
+          g.append(sp, r);
+        }
+        sek.appendChild(g);
       } else if(x.t === "tabelle"){
         const tab = document.createElement("table"); tab.className = "form-tab" + (x.fest ? " gleich" : "");
         tab.innerHTML = "<thead><tr>" + x.s.map(s => "<th>" + s[1] + "</th>").join("") + "</tr></thead>";
@@ -3115,9 +3179,10 @@ const FELD_MAP = {
   pruefung: {E4: "H5", D5: "A5"},
   rueckgabe: {D5: "G5", D6: "G7", D7: "G9", D15: "B9", D16: "B11", D17: "B13", D23: "B15"},
   bestkunde: {D5: "C3", D6: "C4", D7: "C5", Q9: "G7", D15: "C10", D16: "C11", D17: "C12", D19: "C14", D23: "C19"},
-  toyota: {D5: "V6", D17: "A6", D23: "M6"}
+  toyota: {D5: "V6", D17: "A6", D23: "M6"},
+  batterie: {E4: "AC7", D5: "E6", D6: "E7", D7: "E8", D8: "E9", D15: "AG44", D16: "AG45", D17: "AC8"}
 };
-const AUFTRAG_ZIEL = {reparatur: null, garantie: FELD_MAP.garantie, technisch: FELD_MAP.technisch, ladegeraet: FELD_MAP.ladegeraet};
+const AUFTRAG_ZIEL = {reparatur: null, garantie: FELD_MAP.garantie, technisch: FELD_MAP.technisch, ladegeraet: FELD_MAP.ladegeraet, batterie: FELD_MAP.batterie};
 function gemeinsam(){ return formState.daten._gemeinsam || (formState.daten._gemeinsam = {stand: 0, v: {}}); }
 // Werte des Formulars in den gemeinsamen Stand übernehmen
 function gemeinsamAus(f, w){
@@ -3198,10 +3263,10 @@ async function handyUnterschrift(box, abbruch, vorschau){
 }
 
 /* ---- Unterschrift des Kunden (kommt als Bild ins Excel-Blatt und damit auch in die PDF) ---- */
-const SIG_KUNDE = {reparatur: "B55", pruefung: "O65", bestkunde: "A43"};
+const SIG_KUNDE = {reparatur: "B55", pruefung: "O65", bestkunde: "A43", batterie: "C49"};
 // Platz der Unterschriften im Excel-Blatt: Zelle der Beschriftung, Höhe in Punkt, „in“ = oben in der Zelle, sonst über der Beschriftung
 const SIG_PLATZ = {
-  kunde: {reparatur: ["B55", 18, "in"], pruefung: ["O65", 32], bestkunde: ["A43", 24]},
+  kunde: {reparatur: ["B55", 18, "in"], pruefung: ["O65", 32], bestkunde: ["A43", 24], batterie: ["C49", 30]},
   technik: {reparatur: ["O55", 18, "in"], pruefung: ["B65", 32], bestkunde: ["F43", 24], bestmonteur: ["F32", 24], rueckgabe: ["H39", 30], garantie: ["C43", 30], technisch: ["C44", 34]}
 };
 function sigKnopf(){
@@ -3243,7 +3308,8 @@ const PFLICHT = {
   technisch: ["Kundenname", "Fahrgestell-Nr.", ["1. Symptome", "A24"]],
   ladegeraet: ["Name", "Seriennummer"],
   urlaub: [["Urlaub vom", "B9"]],
-  toyota: ["Gerätenummer", "Betriebsstunden"]
+  toyota: ["Gerätenummer", "Betriebsstunden"],
+  batterie: ["Firma", "Batterie Nr.", ["Zellenmessung (Volt Zelle 1)", "G23"]]
 };
 function pflichtFehlt(f, w){
   const out = [];
@@ -3459,11 +3525,16 @@ function formAnfrage(f, w, o){
   if(f.id === "reparatur" && werte.R6) werte.R56 = werte.R6;
   for(const a of f.abschnitte) for(const x of a.felder) for(const [z] of merkZellen(x)) if(!(z in werte)) werte[z] = "";
   if(f.id === "pruefung") werte.K13 = "A";   // Nennleistung immer in Ampere
+  if(f.id === "batterie" && !werte.M31){   // Gesamtspannung = Summe der Zellspannungen
+    const ra = f.abschnitte.flatMap(a => a.felder).find(x => x.t === "raster"); let s = 0, n = 0;
+    for(const [cv] of ra.g) for(const r of ra.r){ const v = parseFloat(String(werte[cv + r] || "").replace(",", ".")); if(!isNaN(v)){ s += v; n++; } }
+    if(n) werte.M31 = s.toFixed(2).replace(".", ",");
+  }
   const bilder = [];
   const sigBild = (url, pl) => pl && url && bilder.push({zelle: pl[0], png: url.split(",")[1], hoehe: pl[1], breite: 150, modus: pl[2] || ""});
   if(!o.ohneKunde) sigBild(w._sigKunde, SIG_PLATZ.kunde[f.id]);
   if(meineSigAn()) sigBild(state.sig && state.sig.url, SIG_PLATZ.technik[f.id]);   // eigene Unterschrift (aus „Deine Unterschrift“) – abschaltbar
-  const anfrage = {bilder, ...zusatz(f, w, werte), blatt: f.blatt || "", quelle: f.quelle ? ((formState.register || []).find(g => g.name === f.quelle) || {}).id || "-" : "", werte, kreuze, xlsx: !!o.xlsx, pdf: !!o.pdf, drucken: !!o.drucken};
+  const anfrage = {bilder, ...zusatz(f, w, werte), blatt: f.blatt || "", quelle: f.datei ? "@" + f.datei : f.quelle ? ((formState.register || []).find(g => g.name === f.quelle) || {}).id || "-" : "", werte, kreuze, xlsx: !!o.xlsx, pdf: !!o.pdf, drucken: !!o.drucken};
   return anfrage;
 }
 async function formSpeichern(drucken, dispo){

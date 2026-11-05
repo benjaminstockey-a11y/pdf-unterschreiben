@@ -27,6 +27,13 @@ import (
 //go:embed vorlagen/Allgemeine-Vorlagen.xlsm
 var vorlagenEingebaut []byte
 
+// Formulare mit eigener, im Programm mitgelieferter Vorlage (Anfrage: quelle "@name")
+//
+//go:embed vorlagen/Batteriepruefprotokoll.xlsx
+var vorlageBatterie []byte
+
+var eigeneVorlagen = map[string][]byte{"batterie": vorlageBatterie}
+
 const vorlagenURL = "https://raw.githubusercontent.com/pdfunterschreiben-Admin/pdfunterschreiben/main/vorlagen/Allgemeine-Vorlagen.xlsm"
 
 // neueste Vorlage: einmal am Tag von GitHub holen, sonst die zuletzt geholte bzw. die eingebaute
@@ -172,7 +179,14 @@ func (a *app) handleFormular(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(dir)
 	vorlage, endung := vorlagenDatei(), "xlsm"
-	if req.Quelle != "" {
+	if strings.HasPrefix(req.Quelle, "@") {
+		d, ok := eigeneVorlagen[req.Quelle[1:]]
+		if !ok {
+			fehler("Unbekannte Vorlage.")
+			return
+		}
+		vorlage, endung = d, "xlsx"
+	} else if req.Quelle != "" {
 		e, d, err := registerDatei(req.Quelle)
 		if err != nil {
 			fehler(err.Error())
