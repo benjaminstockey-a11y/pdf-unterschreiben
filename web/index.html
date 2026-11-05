@@ -177,6 +177,21 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 @media (prefers-reduced-motion:no-preference){.doc{animation:in .2s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
 #formDlg{width:min(1040px,calc(100vw - 32px))}
 #wartDlg{width:min(1100px,calc(100vw - 32px))}
+#etDlg{width:min(980px,calc(100vw - 32px))}
+#etDlg .dlg-body{max-height:calc(100vh - 220px);overflow:auto;padding:0 16px 12px}
+.et-kopf{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.et-kopf input{flex:1;min-width:200px;font:inherit;padding:7px 10px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--bg,#fff);color:inherit}
+.et-tabs{display:flex;gap:6px}.et-tabs button{border-radius:999px;padding:6px 14px}
+.et-tabs button[aria-pressed="true"]{background:var(--accent,#c8102e);color:#fff;border-color:transparent}
+.et-tab{width:100%;border-collapse:collapse;font-size:13px}
+.et-tab th{position:sticky;top:0;background:var(--sheet,#fff);text-align:left;font-weight:600;padding:8px 6px;border-bottom:1px solid var(--line);z-index:1}
+.et-tab td{padding:4px 6px;border-bottom:1px solid var(--line,#eee);vertical-align:middle}
+.et-tab tr.gr td{font-weight:700;padding-top:14px;color:var(--accent,#c8102e);border-bottom:2px solid var(--line)}
+.et-tab tr.an td{background:color-mix(in srgb,var(--accent,#c8102e) 7%,transparent)}
+.et-tab td.m{width:84px}.et-tab td.m input{width:72px;font:inherit;padding:5px 7px;border:1px solid var(--line,#ccc);border-radius:6px;text-align:right;background:var(--bg,#fff);color:inherit}
+.et-tab td.nr{white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.et-tab .info{display:block;color:var(--muted,#667);font-size:12px}
+.et-tab td.l{white-space:nowrap;color:var(--muted,#667)}
 #wartDlg .dlg-body{max-height:calc(100vh - 140px);overflow:auto}
 .wart-kopf{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
 .wart-kopf h3{margin:0;font:600 18px var(--f-display);flex:1;min-width:200px}
@@ -534,6 +549,15 @@ body{padding-bottom:172px}
       <nav id="wartListe" class="form-liste"></nav>
       <div id="wartInhalt" class="form-inhalt"></div>
     </div>
+  </form>
+</dialog>
+
+<dialog id="etDlg">
+  <form method="dialog" class="dlg" onsubmit="return false">
+    <div class="dlg-head"><strong>Ersatzteilliste</strong><button type="button" class="ghost" id="etClose">Schließen</button></div>
+    <div class="et-kopf"><div class="et-tabs" id="etTabs"></div><input type="search" id="etSuche" placeholder="Suchen: Bezeichnung oder Artikelnummer …"></div>
+    <div class="dlg-body"><table class="et-tab"><thead><tr><th>Menge</th><th>Artikelnummer</th><th>Bezeichnung</th><th>Lagerort</th></tr></thead><tbody id="etListe"></tbody></table></div>
+    <div class="dlg-foot"><span class="hint" id="etZahl">Menge hinter die Artikel schreiben (z. B. 1 oder 1,25).</span><span style="display:flex;gap:8px"><button type="button" class="ghost" id="etLeeren">Mengen leeren</button><button type="button" class="primary" id="etOk">In die Ersatzteile übernehmen</button></span></div>
   </form>
 </dialog>
 
@@ -3494,8 +3518,77 @@ function tdocWerkzeug(f, w){
     formMerken(); formRender(); formMeldung(n ? `${n} Ersatzteil(e) eingefügt.` : "Diese Teile stehen schon in der Tabelle.");
     try{ await navigator.clipboard.writeText("TDOC-EINGEFUEGT"); }catch(e){}
   };
-  r.append(b, e, s); return r;
+  const et = document.createElement("button"); et.type = "button"; et.textContent = "📋 Ersatzteilliste";
+  et.onclick = () => etOeffnen(f, w);
+  r.append(b, et, e, s); return r;
 }
+/* ---- Ersatzteilliste (Schnellzugriff Außendienst/Werkstatt und Batteriedienst) ---- */
+let etDaten = null, etListe = 0, etZiel = null;
+const etMengen = {};   // "Liste|Index" → Menge (Text)
+const etZahl = t => { const v = parseFloat(String(t || "").replace(",", ".")); return isNaN(v) ? 0 : v; };
+const etText = v => String(Math.round(v * 1000) / 1000).replace(".", ",");
+async function etOeffnen(f, w){
+  if(!etDaten){ try{ etDaten = await (await fetch("/ersatzteilliste.json")).json(); }catch(e){ formMeldung("Die Ersatzteilliste konnte nicht geladen werden."); return; } }
+  etZiel = {f, w}; $("#etSuche").value = ""; etZeigen(); $("#etDlg").showModal(); setTimeout(() => $("#etSuche").focus(), 50);
+}
+function etZeigen(){
+  const tabs = $("#etTabs"); tabs.innerHTML = "";
+  etDaten.listen.forEach((l, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = l.name; b.setAttribute("aria-pressed", i === etListe ? "true" : "false");
+    b.onclick = () => { etListe = i; etZeigen(); }; tabs.appendChild(b); });
+  const q = $("#etSuche").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const tb = $("#etListe"); tb.innerHTML = "";
+  const L = etDaten.listen[etListe]; let idx = 0;
+  for(const g of L.gruppen){
+    const zeilen = [];
+    for(const a of g.artikel){
+      const key = etListe + "|" + (idx++);
+      const txt = (a.name + " " + (a.nr || "") + " " + (a.info || "")).toLowerCase();
+      if(q.length && !q.every(x => txt.includes(x))) continue;
+      const tr = document.createElement("tr"); if(etMengen[key]) tr.className = "an";
+      const tm = document.createElement("td"); tm.className = "m";
+      if(a.nr){ const i = document.createElement("input"); i.inputMode = "decimal"; i.value = etMengen[key] || ""; i.placeholder = "–";
+        i.oninput = () => { i.value = i.value.replace(/[^0-9.,]/g, ""); if(etZahl(i.value) > 0) etMengen[key] = i.value; else delete etMengen[key]; tr.className = etMengen[key] ? "an" : ""; etSumme(); };
+        i.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); const alle = [...tb.querySelectorAll("input")]; const n = alle[alle.indexOf(i) + 1]; if(n) n.focus(); } };
+        tm.appendChild(i); }
+      const tn = document.createElement("td"); tn.className = "nr"; tn.textContent = a.nr || "";
+      const tz = document.createElement("td"); tz.textContent = a.name;
+      if(a.info || a.ergaenzen){ const sp = document.createElement("span"); sp.className = "info"; sp.textContent = [a.info, a.ergaenzen ? "Artikelnummer danach in der Tabelle ergänzen" : ""].filter(Boolean).join(" · "); tz.appendChild(sp); }
+      const tl = document.createElement("td"); tl.className = "l"; tl.textContent = a.lager || "";
+      tr.append(tm, tn, tz, tl); zeilen.push(tr);
+    }
+    if(!zeilen.length) continue;
+    const h = document.createElement("tr"); h.className = "gr"; h.innerHTML = '<td colspan="4"></td>'; h.firstChild.textContent = g.name; tb.appendChild(h);
+    zeilen.forEach(z => tb.appendChild(z));
+  }
+  if(!tb.children.length) tb.innerHTML = '<tr><td colspan="4" class="hint" style="padding:14px 6px">Kein Artikel gefunden.</td></tr>';
+  etSumme();
+}
+function etAuswahl(){
+  const out = [];
+  etDaten.listen.forEach((l, li) => { let idx = 0; for(const g of l.gruppen) for(const a of g.artikel){ const m = etMengen[li + "|" + (idx++)]; if(m && a.nr) out.push({a, m: etZahl(m)}); } });
+  return out;
+}
+function etSumme(){ const n = etAuswahl().length; $("#etZahl").textContent = n ? n + " Artikel ausgewählt" : "Menge hinter die Artikel schreiben (z. B. 1 oder 1,25)."; $("#etOk").disabled = !n; }
+$("#etSuche").oninput = () => etZeigen();
+$("#etClose").onclick = () => $("#etDlg").close();
+$("#etLeeren").onclick = () => { for(const k in etMengen) delete etMengen[k]; etZeigen(); };
+$("#etOk").onclick = () => {
+  const {f, w} = etZiel || {}; if(!f) return;
+  const tab = f.abschnitte.flatMap(a => a.felder).find(x => x.t === "tabelle");
+  const [SA, SN, SB] = tab.s.map(c => c[0]);
+  let neu = 0, mehr = 0;
+  for(const {a, m} of etAuswahl()){
+    // gleicher Artikel schon in der Tabelle → Menge addieren
+    const da = tabZeilen(tab, w).find(r => (w[SN + r] || "").trim() === a.nr);
+    if(da){ w[SA + da] = etText(etZahl(w[SA + da]) + m); mehr++; continue; }
+    let frei = tabZeilen(tab, w).find(r => !w[SA + r] && !w[SN + r] && !w[SB + r]);
+    if(!frei){ w["#mehr"] = (w["#mehr"] || 0) + 1; frei = tabZeilen(tab, w).pop(); }
+    w[SA + frei] = etText(m); w[SN + frei] = a.nr; w[SB + frei] = a.name + (a.info && a.info.length < 40 ? " " + a.info : ""); neu++;
+  }
+  for(const k in etMengen) delete etMengen[k];
+  $("#etDlg").close(); formMerken(); formRender();
+  formMeldung([neu ? neu + " Artikel eingetragen" : "", mehr ? mehr + " Menge(n) erhöht" : ""].filter(Boolean).join(", ") + ".", 6000);
+};
 
 /* ---- Speichern ---- */
 // zusätzliche Zeilen nur bis zur letzten benutzten mitschicken
