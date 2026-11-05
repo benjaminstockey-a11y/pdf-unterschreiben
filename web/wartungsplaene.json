@@ -1,0 +1,3930 @@
+[
+{
+"blatt": "RRE H",
+"titel": "RRE",
+"spalten": [
+{
+"name": "1000Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "3000Wh",
+"hinweis": ""
+},
+{
+"name": "5000Wh",
+"hinweis": ""
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+""
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel prüfen",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Schütze",
+"werte": [
+"o y",
+"",
+""
+]
+},
+{
+"arbeit": "Lüfter",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Notausschalter",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Signal,-Warnleuchten",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+""
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Hydraulikölfilter",
+"werte": [
+"",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"x Kühlhaus",
+"",
+"x"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung , oben 124Nm, unten 259Nm/519Nm",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Hubketten Gabeln 1cm über Boden",
+"werte": [
+"o i c",
+"",
+""
+]
+},
+{
+"arbeit": "Mastkabel und Rollen",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Getriebeöl",
+"werte": [
+"x erste mal",
+"x",
+""
+]
+},
+{
+"arbeit": "Derhkranz",
+"werte": [
+"",
+"i",
+""
+]
+},
+{
+"arbeit": "Ausschubwagen Spiel einstellen,Anschlag überprüfen",
+"werte": [
+"o i c",
+"",
+""
+]
+},
+{
+"arbeit": "Räder",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Stützkufen max 12mm 160R max 15mm",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Radmuttern 120Nm 160R 140Nm",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Bremse Lüftspiel 0,2-0,5mm",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+""
+]
+},
+{
+"arbeit": "Batterieverriegelung",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+""
+]
+}
+]
+},
+{
+"blatt": "VRE",
+"titel": "VRE",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Notausschalter",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"x",
+"o"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung , oben 124Nm, unten 259Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Räder",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Stützkufen max 12mm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Radmuttern 140Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Bremse Lüftspiel 0,2-0,5mm",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "RRE",
+"titel": "RRE",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "5000Wh",
+"hinweis": ""
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+""
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel prüfen",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Lüfter aktiv test",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Schütze",
+"werte": [
+"o y",
+"",
+""
+]
+},
+{
+"arbeit": "Signal- und Warnleuchten",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Notausschalter",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+""
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Hydraulikölfilter",
+"werte": [
+"",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"",
+"",
+"x"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung , oben 124Nm, unten 259Nm/519Nm",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Hubketten Gabeln 1cm über Boden",
+"werte": [
+"o i c",
+"",
+""
+]
+},
+{
+"arbeit": "Mastkabel und Rollen",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Getriebeöl",
+"werte": [
+"",
+"x ein Mal",
+""
+]
+},
+{
+"arbeit": "Ausschubwagen Spiel einstellen,Anschlag überprüfen",
+"werte": [
+"o i c",
+"",
+""
+]
+},
+{
+"arbeit": "Räder",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Stützkufen max 12mm 160R max 15mm",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Radmuttern 140Nm",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Bremse Lüftspiel 0,2-0,5mm",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+""
+]
+},
+{
+"arbeit": "Batterieverriegelung",
+"werte": [
+"o c",
+"",
+""
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+""
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+""
+]
+}
+]
+},
+{
+"blatt": "VCE 150 A",
+"titel": "VCE 150 A",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkzylinder und Bolzen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Alle schmierstellen",
+"werte": [
+"i",
+"",
+"",
+"",
+"i"
+]
+},
+{
+"arbeit": "Mittelgelenk (Polylub) BT243531",
+"werte": [
+"",
+"i",
+"",
+"",
+"i"
+]
+},
+{
+"arbeit": "Gleitstücke am Minnimast einstellen",
+"werte": [
+"i c",
+"",
+"",
+"",
+"i c"
+]
+},
+{
+"arbeit": "Notausschalter",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Gebläse prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Lenkungsmotor Kohlen prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichprüfung , Schranken und Schalter,Abseilvorrichtung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"",
+"",
+"",
+"x",
+"o"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Zahnriemen Zustand, Schraube am Motor",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Hubketten einstellen , oben 6mm , unten 35mm",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Getriebeöl SAE 90 ca.3,3l Befestigungsschrauben M16 x60 340Nm",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Antriebsräder 130Nm",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lastrollen und Bolzen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"oy",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"oy",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "Traigo 48",
+"titel": "Toyota Traigo 48 8FBE/MT15-20",
+"spalten": [
+{
+"name": "750h",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1500h",
+"hinweis": ""
+},
+{
+"name": "2000h",
+"hinweis": ""
+},
+{
+"name": "4000h",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250h"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lüfter Aktivtest",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl ATF Dexron DIII rechts 0,43l links 0,43l mitte 0,21l",
+"werte": [
+"o",
+"x",
+"",
+"",
+"x"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"o y",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Rundum 160Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "Traigo 48R",
+"titel": "Toyota Traigo 48R 8FBE/M15-20T",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung\nBefestigungsschrauben prüfen",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl ATF Dexron DIII rechts 0,55l links 0,55l",
+"werte": [
+"o",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"o y",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Rundum 160Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremsflüssigkeit ATF Dexron DIII",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "Traigo 80 20-35",
+"titel": "Toyota Traigo 80 8FBMT20-35",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung\nBefestigungsschrauben prüfen",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl Donax TD \nrechts 1l links 0,85l",
+"werte": [
+"o",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"o y",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Rundum 160Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremsflüssigkeit Donax TD",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "Traigo 80 40-50",
+"titel": "Toyota Traigo 80 8FBMT40-50",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung\nBefestigungsschrauben prüfen",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl Donax TD \nrechts 2,5l links 1,7l",
+"werte": [
+"o",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"o y",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Vorne Einfach 422Nm Vorne Doppelt 441Nm Lenkachse 304Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremsflüssigkeit Donax TD",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "Traigo 80 9er",
+"titel": "Toyota Traigo 80 9FBM20-35T",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lüfter Aktivtest CBTruckcom",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung \nBefestigungsschrauben prüfen",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl Donax TD \nrechts ca.1l links ca.0,9l",
+"werte": [
+"o",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Rücklauffilter 97817-T8990-71",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter 90270-T8990-71",
+"werte": [
+"o y",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Rundum 160Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremsflüssigkeit Donax TD",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "Traigo 9erHT",
+"titel": "Toyota Traigo HT 9FBM(H) 60-80T",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Öl der Lenkeinheit ernuern Tank reinigen",
+"werte": [
+"",
+"",
+"x",
+"",
+""
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lüfter Aktivtest",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung \nBefestigungsschrauben prüfen",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl SAE 85/90 Hypoid rechts 0,8l links 0,8l",
+"werte": [
+"o",
+"x",
+"",
+"",
+"x"
+]
+},
+{
+"arbeit": "Rücklauffilter 93075-T8990-71 O-Ring 91669T899071",
+"werte": [
+"",
+"",
+"x",
+"",
+"x"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Vorne Einfach 700Nm Vorne Zwilling 800Nm Lenkachse 305Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "7FBEF",
+"titel": "Toyota 7FBEF",
+"spalten": [
+{
+"name": "500h",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000h",
+"hinweis": ""
+},
+{
+"name": "2000h",
+"hinweis": ""
+},
+{
+"name": "4000h",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250h"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lüfter Aktivtest",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütz prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl SAE 85/90 Hypoid rechts 0,4l links 0,4l",
+"werte": [
+"o",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"",
+"x",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"o y",
+"",
+"",
+"x",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Rundum 160Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Wartungsaufkleber",
+"werte": [
+"x",
+"",
+"",
+"",
+"x"
+]
+}
+]
+},
+{
+"blatt": "7FBMF",
+"titel": "Toyota 7FBMF",
+"spalten": [
+{
+"name": "500h",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000h",
+"hinweis": ""
+},
+{
+"name": "2000h",
+"hinweis": ""
+},
+{
+"name": "4000h",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250h"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Kohlebürsten des Lenkmotors",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lüfter Aktivtest",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütz prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl Donax TD 16-25 5,9l 30-35 6,5l 40-50 11l",
+"werte": [
+"o",
+"",
+"",
+"x",
+"o"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"",
+"x",
+"x"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"o y",
+"",
+"",
+"x",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern 16-20 Vorne 284Nm Hinten 120Nm 25-35 Vorne 284Nm Hinten 160Nm 40-50 Vorne 400Nm Hinten 284Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+""
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Wartungsaufkleber",
+"werte": [
+"x",
+"",
+"",
+"",
+"x"
+]
+}
+]
+}
+]

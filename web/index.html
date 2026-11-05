@@ -176,6 +176,22 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .crop-prev img{max-height:100%;max-width:220px}
 @media (prefers-reduced-motion:no-preference){.doc{animation:in .2s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
 #formDlg{width:min(1040px,calc(100vw - 32px))}
+#wartDlg{width:min(1100px,calc(100vw - 32px))}
+#wartDlg .dlg-body{max-height:calc(100vh - 140px);overflow:auto}
+.wart-kopf{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
+.wart-kopf h3{margin:0;font:600 18px var(--f-display);flex:1;min-width:200px}
+.wart-legende{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);margin-bottom:10px}
+.wart-tab{width:100%;border-collapse:collapse;font-size:14px}
+.wart-tab th,.wart-tab td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:center;vertical-align:middle}
+.wart-tab th:first-child,.wart-tab td:first-child{text-align:left;white-space:pre-line}
+.wart-tab thead th{position:sticky;top:0;background:var(--sheet);z-index:1;font-weight:600}
+.wart-tab thead small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.wart-tab tbody tr:hover{background:color-mix(in srgb,var(--brand) 5%,transparent)}
+.wart-tab tr.treffer td:first-child{font-weight:600}
+.wz{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 5px;border-radius:6px;font-size:12px;font-weight:700;margin:1px;color:#fff}
+.wz.o{background:#2f6fd6}.wz.y{background:#2e9d5b}.wz.x{background:#c8102e}.wz.i{background:#d98a00}.wz.c{background:#7a4cc2}
+.wz-text{font-size:12px;color:var(--muted);display:block}
+@media print{#wartDlg{display:none}}
 #formDlg .dlg-body{max-height:calc(100vh - 190px);overflow:auto}
 .form-liste{display:flex;flex-direction:column;gap:4px;min-width:200px;position:sticky;top:0}
 .form-liste button{text-align:left}
@@ -222,12 +238,13 @@ h1::after{content:"";display:block;width:28px;height:3px;border-radius:2px;backg
 .lead{margin:3px 0 0;font-size:13px;letter-spacing:.02em}
 .panel{border-radius:14px;box-shadow:var(--shadow);border-color:color-mix(in srgb,var(--line) 70%,transparent)}
 .step b{color:var(--brand)}
-.kacheln{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;gap:14px;margin-bottom:14px}
+.kacheln{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:1fr;gap:14px;margin-bottom:14px}
+@media (max-width:1350px){.kacheln{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:1100px){.kacheln{grid-template-columns:minmax(0,1fr)}.kachel{flex-direction:row;align-items:center}}
 .kachel{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:12px;text-align:left;padding:18px 20px;height:100%;border-radius:14px;background:var(--sheet);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:var(--shadow);transition:transform .12s,box-shadow .12s,border-color .12s}
 .kachel:hover{transform:translateY(-2px);border-color:var(--brand);box-shadow:0 8px 24px rgba(16,24,40,.10)}
 .kachel .k-icon{font-size:24px;width:48px;height:48px;flex:none;display:grid;place-items:center;border-radius:12px;background:var(--brand-soft)}
-.kachel b{display:block;font:600 16px var(--f-display);margin-bottom:4px;white-space:nowrap}
+.kachel b{display:block;font:600 clamp(13.5px,1.02vw,16px) var(--f-display);margin-bottom:4px;white-space:nowrap}
 .kachel small{display:block;font-size:12.5px;color:var(--muted);line-height:1.35}
 .drop{border-radius:14px;padding:16px 18px;background:transparent}
 .drop strong{font-size:14.5px}
@@ -414,6 +431,7 @@ body{padding-bottom:172px}
         <button class="kachel" id="openBtn"><span class="k-icon" aria-hidden="true">✍️</span><span><b>Berichte unterschreiben</b><small>PDF oder Excel öffnen – die Unterschrift sitzt automatisch</small></span></button>
         <button class="kachel" id="docuBtn"><span class="k-icon" aria-hidden="true">📷</span><span><b>Dokumentation</b><small>Berichte mit Fotos per E-Mail senden</small></span></button>
         <button class="kachel" id="formBtn"><span class="k-icon" aria-hidden="true">📋</span><span><b>Formulare</b><small>Prüfprotokoll, Reparaturauftrag, Bestellungen …</small></span></button>
+        <button class="kachel" id="wartBtn"><span class="k-icon" aria-hidden="true">🔧</span><span><b>Wartungspläne</b><small>Arbeiten und Intervalle je Gerätetyp</small></span></button>
       </div>
       <div class="aktionen row">
         <input type="file" id="pdfFile" accept="application/pdf,.pdf,.xlsx,.xlsm,.xls,.xlsb" multiple hidden>
@@ -496,6 +514,16 @@ body{padding-bottom:172px}
     <div class="dlg-foot">
       <span class="hint" id="docuInfo"></span>
       <button type="button" class="primary" id="docuSend">Als PDF per E-Mail senden</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="wartDlg">
+  <form method="dialog" class="dlg" onsubmit="return false">
+    <div class="dlg-head"><strong>Wartungspläne</strong><button type="button" class="ghost" id="wartClose">Schließen</button></div>
+    <div class="dlg-body" style="display:flex;gap:16px;align-items:flex-start">
+      <nav id="wartListe" class="form-liste"></nav>
+      <div id="wartInhalt" class="form-inhalt"></div>
     </div>
   </form>
 </dialog>
@@ -3549,8 +3577,57 @@ $("#formNeu").onclick = () => {
   k("Abbrechen", () => { e.hidden = true; }, "ghost");
 };
 
+/* ---------- Wartungspläne (aus „Wartungspläne.xlsx“) ---------- */
+const WZ = {o: "Kontrollieren", y: "Reinigen", x: "Wechseln", i: "Fetten", c: "Einstellen/Nachziehen"};
+let wartDaten = null, wartAkt = 0;
+function wartZelle(v){
+  // „o y“, „x erste mal“, „oy“ -> Kürzel als farbige Marken, Rest als Text
+  const td = document.createElement("td"); const t = String(v || "").trim(); if(!t) return td;
+  const m = /^([oyxic](?:\s*[oyxic])*)\b\s*(.*)$/i.exec(t.replace(/^([oyxic])([oyxic])\b/i, "$1 $2"));
+  if(!m){ td.textContent = t; return td; }
+  for(const k of m[1].toLowerCase().split(/\s*/).filter(Boolean)){ const b = document.createElement("span"); b.className = "wz " + k; b.textContent = k; b.title = WZ[k]; td.appendChild(b); }
+  if(m[2]){ const s2 = document.createElement("span"); s2.className = "wz-text"; s2.textContent = m[2]; td.appendChild(s2); }
+  return td;
+}
+function wartZeigen(){
+  const liste = $("#wartListe"), box = $("#wartInhalt"); liste.innerHTML = ""; box.innerHTML = "";
+  wartDaten.forEach((p, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = p.blatt; b.title = p.titel; b.setAttribute("aria-current", i === wartAkt ? "true" : "false"); b.onclick = () => { wartAkt = i; wartZeigen(); }; liste.appendChild(b); });
+  const p = wartDaten[wartAkt];
+  const kopf = document.createElement("div"); kopf.className = "wart-kopf";
+  const h = document.createElement("h3"); h.textContent = "Wartungsplan: " + p.titel;
+  const such = document.createElement("input"); such.type = "search"; such.placeholder = "Arbeit suchen …"; such.style.minWidth = "200px";
+  const dr = document.createElement("button"); dr.type = "button"; dr.textContent = "🖨 Drucken"; dr.onclick = () => wartDrucken(p);
+  kopf.append(h, such, dr); box.appendChild(kopf);
+  const leg = document.createElement("div"); leg.className = "wart-legende";
+  for(const [k, t] of Object.entries(WZ)) leg.insertAdjacentHTML("beforeend", `<span><span class="wz ${k}">${k}</span> ${t}</span>`);
+  box.appendChild(leg);
+  const tab = document.createElement("table"); tab.className = "wart-tab";
+  const th = document.createElement("thead"), tr = document.createElement("tr");
+  tr.insertAdjacentHTML("beforeend", "<th>Arbeit</th>");
+  for(const s2 of p.spalten){ const c = document.createElement("th"); c.textContent = "Alle " + s2.name; if(s2.name === "1.Wartung") c.textContent = "1. Wartung"; if(s2.hinweis){ const sm = document.createElement("small"); sm.textContent = s2.hinweis; c.appendChild(sm); } tr.appendChild(c); }
+  th.appendChild(tr); tab.appendChild(th);
+  const tb = document.createElement("tbody");
+  for(const z of p.zeilen){ const r = document.createElement("tr"); const a = document.createElement("td"); a.textContent = z.arbeit; r.appendChild(a); z.werte.forEach(v => r.appendChild(wartZelle(v))); r.dataset.t = z.arbeit.toLowerCase(); tb.appendChild(r); }
+  tab.appendChild(tb); box.appendChild(tab);
+  such.oninput = () => { const q = such.value.trim().toLowerCase(); for(const r of tb.children){ const ok = !q || r.dataset.t.includes(q); r.hidden = !ok; r.classList.toggle("treffer", !!q && ok); } };
+}
+function wartDrucken(p){
+  const w = window.open("", "_blank", "width=900,height=1000"); if(!w) return;
+  const zellen = v => esc(v || "");
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>Wartungsplan ${esc(p.titel)}</title><style>body{font:12px Arial,sans-serif;margin:14mm}h1{font-size:18px;margin:0 0 4px}p{margin:0 0 10px;color:#555}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:4px 6px;text-align:center}th:first-child,td:first-child{text-align:left;white-space:pre-line}th{background:#eee}</style>
+<h1>Wartungsplan: ${esc(p.titel)}</h1><p>o = Kontrollieren · y = Reinigen · x = Wechseln · i = Fetten · c = Einstellen/Nachziehen</p>
+<table><tr><th>Arbeit</th>${p.spalten.map(s2 => `<th>${s2.name === "1.Wartung" ? "1. Wartung" : "Alle " + esc(s2.name)}${s2.hinweis ? "<br><small>" + esc(s2.hinweis) + "</small>" : ""}</th>`).join("")}</tr>
+${p.zeilen.map(z => `<tr><td>${esc(z.arbeit)}</td>${z.werte.map(v => `<td>${zellen(v)}</td>`).join("")}</tr>`).join("")}</table><script>onload=()=>{print();}<\/script>`);
+  w.document.close();
+}
+$("#wartBtn").onclick = async () => {
+  if(!wartDaten){ try{ wartDaten = await (await fetch("/wartungsplaene.json")).json(); }catch(e){ toast("Wartungspläne konnten nicht geladen werden."); return; } }
+  wartZeigen(); $("#wartDlg").showModal();
+};
+$("#wartClose").onclick = () => $("#wartDlg").close();
+
 /* Fenster: minimieren, maximieren, schließen (für die großen Fenster) */
-for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg"]){
+for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg"]){
   const d = document.getElementById(id); if(!d) continue;
   const head = d.querySelector(".dlg-head"); if(!head) continue;
   d.classList.add("fenster");
