@@ -2837,12 +2837,12 @@ function formRender(){
     v.onclick = () => { formState.akt = "#verlauf"; formRender(); }; $("#formListe").appendChild(v);
     const ak = document.createElement("button"); ak.type = "button"; ak.textContent = "🔋 Batterie-Verlauf"; ak.setAttribute("aria-current", formState.akt === "#akte" ? "true" : "false");
     ak.onclick = () => { // Nummer aus dem gerade offenen Formular vorschlagen
-      if(formState.akt[0] !== "#"){ const w = formWerte(), ids = akteIds({id: formState.akt, w}); if(ids.length) akteSuche = ids[0].nr; }
+      batDetail = ""; if(formState.akt === "batterie"){ const w = formWerte(); if(String(w.G11 || "").trim()){ akteSuche = String(w.G11).trim(); batDetail = batNrNorm(w.G11); } }
       formState.akt = "#akte"; formRender(); }; $("#formListe").appendChild(ak); }
   sigKnopf();
   if(formState.akt === "#geraete"){ geraeteAnsicht(); return; }
   if(formState.akt === "#verlauf"){ verlaufAnsicht(); return; }
-  if(formState.akt === "#akte"){ akteAnsicht(); return; }
+  if(formState.akt === "#akte"){ batListeAnsicht(); return; }
   const box = $("#formInhalt"); box.innerHTML = "";
   const set = (k, v) => { w[k] = v; gemeinsamAus(f, w); formMerken(); };
   for(const a of f.abschnitte){
@@ -2921,6 +2921,7 @@ function formRender(){
         sek.appendChild(ra);
         const inf = document.createElement("div"); inf.className = "bat-info"; sek.appendChild(inf);
         const vh = document.createElement("div"); vh.className = "bat-info bat-vorher"; sek.appendChild(vh); batMarkieren(f, w, ra);
+        if(!batServer) batServerLaden().then(() => { if(ra.isConnected) batMarkieren(f, w, ra); });
       } else if(x.t === "jn"){
         // Ja/Nein je Zeile (X in die Ja- oder Nein-Spalte des Blatts)
         kreuze = null; felder = null;
@@ -3735,7 +3736,16 @@ function zellenWerkzeug(f, w){
 /* ---- Verlauf je Batterie: frühere Zellwerte zur gleichen Batterie-Nr. ---- */
 const batNrNorm = v => normNr(v).replace(/^0+/, "");
 // gespeicherte Prüfungen: formState.daten._batterien[nr] = [{zeit, datum, kunde, z: {G23: "2,10", …}}] (neueste zuerst)
+// alle Prüfungen: eigene (dieser Rechner) + Server (alle Techniker), je Batterie neueste zuerst
 function batHistAlle(){
+  const h = {}, lok = batHistLokal();
+  for(const [k, l] of Object.entries(lok)) h[k] = l.slice();
+  for(const e of batServer || []){ const k = batNrNorm(e.nr); if(k.length < 2) continue; const l = h[k] || (h[k] = []);
+    const i = l.findIndex(x => x.datum === e.datum); if(i >= 0) l[i] = {...l[i], ...e, z: Object.keys(e.z).length ? e.z : l[i].z}; else l.push({...e, zeit: Date.parse(e.datum) || 0}); }
+  for(const l of Object.values(h)) l.sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || b.zeit - a.zeit);
+  return h;
+}
+function batHistLokal(){
   const h = formState.daten._batterien || (formState.daten._batterien = {});
   if(!formState.daten._batAusVerlauf){   // einmalig aus dem bisherigen Verlauf übernehmen
     for(const e of (formState.daten._verlauf || []).slice().reverse()) if(e.id === "batterie") batHistEintragen(e.w, e.zeit, h);
@@ -3743,13 +3753,13 @@ function batHistAlle(){
   }
   return h;
 }
-function batHistEintragen(w, zeit, h = batHistAlle()){
+function batHistEintragen(w, zeit, h = batHistLokal()){
   const nr = batNrNorm(w.G11); if(nr.length < 2) return;
   const f = FORMULARE.find(x => x.id === "batterie"), z = {};
   for(const c of batZellen(f)){ if(w[c.zv]) z[c.zv] = w[c.zv]; if(w[c.zs]) z[c.zs] = w[c.zs]; }
   if(!Object.keys(z).length) return;
   const l = (h[nr] || []).filter(e => e.datum !== (w.AC6 || ""));   // gleiche Prüfung (Datum) nur einmal
-  l.unshift({zeit: zeit || Date.now(), datum: w.AC6 || "", kunde: w.E6 || "", fg: w.AC8 || "", z});
+  l.unshift({zeit: zeit || Date.now(), datum: w.AC6 || "", nr: String(w.G11 || "").trim(), kunde: w.E6 || "", fg: w.AC8 || "", hersteller: w.AH11 || "", zellen: w.J13 || "", type: w.X13 || "", von: TECHNIKER(), z});
   h[nr] = l.sort((a, b) => b.zeit - a.zeit).slice(0, 12);
   const k = Object.keys(h); if(k.length > 400) k.sort((a, b) => h[a][0].zeit - h[b][0].zeit).slice(0, k.length - 400).forEach(x => delete h[x]);
 }
@@ -3781,7 +3791,7 @@ function batVerlaufAnzeigen(f, w, ra){
   }
   if(!inf) return;
   if(!vg){ inf.textContent = String(w.G11 || "").trim() ? "Noch keine frühere Prüfung zu dieser Batterie-Nr. gespeichert." : ""; inf.classList.remove("schlecht"); return; }
-  inf.textContent = "Letzte Prüfung dieser Batterie: " + batDatum(vg.v.datum) + (vg.v.kunde ? " (" + vg.v.kunde + ")" : "") + " – alte Werte stehen grau in den leeren Feldern. " +
+  inf.textContent = "Letzte Prüfung dieser Batterie: " + batDatum(vg.v.datum) + ([vg.v.kunde, vg.v.von].filter(Boolean).length ? " (" + [vg.v.kunde, vg.v.von].filter(Boolean).join(", ") + ")" : "") + " – alte Werte stehen grau in den leeren Feldern. " +
     (vg.schlechter.length ? "↘ schlechter geworden: " + vg.schlechter.map(s => s.text).join(", ") : Object.keys(vg.diff).length ? "Keine Zelle deutlich schlechter geworden." : "");
   inf.classList.toggle("schlecht", !!vg.schlechter.length);
 }
@@ -3838,6 +3848,109 @@ function batVergleichTabelle(eintraege){
   const box = document.createElement("div"); box.className = "col"; box.style.gap = "6px"; box.append(wrap, leg); return box;
 }
 let akteSuche = "";
+/* ---- Batterie-Verlauf für alle: Prüfungen liegen zusätzlich auf dem Server (Blatt „Batterieprüfungen“) ---- */
+let batServer = null, batServerLaeuft = null, batServerFehler = "";
+const batWerteText = z => Object.entries(z).map(([k, v]) => k + "=" + v).join(";");
+const batWerteLesen = t => { const z = {}; for(const p of String(t || "").split(";")){ const [k, v] = p.split("="); if(k && v) z[k] = v; } return z; };
+function batServerLaden(neu){
+  if(batServer && !neu) return Promise.resolve(batServer);
+  if(batServerLaeuft) return batServerLaeuft;
+  batServerLaeuft = (async () => {
+    try{
+      await batOffeneSenden();
+      const x = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "b_holen", seit: 0})})).json();
+      if(!x.ok) throw new Error(x.error || "Der Batterie-Verlauf konnte nicht geladen werden.");
+      batServer = x.text.split("\n").slice(1).filter(z => z.trim()).map(z => { const c = z.split("\t");
+        return {nr: c[0], datum: c[1], kunde: c[2], fg: c[3], hersteller: c[4], zellen: c[5], type: c[6], z: batWerteLesen(c[10]), von: c[11] || ""}; });
+      batServerFehler = "";
+    }catch(e){ batServerFehler = e.message || String(e); }
+    batServerLaeuft = null; return batServer;
+  })();
+  return batServerLaeuft;
+}
+function batPruefung(w){
+  const f = FORMULARE.find(x => x.id === "batterie"), b = batBewerten(f, w), z = {};
+  for(const c of batZellen(f)){ if(w[c.zv]) z[c.zv] = w[c.zv]; if(w[c.zs]) z[c.zs] = w[c.zs]; }
+  return {nr: String(w.G11 || "").trim(), datum: w.AC6 || HEUTE(), kunde: w.E6 || "", fahrzeug: w.AC8 || "", hersteller: w.AH11 || "", zellen: w.J13 || "", type: w.X13 || "",
+    mv: b.nv ? batKomma(b.mv) : "", ms: b.ns ? batKomma(b.ms) : "", auff: b.schlecht.map(s => s.nr).join(", "), werte: batWerteText(z)};
+}
+async function batHochladen(w){
+  const p = batPruefung(w); if(batNrNorm(p.nr).length < 2 || !p.werte) return;
+  const offen = formState.daten._batOffen || (formState.daten._batOffen = []);
+  offen.push(p); formMerken(); await batOffeneSenden();
+}
+async function batOffeneSenden(){
+  const offen = formState.daten._batOffen || []; if(!offen.length) return;
+  while(offen.length){
+    try{ const r = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "b_speichern", pruefung: offen[0]})})).json();
+      if(!r.ok && !/Batterie-Nr\. oder Datum/.test(r.error || "")) break; }catch(e){ break; }
+    const p = offen.shift();
+    if(batServer){ const k = batNrNorm(p.nr); batServer = batServer.filter(x => !(batNrNorm(x.nr) === k && x.datum === p.datum)); batServer.push({nr: p.nr, datum: p.datum, kunde: p.kunde, fg: p.fahrzeug, hersteller: p.hersteller, zellen: p.zellen, type: p.type, z: batWerteLesen(p.werte), von: TECHNIKER()}); }
+  }
+  formMerken();
+}
+let batDetail = "";
+async function batListeAnsicht(){
+  const box = $("#formInhalt"); box.innerHTML = "";
+  const sek = document.createElement("div"); sek.className = "form-sek";
+  sek.innerHTML = '<strong>Batterie-Verlauf</strong><span class="hint">Alle gespeicherten Batterieprüfungen aller Techniker. Auf eine Batterie klicken, um die Zellwerte aller Prüfungen zu vergleichen.</span>';
+  const r = document.createElement("div"); r.className = "form-tools";
+  const such = document.createElement("input"); such.type = "search"; such.placeholder = "Suchen: Batterie-Nr., Kunde, Fahrzeug, Hersteller …"; such.value = akteSuche;
+  such.style.cssText = "flex:1;min-width:220px;font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sheet);color:inherit";
+  const neu = document.createElement("button"); neu.type = "button"; neu.className = "ghost"; neu.textContent = "↻ Neu laden";
+  r.append(such, neu); sek.appendChild(r);
+  const info = document.createElement("span"); info.className = "hint"; info.textContent = "Wird geladen …"; sek.appendChild(info);
+  const inhalt = document.createElement("div"); inhalt.className = "akte"; sek.appendChild(inhalt); box.appendChild(sek);
+  neu.onclick = async () => { info.textContent = "Wird geladen …"; await batServerLaden(true); zeigen(); };
+  await batServerLaden();
+  const zeigen = () => {
+    akteSuche = such.value; inhalt.innerHTML = "";
+    const alle = batHistAlle(), q = such.value.trim().toLowerCase(), qn = normNr(such.value);
+    const batt = Object.entries(alle).map(([k, l]) => ({k, l, n: {...l.slice().reverse().reduce((m, e) => { for(const x of ["nr", "kunde", "fg", "hersteller", "zellen", "type"]) if(e[x]) m[x] = e[x]; return m; }, {}), datum: l[0].datum, z: l[0].z, von: l[0].von}})).filter(({k, l}) => !q || (qn.length >= 2 && k.includes(qn.replace(/^0+/, ""))) ||
+      l.some(e => [e.kunde, e.fg, e.hersteller, e.type, e.von].join(" ").toLowerCase().includes(q)));
+    batt.sort((a, b) => String(b.n.datum).localeCompare(String(a.n.datum)));
+    const anzahl = Object.values(alle).reduce((s, l) => s + l.length, 0);
+    info.textContent = (batServerFehler ? "⚠ " + batServerFehler + " – es werden nur die Prüfungen von diesem Rechner gezeigt. · " : "") + batt.length + " von " + Object.keys(alle).length + " Batterien · " + anzahl + " Prüfungen";
+    const d = batDetail && batt.find(x => x.k === batDetail);
+    if(d){ batDetailZeigen(inhalt, d, () => { batDetail = ""; zeigen(); }); return; }
+    const tab = document.createElement("table"); tab.className = "form-tab geraete-tab";
+    tab.innerHTML = "<thead><tr><th>Batterie-Nr.</th><th>Kunde</th><th>Fahrzeug</th><th>Hersteller</th><th>Zellen</th><th>Letzte Prüfung</th><th>Mittel V</th><th>Mittel Säure</th><th>Auffällig</th><th>Prüfungen</th><th>Von</th></tr></thead>";
+    const tb = document.createElement("tbody"), f = FORMULARE.find(x => x.id === "batterie");
+    for(const {k, l, n} of batt.slice(0, 300)){
+      const b = batBewerten(f, n.z), tr = document.createElement("tr"); tr.title = "Zellwerte aller Prüfungen vergleichen"; tr.style.cursor = "pointer";
+      const vg = l[1] ? batBewerten(f, l[1].z) : null;
+      for(const t of [n.nr, n.kunde, n.fg, n.hersteller, n.zellen, batDatum(n.datum), b.nv ? batKomma(b.mv) : "", b.ns ? batKomma(b.ms) : "",
+        b.schlecht.length ? b.schlecht.length + " Zelle(n)" : (b.nv || b.ns ? "–" : ""), String(l.length) + (vg && b.nv && vg.nv && vg.mv - b.mv >= 0.02 ? " ↘" : ""), n.von || ""]){ const td = document.createElement("td"); td.textContent = t || ""; tr.appendChild(td); }
+      if(b.schlecht.length) tr.children[8].style.color = "#b42318";
+      tr.onclick = () => { batDetail = k; zeigen(); }; tb.appendChild(tr);
+    }
+    tab.appendChild(tb); inhalt.appendChild(tab);
+    if(!batt.length) inhalt.insertAdjacentHTML("beforeend", '<p class="hint">' + (Object.keys(alle).length ? "Nichts gefunden." : "Noch keine Batterieprüfungen gespeichert.") + "</p>");
+  };
+  such.oninput = () => { batDetail = ""; zeigen(); }; zeigen(); such.focus();
+}
+function batDetailZeigen(inhalt, {k, l, n}, zurueck){
+  const z = document.createElement("button"); z.type = "button"; z.className = "ghost"; z.textContent = "← Zurück zur Liste"; z.style.alignSelf = "flex-start"; z.onclick = zurueck; inhalt.appendChild(z);
+  const kopf = document.createElement("div"); kopf.className = "akte-kopf"; kopf.innerHTML = "<b></b><span></span>";
+  kopf.firstChild.textContent = "Batterie " + n.nr;
+  kopf.lastChild.textContent = [n.kunde, n.fg && "Fahrzeug " + n.fg, n.hersteller, n.zellen && n.zellen + " Zellen", n.type, l.length + " Prüfung(en)"].filter(Boolean).join(" · ");
+  inhalt.appendChild(kopf);
+  inhalt.appendChild(batVergleichTabelle(l.map(e => ({zeit: 0, von: e.von, w: {...e.z, AC6: e.datum, J13: e.zellen}}))));
+  // eigene Formulare zu dieser Batterie (zum Öffnen / PDF)
+  const eigene = (formState.daten._verlauf || []).filter(e => e.id === "batterie" && batNrNorm(e.w.G11) === k);
+  if(eigene.length){ const h = document.createElement("strong"); h.textContent = "Deine Protokolle zu dieser Batterie"; h.style.marginTop = "6px"; inhalt.appendChild(h); }
+  for(const e of eigene){
+    const zl = document.createElement("div"); zl.className = "akte-z";
+    const t = document.createElement("span"); t.textContent = batDatum(e.w.AC6) + " · " + (e.kunde || "") + (e.nr ? " · Auftrag " + e.nr : ""); zl.appendChild(t);
+    const ob = document.createElement("button"); ob.type = "button"; ob.textContent = "Öffnen";
+    ob.onclick = () => { formState.daten.batterie = JSON.parse(JSON.stringify(e.w)); formState.daten.batterie._gStand = Date.now() + 1; formState.akt = "batterie"; formMerken(); formRender(); };
+    zl.appendChild(ob);
+    for(const pf of e.pfade || []){ const fb = document.createElement("button"); fb.type = "button"; fb.textContent = /\.pdf$/i.test(pf) ? "PDF" : "Excel";
+      fb.onclick = () => fetch("/api/formular/ablage?oeffnen=1", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({pfad: pf})}); zl.appendChild(fb); }
+    inhalt.appendChild(zl);
+  }
+}
+
 function akteAnsicht(){
   const box = $("#formInhalt"); box.innerHTML = "";
   const sek = document.createElement("div"); sek.className = "form-sek";
@@ -4163,7 +4276,7 @@ async function formSpeichern(drucken, dispo){
   }
   const vl = formState.daten._verlauf || (formState.daten._verlauf = []);
   vl.unshift({zeit: Date.now(), id: f.id, titel: f.titel, kunde: kundeName, nr: nrV, gedruckt: !!drucken, pfade, w: JSON.parse(JSON.stringify(w))});
-  vl.splice(300); if(f.id === "batterie") batHistEintragen(w); formMerken();
+  vl.splice(300); if(f.id === "batterie"){ batHistEintragen(w); batHochladen(w); } formMerken();
   if(drucken){ formMeldung("An den Drucker geschickt.", 6000); return; }
   // Das „Speichern unter“-Fenster darf der Browser nur direkt nach einem Klick öffnen – deshalb eigene Knöpfe
   const e = $("#formStatus"); clearTimeout(formMeldT); e.hidden = false; e.textContent = "Fertig – jetzt speichern: ";

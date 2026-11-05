@@ -3,6 +3,8 @@
 // Vorlagen-Nutzer, die sich einmal mit ihrer Firmen-E-Mail und einem Code angemeldet haben (Blatt „Nutzer Vorlagen“).
 
 var V_NUTZER = 'Nutzer Vorlagen', V_GERAETE = 'Geräteliste (Vorlagen)';
+var B_PRUEF = 'Batterieprüfungen';
+var B_KOPF = ['Batterie-Nr.', 'Prüfdatum', 'Kunde', 'Fahrzeug', 'Hersteller', 'Zellen', 'Zellentype', 'Mittel Volt', 'Mittel Säure', 'Auffällig', 'Zellwerte', 'Stand (ms)', 'Zuletzt gespeichert', 'Von'];
 var V_GERAETE_KOPF = ['Fabr. Nr.', 'Hersteller', 'Typenbezeichnung', 'Baujahr', 'Schutzklasse', 'Nennleistung', 'Einheit',
   'Nennspannung (V)', 'Nennstrom (A)', 'Geräteart', 'Prüflingsnr.', 'Stand (ms)', 'Zuletzt gespeichert', 'Von'];
 
@@ -99,6 +101,34 @@ function vorlagenAnfrage(d, programm) {
         n++;
       });
       return String(n);
+    }
+    // Service-Mappe: gemeinsamer Batterie-Verlauf (Batterieprüfprotokolle aller Techniker)
+    if (ev === 'b_holen') {
+      const b = sheet(SpreadsheetApp.getActiveSpreadsheet(), B_PRUEF, B_KOPF);
+      const seit = Number(d.seit) || 0, z = [String(Date.now())];
+      if (b.getLastRow() >= 2) {
+        b.getRange(2, 1, b.getLastRow() - 1, 14).getValues().forEach(function (row) {
+          if (Number(row[11]) > seit) z.push(row.slice(0, 11).concat([row[13]]).map(function (v) {
+            if (v instanceof Date) v = Utilities.formatDate(v, 'Europe/Berlin', 'yyyy-MM-dd');
+            return String(v).replace(/[\t\r\n]/g, ' ');
+          }).join('\t'));
+        });
+      }
+      return z.join('\n');
+    }
+    if (ev === 'b_speichern') {
+      if (!programm) throw new Error('Nicht erlaubt.');
+      const b = sheet(SpreadsheetApp.getActiveSpreadsheet(), B_PRUEF, B_KOPF), p = d.pruefung || {};
+      const f = [p.nr, p.datum, p.kunde, p.fahrzeug, p.hersteller, p.zellen, p.type, p.mv, p.ms, p.auff].map(function (v) { return clean(v, 200); }).concat([clean(p.werte, 3000)]);
+      const k = vNorm(f[0]) + '|' + f[1];
+      if (vNorm(f[0]).length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(f[1])) throw new Error('Batterie-Nr. oder Datum fehlt.');
+      const last = b.getLastRow(), keys = last >= 2 ? b.getRange(2, 1, last - 1, 2).getValues().map(function (r) {
+        return vNorm(r[0]) + '|' + (r[1] instanceof Date ? Utilities.formatDate(r[1], 'Europe/Berlin', 'yyyy-MM-dd') : String(r[1]));
+      }) : [];
+      const row = f.concat([Date.now(), new Date(), clean(d.name, 100)]), i = keys.indexOf(k), r = i >= 0 ? i + 2 : last + 1;
+      b.getRange(r, 1, 1, 2).setNumberFormat('@');
+      b.getRange(r, 1, 1, 14).setValues([row]);
+      return '1';
     }
     if (ev === 'ts_start') {
       const token = Utilities.getUuid().replace(/-/g, '').slice(0, 24);
