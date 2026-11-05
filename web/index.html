@@ -242,6 +242,8 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .form-raster th{font-weight:600;text-align:left;padding:1px 3px;color:var(--muted,#667)}
 .form-raster td{padding:1px 3px}.form-raster td:first-child{width:30px;text-align:right;color:var(--muted,#667)}
 .form-raster input{font:inherit;width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid var(--line,#ccc);border-radius:6px;background:var(--bg,#fff);color:inherit;min-width:0}
+.form-raster input.warn{border-color:#d92d20;background:#fdecea;color:#912018}
+.bat-info{font-size:13px;color:var(--muted,#556)}.bat-info.schlecht{color:#b42318;font-weight:600}
 .form-jn{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;font-size:13px}
 .form-jn>div{display:flex;gap:6px}.form-jn button{padding:4px 12px;border-radius:999px;font-size:13px;min-width:58px}
 .form-jn button[aria-pressed="true"]{background:var(--accent,#c8102e);color:#fff;border-color:transparent}
@@ -2710,7 +2712,7 @@ const FORMULARE = [
       {t: "xeins", l: "Einsatz als Wechselbatterie", o: [["O16", "Ja"], ["S16", "Nein"]]},
       {t: "xeins", l: "Zur Zeit der Prüfung", o: [["M19", "auf Ladung"], ["S19", "in Einsatz"], ["AA19", "nicht im Einsatz"], ["AH19", "Außer Betrieb"]]},
       {t: "text", z: "AA16", l: "Einsatzzeit"}, {t: "text", z: "AH16", l: "Stunden"}]},
-    {titel: "4. Säuredichte und Spannung der Zellen (von + nach −)", felder: [
+    {titel: "4. Säuredichte und Spannung der Zellen (von + nach −)", werkzeug: "zellen", felder: [
       {t: "text", z: "AE21", l: "Säuretemperatur (°C)"}, {t: "text", z: "M31", l: "Gesamtspannung (Volt) – leer = wird addiert"},
       {t: "raster", l: "Zellen", r: [23, 24, 25, 26, 27, 28, 29, 30], g: [["G", "I"], ["M", "O"], ["S", "U"], ["Y", "AA"], ["AE", "AG"]]}]},
     {titel: "Befund", felder: [{t: "jn", ja: "P", nein: "R", o: [[35, "Zellenzustand OK"], [36, "Trogzustand normal"], [37, "Trog angesäuert"], [38, "Flüssigkeit im Trog"],
@@ -2832,6 +2834,7 @@ function formRender(){
     if(a.werkzeug === "typenschild") sek.appendChild(tsWerkzeug(f, w));
     if(a.werkzeug === "tdoc") sek.appendChild(tdocWerkzeug(f, w));
     if(a.werkzeug === "auftrag") sek.appendChild(auftragWerkzeug(f, w));
+    if(a.werkzeug === "zellen") sek.appendChild(zellenWerkzeug(f, w));
     let felder = null, kreuze = null;
     for(const x of a.felder){
       if(x.t === "text" || x.t === "datum" || x.t === "wahl"){
@@ -2889,7 +2892,7 @@ function formRender(){
           for(const row of x.r){
             const tr = document.createElement("tr"); const n = document.createElement("td"); n.textContent = (nr++) + "."; tr.appendChild(n);
             for(const sp of [cv, cs]){ const td = document.createElement("td"); const i = document.createElement("input"); const z = sp + row; i.inputMode = "decimal";
-              i.value = w[z] || ""; i.oninput = () => set(z, i.value); td.appendChild(i); tr.appendChild(td); }
+              i.value = w[z] || ""; i.dataset.zelle = z; i.oninput = () => { set(z, i.value); batMarkieren(f, w, ra); }; td.appendChild(i); tr.appendChild(td); }
             tb.appendChild(tr);
           }
           t.appendChild(tb); ra.appendChild(t);
@@ -2897,6 +2900,7 @@ function formRender(){
         ra.addEventListener("keydown", e => { if(e.key !== "Enter") return; e.preventDefault();
           const alle = [...ra.querySelectorAll("tbody tr")].flatMap(tr => [...tr.querySelectorAll("input")]); const i = alle.indexOf(e.target); if(alle[i + 1]) alle[i + 1].focus(); });
         sek.appendChild(ra);
+        const inf = document.createElement("div"); inf.className = "bat-info"; sek.appendChild(inf); batMarkieren(f, w, ra);
       } else if(x.t === "jn"){
         // Ja/Nein je Zeile (X in die Ja- oder Nein-Spalte des Blatts)
         kreuze = null; felder = null;
@@ -3066,7 +3070,7 @@ async function tsHandy(f, w, st, qr, hb, fertig){
   try{ s = await api("fotostart"); if(!s.ok) throw new Error(s.error); }
   catch(e){ hb.disabled = false; st.textContent = ""; formMeldung("Handy: " + (e.message || e), 6000); return; }
   qr.hidden = false;
-  qr.innerHTML = '<img alt="QR-Code"><span class="hint">Mit dem Handy scannen und ' + (f.id === "pruefung" ? "Typenschild und Messgerät-Display" : f.id === "auftrag" ? "den Montagebericht bzw. Lupo-Bildschirm" : "das Typenschild") + ' fotografieren.<br><button type="button" class="ghost">Abbrechen</button></span>';
+  qr.innerHTML = '<img alt="QR-Code"><span class="hint">Mit dem Handy scannen und ' + (f.id === "pruefung" ? "Typenschild und Messgerät-Display" : f.id === "auftrag" ? "den Montagebericht bzw. Lupo-Bildschirm" : f.id === "zellen" ? "den Zettel mit den Zellwerten" : "das Typenschild") + ' fotografieren.<br><button type="button" class="ghost">Abbrechen</button></span>';
   qr.querySelector("img").src = "/api/fotos/qr?u=" + encodeURIComponent(s.url);
   let aus = false; qr.querySelector("button").onclick = () => { aus = true; };
   st.textContent = "Warte auf das Foto vom Handy …";
@@ -3079,13 +3083,13 @@ async function tsHandy(f, w, st, qr, hb, fertig){
     if(l.files && l.files.length){
       // weitere Fotos abwarten (z. B. Typenschild + Messgerät), bis 8 s lang nichts mehr kommt
       let anzahl = l.files.length, ruhe = Date.now();
-      if(f.id === "pruefung") while(!aus && Date.now() - ruhe < 8000){
+      if(f.id === "pruefung" || f.id === "zellen") while(!aus && Date.now() - ruhe < 8000){
         st.textContent = `${anzahl} Foto(s) da – warte auf weitere …`;
         await new Promise(r => setTimeout(r, 2000));
         try{ const l2 = await api("fotoliste", {token: s.token}); if(l2.ok && l2.files.length > anzahl){ l = l2; anzahl = l2.files.length; ruhe = Date.now(); } }catch(e){}
       }
       const bilder = [];
-      for(const fi of (f.id === "pruefung" ? l.files : l.files.slice(-1))){
+      for(const fi of (f.id === "pruefung" || f.id === "zellen" ? l.files : l.files.slice(-1))){
         const g = await api("fotoholen", {token: s.token, id: fi.id}); if(!g.ok) continue;
         const bin = atob(g.b64), b = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); bilder.push(b);
       }
@@ -3522,51 +3526,294 @@ function tdocWerkzeug(f, w){
   et.onclick = () => etOeffnen(f, w);
   r.append(b, et, e, s); return r;
 }
+/* ---- Batterieprüfung: Zellwerte bewerten, per Foto oder Sprache eintragen, Befund vorschlagen ---- */
+const BAT_GRENZ = {vMin: 1.9, vAbw: 0.05, sMin: 1.24, sAbw: 0.03};
+const batGrenz = () => ({...BAT_GRENZ, ...etMerk("§batGrenz", {})});
+const batKomma = (v, n = 2) => v.toFixed(n).replace(".", ",");
+function batZellen(f){
+  const ra = f.abschnitte.flatMap(a => a.felder).find(x => x.t === "raster"); const out = [];
+  ra.g.forEach(([cv, cs], gi) => ra.r.forEach((r, ri) => out.push({nr: gi * ra.r.length + ri + 1, zv: cv + r, zs: cs + r})));
+  return out;
+}
+function batBewerten(f, w){
+  const g = batGrenz(), z = batZellen(f).map(c => ({...c, v: etZahl(w[c.zv]), s: etZahl(w[c.zs])}));
+  const vs = z.filter(c => c.v).map(c => c.v), ss = z.filter(c => c.s).map(c => c.s);
+  const mv = vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : 0, ms = ss.length ? ss.reduce((a, b) => a + b, 0) / ss.length : 0;
+  const schlecht = [], rot = new Set();
+  for(const c of z){
+    const gr = [];
+    if(c.v && (c.v < g.vMin || (vs.length > 2 && c.v < mv - g.vAbw))){ gr.push(batKomma(c.v) + " V"); rot.add(c.zv); }
+    if(c.s && (c.s < g.sMin || (ss.length > 2 && c.s < ms - g.sAbw))){ gr.push(batKomma(c.s) + " kg/l"); rot.add(c.zs); }
+    if(gr.length) schlecht.push({nr: c.nr, text: "Zelle " + c.nr + " (" + gr.join(", ") + ")", volt: gr.some(t => t.endsWith(" V")), saeure: gr.some(t => t.endsWith("kg/l"))});
+  }
+  return {z, mv, ms, nv: vs.length, ns: ss.length, schlecht, rot, g};
+}
+function batMarkieren(f, w, ra){
+  const b = batBewerten(f, w);
+  for(const i of ra.querySelectorAll("input[data-zelle]")) i.classList.toggle("warn", b.rot.has(i.dataset.zelle));
+  const inf = ra.parentElement && ra.parentElement.querySelector(".bat-info"); if(!inf) return;
+  if(!b.nv && !b.ns){ inf.textContent = ""; return; }
+  inf.textContent = [b.nv ? "Mittel " + batKomma(b.mv) + " V (" + b.nv + " Zellen)" : "", b.ns ? "Säure Mittel " + batKomma(b.ms) + " kg/l" : "",
+    b.schlecht.length ? "⚠ auffällig: " + b.schlecht.map(s => s.text).join(", ") : "✓ alle Zellen unauffällig"].filter(Boolean).join(" · ");
+  inf.classList.toggle("schlecht", !!b.schlecht.length);
+}
+// Zahlen aus Text (Foto-Texterkennung oder Sprache) der Reihe nach eintragen: 1,5–2,6 = Volt, 1,00–1,45 = Säuredichte
+function batZahlen(t){
+  const out = []; t = String(t || "").replace(/(\d)[,.](\d)/g, "$1,$2");
+  for(const m of t.matchAll(/\b(\d,\d{1,3}|1[0-3]\d{2})\b/g)){
+    let v = m[1].length === 4 && !m[1].includes(",") ? +m[1] / 1000 : etZahl(m[1]);
+    if(v >= 1.5 && v <= 2.6) out.push({art: "v", v}); else if(v >= 1.0 && v < 1.45) out.push({art: "s", v});
+  }
+  return out;
+}
+const batPos = {v: -1, s: -1, verlauf: []};
+function batEintragen(f, w, zahlen){
+  const z = batZellen(f); let n = 0;
+  if(batPos.v < 0) batPos.v = Math.max(0, z.findIndex(c => !w[c.zv])); if(batPos.s < 0) batPos.s = Math.max(0, z.findIndex(c => !w[c.zs]));
+  for(const x of zahlen){
+    const k = batPos[x.art]; if(k < 0 || k >= z.length) continue;
+    const zelle = x.art === "v" ? z[k].zv : z[k].zs; w[zelle] = batKomma(x.v, x.art === "v" ? 2 : 2); batPos.verlauf.push([x.art, k, zelle]); batPos[x.art] = k + 1; n++;
+  }
+  return n;
+}
+function batNeuZeichnen(f, w){
+  for(const i of document.querySelectorAll("#formInhalt .form-raster input[data-zelle]")) i.value = w[i.dataset.zelle] || "";
+  const ra = document.querySelector("#formInhalt .form-raster"); if(ra) batMarkieren(f, w, ra);
+}
+async function batFoto(f, w, bilder, st){
+  st.textContent = "Zettel wird gelesen …"; let text = "";
+  try{ for(const b of bilder){ const r = await (await fetch("/api/formular/typenschild", {method: "POST", body: await verkleinernBytes(b, 2400)})).json(); if(!r.ok) throw new Error(r.error || "Nicht lesbar."); text += "\n" + (r.roh || ""); } }
+  catch(e){ st.textContent = ""; formMeldung("Lesen fehlgeschlagen: " + (e.message || e), 7000); return; }
+  st.textContent = ""; batPos.v = batPos.s = -1;
+  const n = batEintragen(f, w, batZahlen(text)); formMerken(); batNeuZeichnen(f, w);
+  formMeldung(n ? `${n} Werte vom Zettel eingetragen – bitte kurz mit dem Zettel vergleichen.` : "Auf dem Foto wurden keine Zellwerte erkannt.", 8000);
+}
+let batSR = null;
+function batSprache(f, w, knopf){
+  if(batSR){ batSR.aus = true; try{ batSR.stop(); }catch(e){} batSR = null; knopf.textContent = "🎤 Werte ansagen"; formMeldung("Ansage beendet."); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ formMeldung("Spracheingabe wird hier nicht unterstützt (Edge oder Chrome nötig).", 7000); return; }
+  const rec = new SR(); rec.lang = "de-DE"; rec.continuous = true; rec.interimResults = false; batSR = rec; batPos.v = batPos.s = -1; batPos.verlauf = [];
+  knopf.textContent = "⏹ Ansage beenden";
+  formMeldung("Sprich z. B. „2,10 1,28“ – Zelle für Zelle. „Zelle 5“ springt, „zurück“ löscht den letzten Wert, „fertig“ beendet.", 15000);
+  rec.onresult = e => {
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      if(!e.results[i].isFinal) continue;
+      let t = e.results[i][0].transcript.toLowerCase().replace(/\s*komma\s*/g, ",").replace(/(\d)\s*,\s*(\d)/g, "$1,$2");
+      if(/\b(fertig|stopp|stop|ende)\b/.test(t)){ batSprache(f, w, knopf); return; }
+      const zs = /zelle\s*(\d{1,2})/.exec(t); if(zs){ batPos.v = batPos.s = Math.max(0, +zs[1] - 1); t = t.replace(zs[0], " "); }
+      if(/zurück/.test(t)){ const l = batPos.verlauf.pop(); if(l){ w[l[2]] = ""; batPos[l[0]] = l[1]; } }
+      const n = batEintragen(f, w, batZahlen(t)); formMerken(); batNeuZeichnen(f, w);
+      const k = Math.min(batPos.v, batPos.s); formMeldung((n ? "✓ „" + t.trim() + "“" : "Nicht verstanden: „" + t.trim() + "“") + " – weiter mit Zelle " + (k + 1), 8000);
+    }
+  };
+  rec.onerror = e => { if(e.error === "not-allowed"){ formMeldung("Kein Zugriff aufs Mikrofon.", 7000); batSR = null; knopf.textContent = "🎤 Werte ansagen"; } };
+  rec.onend = () => { if(batSR === rec && !rec.aus){ try{ rec.start(); }catch(e){} } };   // nach Sprechpausen weiter zuhören
+  try{ rec.start(); }catch(e){ formMeldung("Spracheingabe konnte nicht starten.", 6000); batSR = null; knopf.textContent = "🎤 Werte ansagen"; }
+}
+function batBefund(f, w){
+  const b = batBewerten(f, w); if(!b.nv && !b.ns){ formMeldung("Bitte zuerst Zellwerte eintragen."); return; }
+  const jn = (zj, zn, ja) => { w[zj] = ja ? "X" : ""; w[zn] = ja ? "" : "X"; };
+  const vSchlecht = b.schlecht.filter(s => s.volt), sSchlecht = b.schlecht.filter(s => s.saeure);
+  const tief = (b.ns && b.ms < b.g.sMin - 0.04) || (b.nv && b.mv < 1.95);
+  jn("P35", "R35", !vSchlecht.length);
+  jn("P39", "R39", !!tief);
+  if(b.ns && (b.ms < b.g.sMin || sSchlecht.length)) w.AH36 = "X", w.AJ36 = "";
+  if(vSchlecht.length && vSchlecht.length <= Math.max(2, Math.round(b.nv * 0.15))) w.AH39 = "X", w.AJ39 = "";
+  if(b.nv && vSchlecht.length > Math.max(2, Math.round(b.nv * 0.15))) w.AH41 = "X", w.AJ41 = "";
+  const txt = "Mittelwert " + [b.nv ? batKomma(b.mv) + " V" : "", b.ns ? batKomma(b.ms) + " kg/l" : ""].filter(Boolean).join(" / ") + ". " + (b.schlecht.length ? "Auffällig: " + b.schlecht.map(s => s.text).join(", ") + "." : "Alle Zellen unauffällig.");
+  const alt = String(w.Y48 || "").replace(/Mittelwert [^]*?\.(?: Auffällig: [^]*?\.| Alle Zellen unauffällig\.)\s*/, "").trim();
+  w.Y48 = (txt + (alt ? " " + alt : "")).trim();
+  gemeinsamAus(f, w); formMerken(); formRender();
+  formMeldung("Befund, Maßnahmen und Bemerkung vorgeschlagen – bitte prüfen.", 7000);
+}
+function zellenWerkzeug(f, w){
+  const d = document.createElement("div"); d.className = "col"; d.style.gap = "8px";
+  const r = document.createElement("div"); r.className = "form-tools";
+  const lab = document.createElement("label"); lab.className = "btn file-btn"; lab.textContent = "📷 Foto vom Zettel …";
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.multiple = true; lab.appendChild(inp);
+  const hb = document.createElement("button"); hb.type = "button"; hb.textContent = "📱 Zettel mit dem Handy";
+  const sp = document.createElement("button"); sp.type = "button"; sp.textContent = batSR ? "⏹ Ansage beenden" : "🎤 Werte ansagen";
+  const bf = document.createElement("button"); bf.type = "button"; bf.textContent = "💡 Befund vorschlagen";
+  const gk = document.createElement("button"); gk.type = "button"; gk.className = "ghost"; gk.textContent = "⚙ Grenzwerte";
+  const st = document.createElement("span"); st.className = "hint";
+  const qr = document.createElement("div"); qr.className = "form-qr"; qr.hidden = true;
+  const gz = document.createElement("div"); gz.className = "form-felder"; gz.hidden = true;
+  const g = batGrenz();
+  for(const [k, l] of [["vMin", "Zelle mind. (Volt)"], ["vAbw", "max. unter Mittelwert (Volt)"], ["sMin", "Säure mind. (kg/l)"], ["sAbw", "max. unter Mittelwert (kg/l)"]]){
+    const la = document.createElement("label"); la.innerHTML = "<span></span>"; la.firstChild.textContent = l;
+    const i = document.createElement("input"); i.inputMode = "decimal"; i.value = String(g[k]).replace(".", ",");
+    i.onchange = () => { const v = etZahl(i.value); const n = {...etMerk("§batGrenz", {})}; if(v > 0) n[k] = v; else delete n[k]; merkSetzen("§batGrenz", JSON.stringify(n)); formMerken(); batNeuZeichnen(f, w); };
+    la.appendChild(i); gz.appendChild(la);
+  }
+  gk.onclick = () => { gz.hidden = !gz.hidden; };
+  inp.onchange = async () => { const fs = [...inp.files]; inp.value = ""; if(fs.length) await batFoto(f, w, await Promise.all(fs.map(async x => new Uint8Array(await x.arrayBuffer()))), st); };
+  hb.onclick = () => tsHandy({...f, id: "zellen"}, w, st, qr, hb, b => batFoto(f, w, b, st));
+  sp.onclick = () => batSprache(f, w, sp);
+  bf.onclick = () => batBefund(f, w);
+  r.append(lab, hb, sp, bf, gk, st); d.append(r, qr, gz);
+  const h = document.createElement("span"); h.className = "hint"; h.textContent = "Rot = auffällige Zelle (unter Grenzwert oder deutlich unter dem Mittelwert). Foto/Ansage trägt ab der ersten freien Zelle ein."; d.appendChild(h);
+  return d;
+}
 /* ---- Ersatzteilliste (Schnellzugriff Außendienst/Werkstatt und Batteriedienst) ---- */
-let etDaten = null, etListe = 0, etZiel = null;
-const etMengen = {};   // "Liste|Index" → Menge (Text)
+// Listen: 💡 Vorschläge (aus Batterieprüfprotokoll und Wartungsplan), die beiden Schnellzugriffslisten, ⭐ Meine Artikel
+let etDaten = null, etListe = 1, etZiel = null, etAnsicht = [], etPlan = {i: -1, s: 0};
+const etMengen = {};   // Artikelnummer → Menge (Text)
 const etZahl = t => { const v = parseFloat(String(t || "").replace(",", ".")); return isNaN(v) ? 0 : v; };
 const etText = v => String(Math.round(v * 1000) / 1000).replace(".", ",");
+const etMerk = (k, d) => { try{ return JSON.parse(JSON.parse(localStorage.getItem("formMerk") || "{}")[k] || "null") || d; }catch(e){ return d; } };
+const etEigene = () => etMerk("§etEigene", []);
+const etZaehl = () => etMerk("§etZaehl", {});
+function etAlle(){ const m = {}; for(const l of etDaten.listen) for(const g of l.gruppen) for(const a of g.artikel) if(a.nr && !m[a.nr]) m[a.nr] = a; for(const a of etEigene()) m[a.nr] = m[a.nr] || a; return m; }
+function etHaeufig(artikel, max){
+  const z = etZaehl(); return artikel.filter(a => a.nr && z[a.nr]).sort((a, b) => z[b.nr].n - z[a.nr].n || a.name.localeCompare(b.name)).slice(0, max);
+}
 async function etOeffnen(f, w){
   if(!etDaten){ try{ etDaten = await (await fetch("/ersatzteilliste.json")).json(); }catch(e){ formMeldung("Die Ersatzteilliste konnte nicht geladen werden."); return; } }
-  etZiel = {f, w}; $("#etSuche").value = ""; etZeigen(); $("#etDlg").showModal(); setTimeout(() => $("#etSuche").focus(), 50);
+  if(!wartDaten){ try{ wartDaten = await (await fetch("/wartungsplaene.json")).json(); }catch(e){ wartDaten = []; } }
+  etZiel = {f, w}; $("#etSuche").value = "";
+  if(etPlan.i < 0) etPlan.i = etPlanRaten(w);
+  for(const [nr, m] of Object.entries(etVorschlagMengen())) if(!(nr in etMengen)) etMengen[nr] = m;
+  etListe = etVorschlaege().some(g => g.artikel.some(a => a.nr)) ? 0 : 1;
+  etZeigen(); $("#etDlg").showModal(); setTimeout(() => $("#etSuche").focus(), 50);
 }
+// Wartungsplan zum Gerätetyp raten (z. B. Type „8FBMT25“ → „Traigo 80 8FBMT20-35“)
+function etPlanRaten(w){
+  const typ = String((w && (w.D16 || w.C11)) || "").toUpperCase().replace(/\s/g, ""); if(!typ || !wartDaten) return -1;
+  let best = -1, bl = 0;
+  wartDaten.forEach((p, i) => { const t = (p.titel + " " + p.blatt).toUpperCase().replace(/\s/g, ""); for(let n = Math.min(typ.length, 8); n >= 4; n--) if(t.includes(typ.slice(0, n))){ if(n > bl){ bl = n; best = i; } break; } });
+  return best;
+}
+/* Vorschläge */
+const ET_SPANNUNG = [24, 48, 80, 120];
+function etBatterie(){
+  const b = formState.daten.batterie; if(!b) return null;
+  const volt = [], ra = FORMULARE.find(f => f.id === "batterie").abschnitte.flatMap(a => a.felder).find(x => x.t === "raster");
+  for(const [cv] of ra.g) for(const r of ra.r){ const v = etZahl(b[cv + r]); if(v) volt.push(v); }
+  const n = parseInt(String(b.J13 || "").replace(/\D/g, "")) || volt.length; const ges = etZahl(b.M31) || (n * 2);
+  if(!n && !b.G11) return null;
+  const u = ET_SPANNUNG.reduce((a, c) => Math.abs(c - ges) < Math.abs(a - ges) ? c : a, 48);
+  return {b, u};
+}
+function etVorschlaege(){
+  const gruppen = [], alle = etAlle();
+  const nimm = (nr, menge, info) => { const a = alle[nr]; return a ? {...a, info: [a.info, info].filter(Boolean).join(" – "), vorschlag: menge, fuer: info} : null; };
+  const bat = etBatterie();
+  if(bat){
+    const {b, u} = bat, ja = z => b[z] === "X", l = [];
+    l.push(nimm("BÜ" + u, "1"));
+    if(ja("AH37") || ja("AH38") || ja("P37") || ja("P38")) l.push(nimm({24: "SE14-10243-00", 48: "SE14-10481-00", 80: "SE14-10801-00", 120: "SE14-10120-00"}[u], "1"));
+    if(ja("AH36") || ja("P39")) l.push(nimm({24: "SE14-2400", 48: "SE14-4800", 80: "SE14-8000"}[u], "1"));
+    if(ja("AH35")) l.push(nimm("301020", "1", "Menge (Liter) anpassen"));
+    if(ja("P37") || ja("P38") || ja("AH38")) l.push(nimm("WE5579701", "1"), nimm("100102", "1"));
+    if(String(b.N43 || "").trim()) l.push(nimm("DGUV III", "", "nur wenn das Ladegerät geprüft wurde"));
+    const art = l.filter(Boolean); if(art.length) gruppen.push({name: `Aus dem Batterieprüfprotokoll (${u} V)`, artikel: art});
+  }
+  const p = wartDaten && wartDaten[etPlan.i];
+  if(p){
+    const s = Math.min(etPlan.s, p.spalten.length - 1), art = [], hin = [];
+    // Intervalle bauen aufeinander auf: 2000 h enthält auch die Arbeiten von 500 h und 1000 h (die 1. Wartung steht für sich)
+    const erste = i => /1\.\s*Wartung/i.test(p.spalten[i].name);
+    const spalten = erste(s) ? [s] : p.spalten.map((_, i) => i).filter(i => i <= s && !erste(i));
+    const typ = String((etZiel && etZiel.w && (etZiel.w.D16 || etZiel.w.C11)) || ""), last = +((typ.match(/(\d{2})(?!.*\d)/) || [])[1] || 0);
+    const regeln = [[/ATF|Dexron/i, "130921"], [/Donax|10W\s*30/i, "TD10W30"], [/Hypoid|85\/90|SAE\s*90\b/i, "130812"], [/Hydrauliköl(?!filter)|Öl der Lenkeinheit/i, "9027.82.3"],
+      [/Motoröl/i, "125420"], [/Bremsflüssigkeit/i, "9018.54.4"], [/Kühlmittel|Frostschutz/i, "321020"]];
+    for(const z of p.zeilen){
+      const v = spalten.map(i => String(z.werte[i] || "")).join(" "), t = z.arbeit.replace(/\s+/g, " ").trim();
+      const marken = (v.toLowerCase().match(/(^|\s)[oyxic]{1,3}(?=\s|$)/g) || []).join(""), x = marken.includes("x"), fett = marken.includes("i");
+      if(/UVV.?Plakette/i.test(t) && v) { art.push(nimm("0302.09.10.113", "1")); continue; }
+      if(fett && /Ketten/i.test(t)){ art.push(nimm("830008", "", t)); continue; }
+      if(fett){ art.push(nimm("9015.25.2", "", t)); continue; }
+      if(!x) continue;
+      const r = regeln.find(([re]) => re.test(t));
+      if(r){ // Ölmenge aus dem Plan (rechts + links bzw. eine Angabe)
+        const l = [...t.matchAll(/(\d+(?:[.,]\d+)?)\s*l\b/gi)].map(m => etZahl(m[1]));
+        let menge = /rechts/i.test(t) && /links/i.test(t) && l.length === 2 ? etText(l[0] + l[1]) : l.length === 1 ? etText(l[0]) : "";
+        // Menge je Tragkraft („16-25 5,9l 30-35 6,5l …“) passend zur Type (z. B. 7FBMF25 → 25)
+        if(!menge && last) for(const m of t.matchAll(/(\d{2})-(\d{2})\s+(?:ca\.?\s*)?(\d+(?:[.,]\d+)?)\s*l\b/gi)) if(last >= +m[1] && last <= +m[2]) menge = etText(etZahl(m[3]));
+        art.push(nimm(r[1], menge, t)); continue;
+      }
+      const nr = (t.match(/\b[0-9A-Z]{4,}-[0-9A-Z]{3,}(?:-[0-9A-Z]{2,})?\b/) || [])[0];
+      if(nr) art.push({nr, name: t.replace(nr, "").replace(/\s+/g, " ").trim(), info: "Teilenummer aus dem Wartungsplan", vorschlag: "1"});
+      else hin.push({name: t, info: "Teilenummer aus T-Doc holen"});
+    }
+    const ges = {}; for(const a of art.filter(Boolean)){ if(ges[a.nr]){ if(a.vorschlag && ges[a.nr].vorschlag) ges[a.nr].vorschlag = etText(etZahl(ges[a.nr].vorschlag) + etZahl(a.vorschlag));
+      if(a.fuer && ges[a.nr].fuer && !ges[a.nr].info.includes(a.fuer)) ges[a.nr].info += "; " + a.fuer; continue; } ges[a.nr] = a; }
+    gruppen.push({name: `Aus dem Wartungsplan ${p.titel} – ${p.spalten[s].name}`, artikel: [...Object.values(ges), ...hin]});
+  }
+  return gruppen;
+}
+function etVorschlagMengen(){ const m = {}; for(const g of etVorschlaege()) for(const a of g.artikel) if(a.nr && a.vorschlag) m[a.nr] = a.vorschlag; return m; }
+/* Anzeige */
 function etZeigen(){
+  const listen = [{name: "💡 Vorschläge", gruppen: etVorschlaege(), vorschlag: true}, ...etDaten.listen.map(l => ({...l, gruppen: [{name: "⭐ Häufig benutzt", artikel: etHaeufig(l.gruppen.flatMap(g => g.artikel), 8)}, ...l.gruppen]})),
+    {name: "⭐ Meine Artikel", gruppen: [{name: "Eigene Artikel", artikel: etEigene().map(a => ({...a, eigen: true})), eigen: true}, {name: "Häufig benutzt", artikel: etHaeufig(Object.values(etAlle()), 30)}]}];
   const tabs = $("#etTabs"); tabs.innerHTML = "";
-  etDaten.listen.forEach((l, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = l.name; b.setAttribute("aria-pressed", i === etListe ? "true" : "false");
+  listen.forEach((l, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = l.name; b.setAttribute("aria-pressed", i === etListe ? "true" : "false");
     b.onclick = () => { etListe = i; etZeigen(); }; tabs.appendChild(b); });
   const q = $("#etSuche").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const tb = $("#etListe"); tb.innerHTML = "";
-  const L = etDaten.listen[etListe]; let idx = 0;
+  const L = listen[etListe];
+  if(L.vorschlag) tb.appendChild(etPlanZeile());
   for(const g of L.gruppen){
     const zeilen = [];
     for(const a of g.artikel){
-      const key = etListe + "|" + (idx++);
       const txt = (a.name + " " + (a.nr || "") + " " + (a.info || "")).toLowerCase();
       if(q.length && !q.every(x => txt.includes(x))) continue;
-      const tr = document.createElement("tr"); if(etMengen[key]) tr.className = "an";
-      const tm = document.createElement("td"); tm.className = "m";
-      if(a.nr){ const i = document.createElement("input"); i.inputMode = "decimal"; i.value = etMengen[key] || ""; i.placeholder = "–";
-        i.oninput = () => { i.value = i.value.replace(/[^0-9.,]/g, ""); if(etZahl(i.value) > 0) etMengen[key] = i.value; else delete etMengen[key]; tr.className = etMengen[key] ? "an" : ""; etSumme(); };
-        i.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); const alle = [...tb.querySelectorAll("input")]; const n = alle[alle.indexOf(i) + 1]; if(n) n.focus(); } };
-        tm.appendChild(i); }
-      const tn = document.createElement("td"); tn.className = "nr"; tn.textContent = a.nr || "";
-      const tz = document.createElement("td"); tz.textContent = a.name;
-      if(a.info || a.ergaenzen){ const sp = document.createElement("span"); sp.className = "info"; sp.textContent = [a.info, a.ergaenzen ? "Artikelnummer danach in der Tabelle ergänzen" : ""].filter(Boolean).join(" · "); tz.appendChild(sp); }
-      const tl = document.createElement("td"); tl.className = "l"; tl.textContent = a.lager || "";
-      tr.append(tm, tn, tz, tl); zeilen.push(tr);
+      zeilen.push(etZeile(a, tb));
     }
+    if(g.eigen) zeilen.unshift(etNeuZeile());
     if(!zeilen.length) continue;
     const h = document.createElement("tr"); h.className = "gr"; h.innerHTML = '<td colspan="4"></td>'; h.firstChild.textContent = g.name; tb.appendChild(h);
     zeilen.forEach(z => tb.appendChild(z));
   }
+  if(L.vorschlag && !L.gruppen.length) tb.insertAdjacentHTML("beforeend", '<tr><td colspan="4" class="hint" style="padding:14px 6px">Noch keine Vorschläge: Batterieprüfprotokoll ausfüllen oder oben einen Wartungsplan wählen.</td></tr>');
   if(!tb.children.length) tb.innerHTML = '<tr><td colspan="4" class="hint" style="padding:14px 6px">Kein Artikel gefunden.</td></tr>';
   etSumme();
 }
+function etZeile(a, tb){
+  const tr = document.createElement("tr"); if(a.nr && etMengen[a.nr]) tr.className = "an";
+  const tm = document.createElement("td"); tm.className = "m";
+  if(a.nr){ const i = document.createElement("input"); i.inputMode = "decimal"; i.value = etMengen[a.nr] || ""; i.placeholder = "–"; i.dataset.nr = a.nr;
+    i.oninput = () => { i.value = i.value.replace(/[^0-9.,]/g, ""); if(etZahl(i.value) > 0) etMengen[a.nr] = i.value; else delete etMengen[a.nr];
+      for(const k of tb.querySelectorAll("input[data-nr]")) if(k.dataset.nr === a.nr){ if(k !== i) k.value = i.value; k.closest("tr").className = etMengen[a.nr] ? "an" : ""; }
+      if(!etArtikelBekannt(a)) etExtra[a.nr] = a; etSumme(); };
+    i.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); const alle = [...tb.querySelectorAll("input[data-nr]")]; const n = alle[alle.indexOf(i) + 1]; if(n) n.focus(); } };
+    tm.appendChild(i); }
+  const tn = document.createElement("td"); tn.className = "nr"; tn.textContent = a.nr || "";
+  const tz = document.createElement("td"); tz.textContent = a.name;
+  if(a.info || a.ergaenzen){ const sp = document.createElement("span"); sp.className = "info"; sp.textContent = [a.info, a.ergaenzen ? "Artikelnummer danach in der Tabelle ergänzen" : ""].filter(Boolean).join(" · "); tz.appendChild(sp); }
+  const tl = document.createElement("td"); tl.className = "l"; tl.textContent = a.lager || "";
+  if(a.eigen){ const x = document.createElement("button"); x.type = "button"; x.className = "ghost"; x.textContent = "✕"; x.title = "Eigenen Artikel löschen";
+    x.onclick = () => { merkSetzen("§etEigene", JSON.stringify(etEigene().filter(e => e.nr !== a.nr))); delete etMengen[a.nr]; formMerken(); etZeigen(); }; tl.appendChild(x); }
+  tr.append(tm, tn, tz, tl); return tr;
+}
+// Artikel aus dem Wartungsplan, die in keiner Liste stehen, für „Übernehmen“ merken
+const etExtra = {};
+const etArtikelBekannt = a => !!etAlle()[a.nr];
+function etNeuZeile(){
+  const tr = document.createElement("tr"); tr.innerHTML = '<td class="m"></td><td class="nr"><input placeholder="Artikelnummer" style="width:130px"></td><td><input placeholder="Bezeichnung" style="width:100%"></td><td><button type="button">+ Hinzufügen</button></td>';
+  const [nr, nm] = tr.querySelectorAll("input"); for(const i of [nr, nm]){ i.style.cssText += ";font:inherit;padding:5px 7px;border:1px solid var(--line,#ccc);border-radius:6px;background:var(--bg,#fff);color:inherit;box-sizing:border-box"; }
+  const add = () => { const n = nr.value.trim(), b = nm.value.trim(); if(!n || !b){ (n ? nm : nr).focus(); return; }
+    merkSetzen("§etEigene", JSON.stringify([...etEigene().filter(e => e.nr !== n), {nr: n, name: b}].sort((x, y) => x.name.localeCompare(y.name)))); formMerken(); etZeigen(); };
+  tr.querySelector("button").onclick = add; nm.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); add(); } };
+  return tr;
+}
+function etPlanZeile(){
+  const tr = document.createElement("tr"); const td = document.createElement("td"); td.colSpan = 4; td.style.padding = "10px 6px";
+  td.innerHTML = '<span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span>Wartungsplan:</span><select></select><select></select><span class="hint">Mengen prüfen, dann übernehmen.</span></span>';
+  const [ps, is] = td.querySelectorAll("select");
+  for(const s of [ps, is]) s.style.cssText = "font:inherit;padding:5px 8px;border:1px solid var(--line,#ccc);border-radius:6px;background:var(--bg,#fff);color:inherit";
+  ps.innerHTML = '<option value="-1">– keiner –</option>' + wartDaten.map((p, i) => `<option value="${i}">${p.titel.replace(/</g, "&lt;")}</option>`).join(""); ps.value = String(etPlan.i);
+  const p = wartDaten[etPlan.i]; is.hidden = !p; if(p){ is.innerHTML = p.spalten.map((s, i) => `<option value="${i}">${s.name}</option>`).join(""); is.value = String(Math.min(etPlan.s, p.spalten.length - 1)); }
+  const neu = () => { const alt = etVorschlagMengen(); for(const [nr, m] of Object.entries(alt)) if(etMengen[nr] === m) delete etMengen[nr];
+    etPlan.i = +ps.value; etPlan.s = +is.value || 0; for(const [nr, m] of Object.entries(etVorschlagMengen())) if(!(nr in etMengen)) etMengen[nr] = m; etZeigen(); };
+  ps.onchange = () => { is.value = "0"; neu(); }; is.onchange = neu;
+  tr.appendChild(td); return tr;
+}
 function etAuswahl(){
-  const out = [];
-  etDaten.listen.forEach((l, li) => { let idx = 0; for(const g of l.gruppen) for(const a of g.artikel){ const m = etMengen[li + "|" + (idx++)]; if(m && a.nr) out.push({a, m: etZahl(m)}); } });
-  return out;
+  const alle = {...etExtra, ...etAlle()}; for(const g of etVorschlaege()) for(const a of g.artikel) if(a.nr && !alle[a.nr]) alle[a.nr] = a;
+  return Object.entries(etMengen).filter(([nr, m]) => alle[nr] && etZahl(m) > 0).map(([nr, m]) => ({a: alle[nr], m: etZahl(m)}));
 }
 function etSumme(){ const n = etAuswahl().length; $("#etZahl").textContent = n ? n + " Artikel ausgewählt" : "Menge hinter die Artikel schreiben (z. B. 1 oder 1,25)."; $("#etOk").disabled = !n; }
 $("#etSuche").oninput = () => etZeigen();
@@ -3576,15 +3823,17 @@ $("#etOk").onclick = () => {
   const {f, w} = etZiel || {}; if(!f) return;
   const tab = f.abschnitte.flatMap(a => a.felder).find(x => x.t === "tabelle");
   const [SA, SN, SB] = tab.s.map(c => c[0]);
-  let neu = 0, mehr = 0;
+  let neu = 0, mehr = 0; const z = etZaehl();
   for(const {a, m} of etAuswahl()){
+    z[a.nr] = {n: ((z[a.nr] || {}).n || 0) + 1};
     // gleicher Artikel schon in der Tabelle → Menge addieren
     const da = tabZeilen(tab, w).find(r => (w[SN + r] || "").trim() === a.nr);
     if(da){ w[SA + da] = etText(etZahl(w[SA + da]) + m); mehr++; continue; }
     let frei = tabZeilen(tab, w).find(r => !w[SA + r] && !w[SN + r] && !w[SB + r]);
     if(!frei){ w["#mehr"] = (w["#mehr"] || 0) + 1; frei = tabZeilen(tab, w).pop(); }
-    w[SA + frei] = etText(m); w[SN + frei] = a.nr; w[SB + frei] = a.name + (a.info && a.info.length < 40 ? " " + a.info : ""); neu++;
+    w[SA + frei] = etText(m); w[SN + frei] = a.nr; w[SB + frei] = a.name + (a.info && a.info.length < 40 && !a.vorschlag && !/Teilenummer|anpassen|nur wenn/.test(a.info) ? " " + a.info : ""); neu++;
   }
+  merkSetzen("§etZaehl", JSON.stringify(z));
   for(const k in etMengen) delete etMengen[k];
   $("#etDlg").close(); formMerken(); formRender();
   formMeldung([neu ? neu + " Artikel eingetragen" : "", mehr ? mehr + " Menge(n) erhöht" : ""].filter(Boolean).join(", ") + ".", 6000);
