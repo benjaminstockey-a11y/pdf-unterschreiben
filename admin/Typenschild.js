@@ -240,12 +240,26 @@ function tsJoinLabels(lines) {
   return out;
 }
 
+// Steht „S/N:“ allein in einer Zeile (Wert weiter unten, z. B. hinter P/N und Typbezeichnung),
+// ist die Seriennummer die nächste reine Ziffernfolge – nicht die P/N (Buchstaben/Bindestrich).
+function tsSerieLose(lines) {
+  for (var i = 0; i < lines.length; i++) {
+    if (!/^\s*S\s*\/\s*N\s*[:.]?\s*$/i.test(lines[i])) continue;
+    for (var k = i + 1; k < Math.min(lines.length, i + 9); k++) {
+      var m = /^\s*(\d{6,14})\s*$/.exec(lines[k]);
+      if (m) return m[1];
+    }
+  }
+  return '';
+}
+
 // Text von Google -> Ergebnis-Text für die Vorlage
 function typenschildAuswerten(text) {
   var lines = String(text || '').replace(/﻿/g, '').replace(/\r/g, '').split('\n')
     .filter(function (x) { return x.trim() && !/^_+$/.test(x.trim()); });
   var joined = tsJoinLabels(lines);
   var res = tsParse(joined);
+  var sn = tsSerieLose(lines); if (sn) res.FABRNR = sn;
   if (!res.LEISTUNG) {
     var o = false;
     for (var i = 0; i < joined.length; i++) {

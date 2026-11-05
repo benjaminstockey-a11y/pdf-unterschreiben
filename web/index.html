@@ -2692,6 +2692,9 @@ function merkSetzen(k, v){ try{ const m = JSON.parse(localStorage.getItem("formM
 function formWerte(){
   const w = formState.daten[formState.akt] || (formState.daten[formState.akt] = formStart(formDef()));
   gemeinsamEin(formDef(), w);
+  // Datumsfelder mit „heute“ (z. B. Prüfdatum) jeden Tag automatisch auf das aktuelle Datum setzen
+  const tag = HEUTE();
+  if(w._datumTag !== tag){ for(const a of formDef().abschnitte) for(const x of a.felder) if(x.t === "datum" && x.d === HEUTE) w[x.z] = tag; w._datumTag = tag; }
   // gespeicherte Werte (z. B. eigene Messgeräte) auch in schon angefangene Formulare übernehmen
   let merk = {}; try{ merk = JSON.parse(localStorage.getItem("formMerk") || "{}"); }catch(e){}
   for(const a of formDef().abschnitte) for(const x of a.felder) for(const [z, k] of merkZellen(x)) if(!(z in w)) w[z] = merk[k] || "";
@@ -2867,6 +2870,17 @@ function messWerte(roh){
   aus.geraet = /BENNING|ST\s*7\d\d|R\s*P\s*E|R\s*[I1l]\s*S\s*[O0]|P\s*[AR]\s*[S5]\s*[S5]/i.test(t) || Object.keys(res).length >= 2;
   return aus;
 }
+// Foto auf höchstens „max“ Pixel verkleinern (JPEG); kleine Fotos bleiben unverändert
+async function verkleinernBytes(bytes, max){
+  try{
+    const bm = await createImageBitmap(new Blob([bytes]));
+    if(Math.max(bm.width, bm.height) <= max && bytes.length < 1500000) return bytes;
+    const sc = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement("canvas");
+    c.width = Math.round(bm.width * sc); c.height = Math.round(bm.height * sc);
+    c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height);
+    return new Uint8Array(await (await new Promise(r => c.toBlob(r, "image/jpeg", 0.88))).arrayBuffer());
+  }catch(e){ return bytes; }
+}
 // Display-Foto kontrastreicher machen: schwache Segmente (z. B. der obere Strich der 7) werden deutlich
 async function kontrast(bytes){
   try{
@@ -2886,14 +2900,22 @@ async function tsLesen(f, w, bilder, st){
   if(!Array.isArray(bilder)) bilder = [bilder];
   const mess = f.id === "pruefung";
   st.textContent = bilder.length > 1 ? `${bilder.length} Fotos werden gelesen …` : "Foto wird gelesen …";
+  // Fotos vorher verkleinern (schneller hochgeladen und gelesen); bei der Prüfung gleich parallel
+  // auch die kontrastverstärkte Fassung lesen lassen (für Messgerät-Displays) – spart einen zweiten Durchgang
+  bilder = await Promise.all(bilder.map(b => verkleinernBytes(b, 2000)));
+  const lesen = async b => { try{ return await (await fetch("/api/formular/typenschild", {method: "POST", body: b})).json(); }catch(e){ return {ok: false, error: "Keine Verbindung zum Programm."}; } };
+  const kontrastLesen = mess ? Promise.all(bilder.map(async b => { const k = await kontrast(b); return k ? lesen(k) : null; })) : Promise.resolve([]);
   let erg;
-  try{
-    erg = await Promise.all(bilder.map(async b => { try{ return await (await fetch("/api/formular/typenschild", {method: "POST", body: b})).json(); }catch(e){ return {ok: false, error: "Keine Verbindung zum Programm."}; } }));
-  }catch(e){ erg = []; }
+  try{ erg = await Promise.all(bilder.map(lesen)); }catch(e){ erg = []; }
   st.textContent = "";
   const gut = erg.filter(r => r && r.ok);
   if(!gut.length){ formMeldung("Foto: " + ((erg[0] && erg[0].error) || "Keine Werte erkannt."), 7000); return; }
-  for(const r of gut) r.mw = mess ? messWerte(r.roh) : {geraet: false};
+  for(const r of gut){
+    r.mw = mess ? messWerte(r.roh) : {geraet: false};
+    // „S/N:“ allein in einer Zeile: Seriennummer = nächste reine Ziffernfolge (nicht die P/N)
+    const L = String(r.roh || "").split("\n"), i = L.findIndex(x => /^\s*S\s*\/\s*N\s*[:.]?\s*$/i.test(x));
+    if(i >= 0){ const z = L.slice(i + 1, i + 9).find(x => /^\s*\d{6,14}\s*$/.test(x)); if(z){ r.werte = r.werte || {}; r.werte.FABRNR = z.trim(); } }
+  }
   const geraete = gut.filter(r => r.mw.geraet && (Object.keys(r.werte || {}).length < 3 || /BENNING|ST\s*7\d\d/i.test(r.roh || "")));
   const schilder = gut.filter(r => !geraete.includes(r)).sort((a, b) => Object.keys(b.werte || {}).length - Object.keys(a.werte || {}).length);
   const teile = [];
@@ -2907,11 +2929,8 @@ async function tsLesen(f, w, bilder, st){
   if(geraete.length){
     // Messgerät-Fotos ein zweites Mal kontrastverstärkt lesen; dort erkannte Werte haben Vorrang
     st.textContent = "Messwerte werden genauer gelesen …";
-    await Promise.all(geraete.map(async r => {
-      const k = await kontrast(bilder[erg.indexOf(r)]); if(!k) return;
-      try{ const r2 = await (await fetch("/api/formular/typenschild", {method: "POST", body: k})).json();
-        if(r2.ok){ const m2 = messWerte(r2.roh); for(const x of ["rpe", "riso", "strom"]) if(m2[x]) r.mw[x] = m2[x]; } }catch(e){}
-    }));
+    const k2 = await kontrastLesen;
+    for(const r of geraete){ const r2 = k2[erg.indexOf(r)]; if(r2 && r2.ok){ const m2 = messWerte(r2.roh); for(const x of ["rpe", "riso", "strom"]) if(m2[x]) r.mw[x] = m2[x]; } }
     st.textContent = "";
     // R ISO vom Foto mit Isolationsmessung, R PE und Strom vom anderen Foto
     const mitIso = geraete.find(r => r.mw.iso), ohneIso = [...geraete].reverse().find(r => !r.mw.iso);
