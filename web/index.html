@@ -2898,7 +2898,7 @@ function formRender(){
           }
           t.appendChild(tb); ra.appendChild(t);
         }
-        ra.addEventListener("focusin", e => { const fe = batFelder(f), k = fe.indexOf(e.target.dataset.zelle); if(k >= 0){ batLetztesFeld = k; if(batSR) batCursor(f, k); } });
+        ra.addEventListener("focusin", e => { const fe = batFelder(f), k = fe.indexOf(e.target.dataset.zelle); batLetztesFeld = e.target.dataset.zelle; if(k >= 0 && batSR) batCursor(f, k); });
         ra.addEventListener("keydown", e => { if(e.key !== "Enter") return; e.preventDefault();
           const alle = [...ra.querySelectorAll("tbody tr")].flatMap(tr => [...tr.querySelectorAll("input")]); const i = alle.indexOf(e.target); if(alle[i + 1]) alle[i + 1].focus(); });
         sek.appendChild(ra);
@@ -3590,9 +3590,17 @@ async function batFoto(f, w, bilder, st){
   const n = batEintragen(f, w, batZahlen(text)); formMerken(); batNeuZeichnen(f, w);
   formMeldung(n ? `${n} Werte vom Zettel eingetragen – bitte kurz mit dem Zettel vergleichen.` : "Auf dem Foto wurden keine Zellwerte erkannt.", 8000);
 }
-let batSR = null, batFeld = -1, batLetztesFeld = -1, batRueck = [];
+let batSR = null, batFeld = -1, batLetztesFeld = "", batRueck = [];
 // Spracheingabe: feste Reihenfolge Zelle 1 Volt → Zelle 1 Säure → Zelle 2 Volt … ab dem markierten (zuletzt angeklickten) Feld
-const batFelder = f => batZellen(f).flatMap(c => [c.zv, c.zs]);
+// Reihenfolge der Ansage: „abwechselnd“ (Volt, Säure je Zelle), „volt“ (erst alle Spannungen, dann alle Säuredichten), „saeure“ (umgekehrt)
+const batReihe = () => etMerk("§batReihe", "volt");
+function batAnzahl(f){ const w = formState.daten[f.id] || {}; const n = parseInt(String(w.J13 || "").replace(/\D/g, "")); return n >= 1 && n <= 40 ? n : 40; }
+function batFelder(f){
+  const z = batZellen(f).slice(0, batAnzahl(f)), r = batReihe();
+  return r === "abwechselnd" ? z.flatMap(c => [c.zv, c.zs]) : r === "saeure" ? [...z.map(c => c.zs), ...z.map(c => c.zv)] : [...z.map(c => c.zv), ...z.map(c => c.zs)];
+}
+// zu einem Feld: Zellennummer und Art
+function batWo(f, zelle){ const c = batZellen(f).find(c => c.zv === zelle || c.zs === zelle); return c ? {nr: c.nr, art: c.zv === zelle ? "v" : "s", text: "Zelle " + c.nr + (c.zv === zelle ? " Volt" : " Säure")} : {nr: 0, art: "", text: ""}; }
 const BAT_WORT = {null: "0", eins: "1", ein: "1", eine: "1", zwei: "2", zwo: "2", drei: "3", vier: "4", fünf: "5", sechs: "6", sieben: "7", acht: "8", neun: "9"};
 // „2,10“, „2 Komma 1 0“, „zwei komma eins null“, „210“, „1280“ → Zahlen
 function batSprachZahlen(t){
@@ -3624,19 +3632,20 @@ function batSprache(f, w, knopf){
   const rec = new SR(); rec.lang = "de-DE"; rec.continuous = true; rec.interimResults = false; rec.maxAlternatives = 1; batSR = rec; batRueck = [];
   const fe = batFelder(f);
   // Start: zuletzt angeklicktes Feld, sonst das erste leere
-  batCursor(f, batLetztesFeld >= 0 ? batLetztesFeld : Math.max(0, fe.findIndex(z => !w[z])));
+  batCursor(f, fe.includes(batLetztesFeld) ? fe.indexOf(batLetztesFeld) : Math.max(0, fe.findIndex(z => !w[z])));
   knopf.textContent = "⏹ Ansage beenden";
-  const hilfe = "Werte nacheinander sagen: Volt, Säure, Volt, Säure … (z. B. „2,10“ – „1,28“). „Zelle 5“ springt, „Säure“/„Volt“ wechselt die Spalte, „weiter“ lässt ein Feld frei, „zurück“ löscht den letzten Wert, „fertig“ beendet.";
-  formMeldung("🎤 Bereit – Zelle " + (Math.floor(batFeld / 2) + 1) + (batFeld % 2 ? " Säure. " : " Volt. ") + hilfe, 20000);
+  const hilfe = "Werte nacheinander sagen (" + {abwechselnd: "je Zelle Volt, dann Säure", volt: "erst alle Spannungen, dann alle Säuredichten", saeure: "erst alle Säuredichten, dann alle Spannungen"}[batReihe()] + "). „Zelle 5“ springt, „Säure“/„Volt“ wechselt die Spalte, „weiter“ lässt ein Feld frei, „zurück“ löscht den letzten Wert, „fertig“ beendet.";
+  formMeldung("🎤 Bereit – " + batWo(f, fe[batFeld]).text + ". " + hilfe, 20000);
   rec.onresult = e => {
     for(let i = e.resultIndex; i < e.results.length; i++){
       if(!e.results[i].isFinal) continue;
       const roh = e.results[i][0].transcript.trim(); let t = roh.toLowerCase(), n = 0;
       if(/\b(fertig|stopp|stop|ende|beenden)\b/.test(t)){ aus("Ansage beendet."); return; }
       const zs = /zelle\s*(\d{1,2}|[a-zäöü]+)/.exec(t);
-      if(zs){ const nr = parseInt(BAT_WORT[zs[1]] || zs[1]); if(nr >= 1 && nr <= fe.length / 2) batCursor(f, (nr - 1) * 2 + (/säure/.test(t) ? 1 : 0)); t = t.replace(zs[0], " "); }
-      else if(/\bsäure\b/.test(t) && batFeld % 2 === 0) batCursor(f, batFeld + 1);
-      else if(/\b(volt|spannung)\b/.test(t) && batFeld % 2 === 1) batCursor(f, batFeld - 1);
+      if(zs){ const nr = parseInt(BAT_WORT[zs[1]] || zs[1]), art = /säure|dichte/.test(t) ? "s" : /volt|spannung/.test(t) ? "v" : batWo(f, fe[Math.min(batFeld, fe.length - 1)]).art || "v";
+        const k = fe.findIndex(z => { const o = batWo(f, z); return o.nr === nr && o.art === art; }); if(k >= 0) batCursor(f, k); t = t.replace(zs[0], " "); }
+      else if(/\b(säure|säuredichte|dichte)\b/.test(t) && batWo(f, fe[batFeld]).art !== "s"){ const k = fe.findIndex(z => batWo(f, z).art === "s" && !w[z]); batCursor(f, k >= 0 ? k : fe.findIndex(z => batWo(f, z).art === "s")); }
+      else if(/\b(volt|spannung)\b/.test(t) && batWo(f, fe[batFeld]).art !== "v"){ const k = fe.findIndex(z => batWo(f, z).art === "v" && !w[z]); batCursor(f, k >= 0 ? k : fe.findIndex(z => batWo(f, z).art === "v")); }
       if(/\bzurück\b/.test(t)){ const l = batRueck.pop(); if(l !== undefined){ w[fe[l]] = ""; batCursor(f, l); } }
       if(/\b(weiter|leer|nächste)\b/.test(t)) batCursor(f, batFeld + 1);
       for(const v of batSprachZahlen(t)){
@@ -3644,7 +3653,7 @@ function batSprache(f, w, knopf){
         w[fe[batFeld]] = batKomma(v); batRueck.push(batFeld); n++; batCursor(f, batFeld + 1);
       }
       formMerken(); batNeuZeichnen(f, w); batCursor(f, batFeld);
-      const wo = batFeld >= fe.length ? "Alle Zellen ausgefüllt." : "Weiter: Zelle " + (Math.floor(batFeld / 2) + 1) + (batFeld % 2 ? " Säure" : " Volt");
+      const wo = batFeld >= fe.length ? "Alle Zellen ausgefüllt." : "Weiter: " + batWo(f, fe[batFeld]).text;
       const befehl = /zelle|säure|volt|spannung|zurück|weiter|leer|nächste/.test(roh.toLowerCase());
       formMeldung((n || befehl ? "✓ " : "Nicht verstanden: ") + "„" + roh + "“ – " + wo, 15000);
       if(batFeld >= fe.length){ aus(); return; }
@@ -3677,6 +3686,10 @@ function zellenWerkzeug(f, w){
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.multiple = true; lab.appendChild(inp);
   const hb = document.createElement("button"); hb.type = "button"; hb.textContent = "📱 Zettel mit dem Handy";
   const sp = document.createElement("button"); sp.type = "button"; sp.textContent = batSR ? "⏹ Ansage beenden" : "🎤 Werte ansagen";
+  const rh = document.createElement("select"); rh.title = "Reihenfolge beim Ansagen";
+  rh.style.cssText = "font:inherit;padding:6px 8px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--bg,#fff);color:inherit";
+  rh.innerHTML = '<option value="volt">Ansage: erst alle Volt, dann Säure</option><option value="saeure">Ansage: erst alle Säure, dann Volt</option><option value="abwechselnd">Ansage: je Zelle Volt + Säure</option>';
+  rh.value = batReihe(); rh.onchange = () => { merkSetzen("§batReihe", JSON.stringify(rh.value)); formMerken(); if(batSR){ const fe = batFelder(f); batCursor(f, Math.max(0, fe.findIndex(z => !w[z]))); } };
   const bf = document.createElement("button"); bf.type = "button"; bf.textContent = "💡 Befund vorschlagen";
   const gk = document.createElement("button"); gk.type = "button"; gk.className = "ghost"; gk.textContent = "⚙ Grenzwerte";
   const st = document.createElement("span"); st.className = "hint";
@@ -3694,8 +3707,8 @@ function zellenWerkzeug(f, w){
   hb.onclick = () => tsHandy({...f, id: "zellen"}, w, st, qr, hb, b => batFoto(f, w, b, st));
   sp.onclick = () => batSprache(f, w, sp);
   bf.onclick = () => batBefund(f, w);
-  r.append(lab, hb, sp, bf, gk, st); d.append(r, qr, gz);
-  const h = document.createElement("span"); h.className = "hint"; h.textContent = "Rot = auffällige Zelle (unter Grenzwert oder deutlich unter dem Mittelwert). Foto/Ansage trägt ab der ersten freien Zelle ein."; d.appendChild(h);
+  r.append(lab, hb, sp, rh, bf, gk, st); d.append(r, qr, gz);
+  const h = document.createElement("span"); h.className = "hint"; h.textContent = "Rot = auffällige Zelle (unter Grenzwert oder deutlich unter dem Mittelwert). Ansage beginnt beim angeklickten Feld (sonst beim ersten freien) und hört nach der Zellenzahl aus „Besteht aus“ auf."; d.appendChild(h);
   return d;
 }
 /* ---- Ersatzteilliste (Schnellzugriff Außendienst/Werkstatt und Batteriedienst) ---- */
