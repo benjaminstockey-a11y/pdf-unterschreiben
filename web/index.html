@@ -242,6 +242,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .form-raster th{font-weight:600;text-align:left;padding:1px 3px;color:var(--muted,#667)}
 .form-raster td{padding:1px 3px}.form-raster td:first-child{width:30px;text-align:right;color:var(--muted,#667)}
 .form-raster input{font:inherit;width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid var(--line,#ccc);border-radius:6px;background:var(--bg,#fff);color:inherit;min-width:0}
+.form-raster input.cursor{outline:3px solid #1570ef;outline-offset:1px;background:#eff6ff}
 .form-raster input.warn{border-color:#d92d20;background:#fdecea;color:#912018}
 .bat-info{font-size:13px;color:var(--muted,#556)}.bat-info.schlecht{color:#b42318;font-weight:600}
 .form-jn{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;font-size:13px}
@@ -2897,6 +2898,7 @@ function formRender(){
           }
           t.appendChild(tb); ra.appendChild(t);
         }
+        ra.addEventListener("focusin", e => { const fe = batFelder(f), k = fe.indexOf(e.target.dataset.zelle); if(k >= 0){ batLetztesFeld = k; if(batSR) batCursor(f, k); } });
         ra.addEventListener("keydown", e => { if(e.key !== "Enter") return; e.preventDefault();
           const alle = [...ra.querySelectorAll("tbody tr")].flatMap(tr => [...tr.querySelectorAll("input")]); const i = alle.indexOf(e.target); if(alle[i + 1]) alle[i + 1].focus(); });
         sek.appendChild(ra);
@@ -3588,28 +3590,68 @@ async function batFoto(f, w, bilder, st){
   const n = batEintragen(f, w, batZahlen(text)); formMerken(); batNeuZeichnen(f, w);
   formMeldung(n ? `${n} Werte vom Zettel eingetragen – bitte kurz mit dem Zettel vergleichen.` : "Auf dem Foto wurden keine Zellwerte erkannt.", 8000);
 }
-let batSR = null;
+let batSR = null, batFeld = -1, batLetztesFeld = -1, batRueck = [];
+// Spracheingabe: feste Reihenfolge Zelle 1 Volt → Zelle 1 Säure → Zelle 2 Volt … ab dem markierten (zuletzt angeklickten) Feld
+const batFelder = f => batZellen(f).flatMap(c => [c.zv, c.zs]);
+const BAT_WORT = {null: "0", eins: "1", ein: "1", eine: "1", zwei: "2", zwo: "2", drei: "3", vier: "4", fünf: "5", sechs: "6", sieben: "7", acht: "8", neun: "9"};
+// „2,10“, „2 Komma 1 0“, „zwei komma eins null“, „210“, „1280“ → Zahlen
+function batSprachZahlen(t){
+  t = " " + String(t || "").toLowerCase().replace(/[.](?=\d)/g, ",") + " ";
+  t = t.replace(/\b(null|eins|ein|eine|zwei|zwo|drei|vier|fünf|sechs|sieben|acht|neun)\b/g, w => BAT_WORT[w]).replace(/\s*(komma|,)\s*/g, ",");
+  const tok = t.split(/\s+/).filter(Boolean), out = [];
+  for(let i = 0; i < tok.length; i++){
+    let m = /^(\d+)(?:,(\d*))?$/.exec(tok[i]); if(!m) continue;
+    let ganz = m[1], dez = m[2];
+    if(dez !== undefined){ while(dez.length < 2 && /^\d$/.test(tok[i + 1] || "")) dez += tok[++i]; }   // „2,1 0“ → 2,10
+    else if(ganz.length === 1 && /^\d{2,3}$/.test(tok[i + 1] || "")) dez = tok[++i];                       // „2 10“ → 2,10
+    else if(ganz.length >= 3 && /^[12]/.test(ganz)){ dez = ganz.slice(1); ganz = ganz[0]; }            // „210“ → 2,10 · „128“ → 1,28
+    const v = parseFloat(ganz + "." + (dez || "0")); if(!isNaN(v) && v > 0.5 && v < 3) out.push(v);
+  }
+  return out;
+}
+function batCursor(f, k){
+  const fe = batFelder(f); batFeld = Math.max(0, Math.min(k, fe.length));
+  for(const i of document.querySelectorAll("#formInhalt .form-raster input[data-zelle]")){
+    const an = batSR && i.dataset.zelle === fe[batFeld]; i.classList.toggle("cursor", !!an); if(an) i.scrollIntoView({block: "nearest", behavior: "smooth"});
+  }
+}
 function batSprache(f, w, knopf){
-  if(batSR){ batSR.aus = true; try{ batSR.stop(); }catch(e){} batSR = null; knopf.textContent = "🎤 Werte ansagen"; formMeldung("Ansage beendet."); return; }
+  const aus = (txt) => { if(batSR){ batSR.aus = true; try{ batSR.stop(); }catch(e){} } batSR = null; knopf.textContent = "🎤 Werte ansagen"; batCursor(f, batFeld); if(txt) formMeldung(txt); };
+  if(batSR){ aus("Ansage beendet."); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ formMeldung("Spracheingabe wird hier nicht unterstützt (Edge oder Chrome nötig).", 7000); return; }
-  const rec = new SR(); rec.lang = "de-DE"; rec.continuous = true; rec.interimResults = false; batSR = rec; batPos.v = batPos.s = -1; batPos.verlauf = [];
+  const rec = new SR(); rec.lang = "de-DE"; rec.continuous = true; rec.interimResults = false; rec.maxAlternatives = 1; batSR = rec; batRueck = [];
+  const fe = batFelder(f);
+  // Start: zuletzt angeklicktes Feld, sonst das erste leere
+  batCursor(f, batLetztesFeld >= 0 ? batLetztesFeld : Math.max(0, fe.findIndex(z => !w[z])));
   knopf.textContent = "⏹ Ansage beenden";
-  formMeldung("Sprich z. B. „2,10 1,28“ – Zelle für Zelle. „Zelle 5“ springt, „zurück“ löscht den letzten Wert, „fertig“ beendet.", 15000);
+  const hilfe = "Werte nacheinander sagen: Volt, Säure, Volt, Säure … (z. B. „2,10“ – „1,28“). „Zelle 5“ springt, „Säure“/„Volt“ wechselt die Spalte, „weiter“ lässt ein Feld frei, „zurück“ löscht den letzten Wert, „fertig“ beendet.";
+  formMeldung("🎤 Bereit – Zelle " + (Math.floor(batFeld / 2) + 1) + (batFeld % 2 ? " Säure. " : " Volt. ") + hilfe, 20000);
   rec.onresult = e => {
     for(let i = e.resultIndex; i < e.results.length; i++){
       if(!e.results[i].isFinal) continue;
-      let t = e.results[i][0].transcript.toLowerCase().replace(/\s*komma\s*/g, ",").replace(/(\d)\s*,\s*(\d)/g, "$1,$2");
-      if(/\b(fertig|stopp|stop|ende)\b/.test(t)){ batSprache(f, w, knopf); return; }
-      const zs = /zelle\s*(\d{1,2})/.exec(t); if(zs){ batPos.v = batPos.s = Math.max(0, +zs[1] - 1); t = t.replace(zs[0], " "); }
-      if(/zurück/.test(t)){ const l = batPos.verlauf.pop(); if(l){ w[l[2]] = ""; batPos[l[0]] = l[1]; } }
-      const n = batEintragen(f, w, batZahlen(t)); formMerken(); batNeuZeichnen(f, w);
-      const k = Math.min(batPos.v, batPos.s); formMeldung((n ? "✓ „" + t.trim() + "“" : "Nicht verstanden: „" + t.trim() + "“") + " – weiter mit Zelle " + (k + 1), 8000);
+      const roh = e.results[i][0].transcript.trim(); let t = roh.toLowerCase(), n = 0;
+      if(/\b(fertig|stopp|stop|ende|beenden)\b/.test(t)){ aus("Ansage beendet."); return; }
+      const zs = /zelle\s*(\d{1,2}|[a-zäöü]+)/.exec(t);
+      if(zs){ const nr = parseInt(BAT_WORT[zs[1]] || zs[1]); if(nr >= 1 && nr <= fe.length / 2) batCursor(f, (nr - 1) * 2 + (/säure/.test(t) ? 1 : 0)); t = t.replace(zs[0], " "); }
+      else if(/\bsäure\b/.test(t) && batFeld % 2 === 0) batCursor(f, batFeld + 1);
+      else if(/\b(volt|spannung)\b/.test(t) && batFeld % 2 === 1) batCursor(f, batFeld - 1);
+      if(/\bzurück\b/.test(t)){ const l = batRueck.pop(); if(l !== undefined){ w[fe[l]] = ""; batCursor(f, l); } }
+      if(/\b(weiter|leer|nächste)\b/.test(t)) batCursor(f, batFeld + 1);
+      for(const v of batSprachZahlen(t)){
+        if(batFeld >= fe.length) break;
+        w[fe[batFeld]] = batKomma(v); batRueck.push(batFeld); n++; batCursor(f, batFeld + 1);
+      }
+      formMerken(); batNeuZeichnen(f, w); batCursor(f, batFeld);
+      const wo = batFeld >= fe.length ? "Alle Zellen ausgefüllt." : "Weiter: Zelle " + (Math.floor(batFeld / 2) + 1) + (batFeld % 2 ? " Säure" : " Volt");
+      const befehl = /zelle|säure|volt|spannung|zurück|weiter|leer|nächste/.test(roh.toLowerCase());
+      formMeldung((n || befehl ? "✓ " : "Nicht verstanden: ") + "„" + roh + "“ – " + wo, 15000);
+      if(batFeld >= fe.length){ aus(); return; }
     }
   };
-  rec.onerror = e => { if(e.error === "not-allowed"){ formMeldung("Kein Zugriff aufs Mikrofon.", 7000); batSR = null; knopf.textContent = "🎤 Werte ansagen"; } };
+  rec.onerror = e => { if(e.error === "not-allowed" || e.error === "service-not-allowed") aus("Kein Zugriff aufs Mikrofon bzw. auf die Spracherkennung."); };
   rec.onend = () => { if(batSR === rec && !rec.aus){ try{ rec.start(); }catch(e){} } };   // nach Sprechpausen weiter zuhören
-  try{ rec.start(); }catch(e){ formMeldung("Spracheingabe konnte nicht starten.", 6000); batSR = null; knopf.textContent = "🎤 Werte ansagen"; }
+  try{ rec.start(); }catch(e){ aus("Spracheingabe konnte nicht starten."); }
 }
 function batBefund(f, w){
   const b = batBewerten(f, w); if(!b.nv && !b.ns){ formMeldung("Bitte zuerst Zellwerte eintragen."); return; }
