@@ -108,7 +108,7 @@ try {
     # Vorlagen aus dem Drive-Ordner: genau eine Seite (Breite und Höhe)
     if ($cfg.einseite) {
       $ps = $ws.PageSetup
-      try { $ps.PrintArea = $ws.UsedRange.Address() } catch {}
+      if (-not $cfg.bereich) { try { $ps.PrintArea = $ws.UsedRange.Address() } catch {} }   # eigene Vorlagen haben einen festen Druckbereich
       $ps.Zoom = $false
       $ps.FitToPagesWide = 1
       $ps.FitToPagesTall = 1
@@ -229,7 +229,7 @@ func (a *app) handleFormular(w http.ResponseWriter, r *http.Request) {
 			bilder = append(bilder, map[string]any{"zelle": zelle, "pfad": p, "w": bw, "h": hh, "modus": b.Modus})
 		}
 	}
-	cfg, _ := json.Marshal(map[string]any{"bilder": bilder, "blatt": req.Blatt, "nach": req.Nach, "anzahl": min(req.Anzahl, 200), "einseite": req.Quelle != "", "drucken": req.Drucken, "werte": req.Werte, "kreuze": req.Kreuze, "xlsx": req.XLSX, "pdf": req.PDF})
+	cfg, _ := json.Marshal(map[string]any{"bilder": bilder, "blatt": req.Blatt, "nach": req.Nach, "anzahl": min(req.Anzahl, 200), "einseite": req.Quelle != "", "bereich": strings.HasPrefix(req.Quelle, "@"), "drucken": req.Drucken, "werte": req.Werte, "kreuze": req.Kreuze, "xlsx": req.XLSX, "pdf": req.PDF})
 	cfgPath := filepath.Join(dir, "auftrag.json")
 	_ = os.WriteFile(cfgPath, cfg, 0o600)
 	xlsx, pdf := filepath.Join(dir, "formular.xlsx"), filepath.Join(dir, "formular.pdf")
