@@ -246,6 +246,9 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .form-raster input.warn{border-color:#d92d20;background:#fdecea;color:#912018}
 .form-raster input.schlechter{box-shadow:inset 0 -3px 0 #f79009}
 .form-raster input::placeholder{color:#98a2b3;opacity:1}
+.bat-vgl{width:auto;min-width:50%}.bat-vgl th,.bat-vgl td{text-align:right;padding:3px 8px;white-space:nowrap}.bat-vgl th:first-child,.bat-vgl td:first-child{text-align:left;color:var(--muted,#667)}
+.bat-vgl thead tr:first-child th{border-bottom:1px solid var(--line)}.bat-vgl td.mittel{font-weight:700}
+.bat-vgl td.rot{background:#fdecea;color:#912018}.bat-vgl td.schlechter{box-shadow:inset 0 -3px 0 #f79009}
 .akte{display:flex;flex-direction:column;gap:8px}
 .akte-kopf{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--accent,#c8102e) 6%,transparent)}
 .akte-kopf b{font-size:16px}
@@ -2832,7 +2835,7 @@ function formRender(){
     b.onclick = () => { formState.akt = "#geraete"; formRender(); }; $("#formListe").appendChild(b);
     const v = document.createElement("button"); v.type = "button"; v.textContent = "🕘 Verlauf"; v.setAttribute("aria-current", formState.akt === "#verlauf" ? "true" : "false");
     v.onclick = () => { formState.akt = "#verlauf"; formRender(); }; $("#formListe").appendChild(v);
-    const ak = document.createElement("button"); ak.type = "button"; ak.textContent = "📁 Geräteakte"; ak.setAttribute("aria-current", formState.akt === "#akte" ? "true" : "false");
+    const ak = document.createElement("button"); ak.type = "button"; ak.textContent = "🔋 Batterie-Verlauf"; ak.setAttribute("aria-current", formState.akt === "#akte" ? "true" : "false");
     ak.onclick = () => { // Nummer aus dem gerade offenen Formular vorschlagen
       if(formState.akt[0] !== "#"){ const w = formWerte(), ids = akteIds({id: formState.akt, w}); if(ids.length) akteSuche = ids[0].nr; }
       formState.akt = "#akte"; formRender(); }; $("#formListe").appendChild(ak); }
@@ -3786,6 +3789,10 @@ function batVerlaufAnzeigen(f, w, ra){
 /* ---- Geräteakte: alles zu einer Fahrgestell-, Serien- oder Batterie-Nr. ---- */
 const AKTE_FELD = /Fahrgestell|Fabr\. ?Nr|Seriennummer|Gerätenummer|Fahrzeugnr|Batterie Nr/i;
 function akteIds(e){
+  if(e.id !== "batterie") return [];   // nur Batterien
+  const v = String(e.w.G11 || "").trim(); return normNr(v).length >= 2 ? [{nr: v, art: "Batterie"}] : [];
+}
+function akteIdsAlt(e){
   const f = FORMULARE.find(x => x.id === e.id); if(!f) return [];
   const out = [];
   for(const a of f.abschnitte) for(const x of a.felder) if(typeof x.z === "string" && AKTE_FELD.test(x.l)){ const v = String(e.w[x.z] || "").trim(); if(normNr(v).length >= 3) out.push({nr: v, art: /Batterie/i.test(x.l) ? "Batterie" : /Fabr|Serien/i.test(x.l) && e.id !== "reparatur" ? "Gerät" : "Fahrzeug"}); }
@@ -3804,13 +3811,39 @@ function akteZusammenfassung(e){
   const bem = akteFeld(e, /^(Bemerkung|Fehlerbeschreibung|Problembeschreibung)$/); if(bem) out.push(bem.slice(0, 140));
   return {text: out.join(" · "), teile: zeilen};
 }
+// Zellwerte aller Prüfungen nebeneinander (älteste links); schlechter als die Prüfung davor = orange
+function batVergleichTabelle(eintraege){
+  const f = FORMULARE.find(x => x.id === "batterie"), g = batGrenz();
+  const pr = eintraege.slice().sort((a, b) => String(a.w.AC6 || "").localeCompare(String(b.w.AC6 || "")) || a.zeit - b.zeit).slice(-6);
+  const n = Math.max(...pr.map(e => parseInt(String(e.w.J13 || "").replace(/\D/g, "")) || 0), ...pr.map(e => batZellen(f).filter(c => e.w[c.zv] || e.w[c.zs]).reduce((m, c) => Math.max(m, c.nr), 0)));
+  const wrap = document.createElement("div"); wrap.style.overflowX = "auto";
+  const t = document.createElement("table"); t.className = "form-tab bat-vgl";
+  let h = "<thead><tr><th>Zelle</th>" + pr.map(e => '<th colspan="2">' + batDatum(e.w.AC6) + "</th>").join("") + "</tr><tr><th></th>" + pr.map(() => "<th>Volt</th><th>Säure</th>").join("") + "</tr></thead>";
+  t.innerHTML = h; const tb = document.createElement("tbody");
+  const zeile = (titel, werte) => { const tr = document.createElement("tr"); const td0 = document.createElement("td"); td0.textContent = titel; tr.appendChild(td0); werte.forEach(([v, kl]) => { const td = document.createElement("td"); td.textContent = v; if(kl) td.className = kl; tr.appendChild(td); }); tb.appendChild(tr); };
+  const bew = pr.map(e => batBewerten(f, e.w));
+  zeile("Mittel", bew.flatMap(b => [[b.nv ? batKomma(b.mv) : "", "mittel"], [b.ns ? batKomma(b.ms) : "", "mittel"]]));
+  for(const c of batZellen(f).slice(0, n || 40)){
+    const werte = [];
+    pr.forEach((e, i) => {
+      for(const [zz, grenze] of [[c.zv, Math.max(0.03, g.vAbw * 0.6)], [c.zs, Math.max(0.02, g.sAbw * 0.6)]]){
+        const v = e.w[zz] || "", alt = i ? etZahl(pr[i - 1].w[zz]) : 0;
+        werte.push([v, [bew[i].rot.has(zz) ? "rot" : "", alt && v && alt - etZahl(v) >= grenze ? "schlechter" : ""].filter(Boolean).join(" ")]);
+      }
+    });
+    zeile(c.nr + ".", werte);
+  }
+  t.appendChild(tb); wrap.appendChild(t);
+  const leg = document.createElement("span"); leg.className = "hint"; leg.textContent = "Rot = auffällig in dieser Prüfung · Orange = schlechter als bei der Prüfung davor" + (eintraege.length > 6 ? " · die letzten 6 Prüfungen" : "");
+  const box = document.createElement("div"); box.className = "col"; box.style.gap = "6px"; box.append(wrap, leg); return box;
+}
 let akteSuche = "";
 function akteAnsicht(){
   const box = $("#formInhalt"); box.innerHTML = "";
   const sek = document.createElement("div"); sek.className = "form-sek";
-  sek.innerHTML = '<strong>Geräteakte</strong><span class="hint">Alles, was zu einem Gerät, Fahrzeug oder einer Batterie erstellt wurde – Formulare, Betriebsstunden, verbaute Teile, Batterie- und Prüfwerte. Grundlage ist der Verlauf auf diesem Rechner.</span>';
+  sek.innerHTML = '<strong>Batterie-Verlauf</strong><span class="hint">Alle gespeicherten Batterieprüfungen je Batterie-Nr. – Zellwerte im Vergleich, schlechter gewordene Zellen markiert. Grundlage ist der Verlauf auf diesem Rechner.</span>';
   const tools = document.createElement("div"); tools.className = "form-tools";
-  const such = document.createElement("input"); such.type = "search"; such.placeholder = "Fahrgestell-, Serien- oder Batterie-Nr. bzw. Kunde …"; such.value = akteSuche;
+  const such = document.createElement("input"); such.type = "search"; such.placeholder = "Batterie-Nr., Fahrgestell-Nr. oder Kunde …"; such.value = akteSuche;
   such.style.cssText = "flex:1;min-width:240px;font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sheet);color:inherit";
   tools.appendChild(such); sek.appendChild(tools);
   const liste = document.createElement("div"); liste.className = "akte"; sek.appendChild(liste); box.appendChild(sek);
@@ -3819,32 +3852,26 @@ function akteAnsicht(){
   for(const e of formState.daten._verlauf || []) for(const id of akteIds(e)){ const k = normNr(id.nr); (idx[k] || (idx[k] = {nr: id.nr, art: id.art, e: []})).e.push(e); }
   const zeigen = () => {
     akteSuche = such.value; const q = such.value.trim().toLowerCase(), qn = normNr(such.value); liste.innerHTML = "";
-    let treffer = Object.entries(idx).filter(([k, g]) => !q || (qn.length >= 3 && k.includes(qn)) || g.e.some(e => (e.kunde || "").toLowerCase().includes(q)));
+    let treffer = Object.entries(idx).filter(([k, g]) => !q || (qn.length >= 2 && k.includes(qn)) || g.e.some(e => (e.kunde || "").toLowerCase().includes(q) || (qn.length >= 3 && normNr(e.w.AC8).includes(qn))));
     treffer.sort((a, b) => b[1].e[0].zeit - a[1].e[0].zeit);
-    if(!treffer.length){ liste.innerHTML = '<p class="hint">' + (Object.keys(idx).length ? "Nichts gefunden." : "Noch keine Formulare mit Fahrgestell-, Serien- oder Batterie-Nr. im Verlauf.") + "</p>"; return; }
+    if(!treffer.length){ liste.innerHTML = '<p class="hint">' + (Object.keys(idx).length ? "Nichts gefunden." : "Noch keine gespeicherten Batterieprüfungen mit Batterie-Nr.") + "</p>"; return; }
     const genau = treffer.length === 1 || (qn.length >= 4 && treffer.filter(([k]) => k === qn).length === 1) ? (treffer.find(([k]) => k === qn) || treffer[0]) : null;
     if(!genau){
-      const tab = document.createElement("table"); tab.className = "form-tab"; tab.innerHTML = "<thead><tr><th>Nummer</th><th>Art</th><th>Kunde</th><th>Einträge</th><th>Zuletzt</th></tr></thead>";
+      const tab = document.createElement("table"); tab.className = "form-tab"; tab.innerHTML = "<thead><tr><th>Batterie-Nr.</th><th>Fahrzeug</th><th>Kunde</th><th>Prüfungen</th><th>Zuletzt</th></tr></thead>";
       const tb = document.createElement("tbody");
       for(const [k, g] of treffer.slice(0, 200)){ const tr = document.createElement("tr"); tr.style.cursor = "pointer"; tr.title = "Akte öffnen";
-        for(const t of [g.nr, g.art, g.e.find(e => e.kunde) ? g.e.find(e => e.kunde).kunde : "–", String(g.e.length), new Date(g.e[0].zeit).toLocaleDateString("de-DE")]){ const td = document.createElement("td"); td.textContent = t; tr.appendChild(td); }
+        for(const t of [g.nr, (g.e.find(e => e.w.AC8) || {w: {}}).w.AC8 || "–", g.e.find(e => e.kunde) ? g.e.find(e => e.kunde).kunde : "–", String(g.e.length), new Date(g.e[0].zeit).toLocaleDateString("de-DE")]){ const td = document.createElement("td"); td.textContent = t; tr.appendChild(td); }
         tr.onclick = () => { such.value = g.nr; zeigen(); }; tb.appendChild(tr); }
       tab.appendChild(tb); liste.appendChild(tab); return;
     }
     const [k, g] = genau;
     const kopf = document.createElement("div"); kopf.className = "akte-kopf";
     const kunde = (g.e.find(e => e.kunde) || {}).kunde || "";
-    const std = g.e.map(e => akteFeld(e, /Betr\.? ?Std|Betriebsstunden/)).find(Boolean);
-    kopf.innerHTML = "<b></b><span></span>"; kopf.firstChild.textContent = g.art + " " + g.nr; kopf.lastChild.textContent = [kunde, std ? "Betr.-Std. zuletzt " + std : "", g.e.length + " Einträge"].filter(Boolean).join(" · ");
+    const l = g.e[0].w;
+    kopf.innerHTML = "<b></b><span></span>"; kopf.firstChild.textContent = "Batterie " + g.nr;
+    kopf.lastChild.textContent = [kunde, l.AC8 && "Fahrzeug " + l.AC8, l.AH11, l.J13 && l.J13 + " Zellen", l.X13, g.e.length + " Prüfung(en)"].filter(Boolean).join(" · ");
     liste.appendChild(kopf);
-    const ts = document.createElement("div"); ts.className = "hint"; liste.appendChild(ts);
-    (async () => { try{
-      if(!geraeteCache){ const x = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "g_holen", seit: 0})})).json(); if(x.ok) geraeteCache = x.text.split("\n").slice(1).filter(z => z.trim()).map(z => z.split("\t")); }
-      const t = (geraeteCache || []).find(x => normNr(x[0]) === k); if(t) ts.textContent = "Typenschild: " + [t[1], t[2], t[3] && "Bj. " + t[3], t[7] && t[7] + " V", t[8] && t[8] + " A"].filter(Boolean).join(" · ");
-    }catch(e){} })();
-    if(g.art === "Batterie"){ const h = batHistAlle()[batNrNorm(g.nr)]; if(h && h.length > 1){
-      const d = document.createElement("div"); d.className = "hint"; d.textContent = "Batterie-Mittelwerte: " + h.slice().reverse().map(x => { const f = FORMULARE.find(y => y.id === "batterie"); const b = batBewerten(f, x.z); return batDatum(x.datum) + " " + (b.nv ? batKomma(b.mv) + " V" : "") + (b.ns ? " / " + batKomma(b.ms) : ""); }).join("  →  ");
-      liste.appendChild(d); } }
+    liste.appendChild(batVergleichTabelle(g.e));
     for(const e of g.e){
       const z = akteZusammenfassung(e), d = new Date(e.zeit);
       const k2 = document.createElement("div"); k2.className = "akte-e";
