@@ -2752,7 +2752,14 @@ const FORMULARE = [
 
 const formState = {akt: "pruefung", daten: {}};
 function formLaden(){
-  try{ if(localStorage.getItem("formulareV") !== "2"){ localStorage.removeItem("formulare"); localStorage.removeItem("formMerk"); localStorage.setItem("formulareV", "2"); } }catch(e){} try{ formState.daten = JSON.parse(localStorage.getItem("formulare") || "{}") || {}; }catch(e){ formState.daten = {}; } }
+  try{ if(localStorage.getItem("formulareV") !== "2"){ localStorage.removeItem("formulare"); localStorage.removeItem("formMerk"); localStorage.setItem("formulareV", "2"); } }catch(e){} try{ formState.daten = JSON.parse(localStorage.getItem("formulare") || "{}") || {}; }catch(e){ formState.daten = {}; } batTestLeeren(); }
+// einmalig: Batterie-Testdaten aus der Erprobung entfernen (Batterie-Verlauf startet leer)
+function batTestLeeren(){
+  const d = formState.daten; if(!d || d._batLeer1) return false;
+  delete d._batterien; delete d._batOffen; delete d.batterie; d._batAusVerlauf = true; d._batLeer1 = true;
+  if(Array.isArray(d._verlauf)) d._verlauf = d._verlauf.filter(e => e.id !== "batterie");
+  formMerken(); return true;
+}
 // Sicherung: jede Eingabe sofort im Browser und (kurz danach) als Datei beim Programm speichern
 let formSichT = 0, formSichOffen = false;
 function formSichern(){
@@ -2775,7 +2782,7 @@ async function formSicherungHolen(){
     const leer = !Object.values(formState.daten).some(w => w && Object.values(w).some(v => v !== "" && v != null && v !== 0));
     if(s && s.merk && typeof s.merk === "object"){ try{ const m = JSON.parse(localStorage.getItem("formMerk") || "{}"); let neu = false; for(const [k, v] of Object.entries(s.merk)) if(!(k in m)){ m[k] = v; neu = true; } if(neu) localStorage.setItem("formMerk", JSON.stringify(m)); }catch(e){} }
     if(s && s.daten && typeof s.daten === "object" && (s.zeit > lokal || leer) && Object.keys(s.daten).length){
-      formState.daten = s.daten;
+      formState.daten = s.daten; batTestLeeren();
       try{ localStorage.setItem("formulare", JSON.stringify(s.daten)); localStorage.setItem("formulareZeit", String(s.zeit || Date.now())); }catch(e){}
       formRender(); if(s.zeit > lokal && lokal) formMeldung("Deine letzten Eingaben wurden aus der Sicherung wiederhergestellt.", 6000);
     }
