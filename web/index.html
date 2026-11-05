@@ -3598,7 +3598,8 @@ const BAT_WORT = {null: "0", eins: "1", ein: "1", eine: "1", zwei: "2", zwo: "2"
 function batSprachZahlen(t){
   t = " " + String(t || "").toLowerCase().replace(/[.](?=\d)/g, ",") + " ";
   t = t.replace(/\b(null|eins|ein|eine|zwei|zwo|drei|vier|fünf|sechs|sieben|acht|neun)\b/g, w => BAT_WORT[w]).replace(/\s*(komma|,)\s*/g, ",");
-  const tok = t.split(/\s+/).filter(Boolean), out = [];
+  // Satzzeichen und Einheiten weg („2,4.“, „2,10 V“, „1,28?“ – Edge setzt gern einen Punkt ans Ende)
+  const tok = t.replace(/[.!?;:](?=\s|$)/g, " ").split(/\s+/).map(x => x.replace(/^[^\d]+|[^\d]+$/g, "")).filter(Boolean), out = [];
   for(let i = 0; i < tok.length; i++){
     let m = /^(\d+)(?:,(\d*))?$/.exec(tok[i]); if(!m) continue;
     let ganz = m[1], dez = m[2];
