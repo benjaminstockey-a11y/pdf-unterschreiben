@@ -1650,7 +1650,7 @@ async function saveDoc(doc){
 // Mehrseitige Berichte (z. B. UVV) werden auf Wunsch manuell beidseitig gedruckt:
 // 1. Vorderseiten → Blätter über die kurze Seite drehen und wieder einlegen → 2. Rückseiten → 3. einseitige Berichte.
 let printing = false;
-const DRUCK_STANDARD = {beidseitig: true, umkehren: false, drehen: false};
+const DRUCK_STANDARD = {beidseitig: true, umkehren: false, drehen: false, proBericht: true};
 function druckEinst(neu){
   let e = {...DRUCK_STANDARD};
   try{ e = {...e, ...JSON.parse(localStorage.getItem("druckEinst") || "{}")}; }catch(x){}
@@ -1682,7 +1682,7 @@ html,body{margin:0;padding:0;background:#fff}
   f.contentWindow.focus(); f.contentWindow.print();
   setTimeout(() => f.remove(), 1500);
 }
-function druckFrage(titel, text, knoepfe, einst){
+function druckFrage(titel, text, knoepfe, einst, modus){
   return new Promise(res => {
     const dl = document.createElement("dialog"); dl.className = "druck-dlg";
     dl.innerHTML = '<form method="dialog" class="dlg"><div class="dlg-head"><strong></strong></div><div class="dlg-body col" style="gap:10px"><p style="margin:0"></p></div><div class="dlg-foot"></div></form>';
@@ -1693,6 +1693,15 @@ function druckFrage(titel, text, knoepfe, einst){
         const la = document.createElement("label"); la.style.cssText = "display:flex;gap:8px;align-items:center;font-size:14px";
         const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!druckEinst()[k]; c.onchange = () => druckEinst({[k]: c.checked});
         la.append(c, document.createTextNode(l)); box.appendChild(la);
+      }
+      dl.querySelector(".dlg-body").appendChild(box);
+    }
+    if(modus){
+      const box = document.createElement("div"); box.className = "col"; box.style.gap = "4px";
+      for(const [v, l] of [[true, "Bericht für Bericht (Vorderseite → wenden → Rückseite, dann der nächste)"], [false, "Erst alle Vorderseiten, dann einmal wenden und alle Rückseiten"]]){
+        const la = document.createElement("label"); la.style.cssText = "display:flex;gap:8px;align-items:center;font-size:14px";
+        const r = document.createElement("input"); r.type = "radio"; r.name = "druckModus"; r.checked = druckEinst().proBericht === v; r.onchange = () => druckEinst({proBericht: v});
+        la.append(r, document.createTextNode(l)); box.appendChild(la);
       }
       dl.querySelector(".dlg-body").appendChild(box);
     }
@@ -1738,25 +1747,34 @@ async function printDocs(list){
     if(!zwei.length){ await druckRahmen(berichte.flatMap(b => b.seiten)); report("print", list.length); return; }
     const blaetter = zwei.reduce((s, b) => s + Math.ceil(b.seiten.length / 2), 0);
     const wahl = await druckFrage("Drucken",
-      `<b>${zwei.length} mehrseitige${zwei.length === 1 ? "r Bericht" : " Berichte"}</b> (z. B. UVV) – beidseitig auf <b>${blaetter} Blatt</b>` + (eins.length ? `, dazu <b>${eins.length} einseitige${eins.length === 1 ? "r Bericht" : " Berichte"}</b> (z. B. Montageberichte).` : ".") +
-      `<br><br>Beidseitig geht in Schritten: zuerst die Vorderseiten, dann die Blätter über die kurze Seite drehen und wieder einlegen, dann die Rückseiten${eins.length ? ", zum Schluss die einseitigen Berichte" : ""}.`,
-      [["einseitig", "Alles einseitig"], [null, "Abbrechen"], ["beidseitig", "1. Vorderseiten drucken", true]]);
+      `<b>${zwei.length} mehrseitige${zwei.length === 1 ? "r Bericht" : " Berichte"}</b> (z. B. UVV) – beidseitig auf <b>${blaetter} Blatt</b>` + (eins.length ? `, dazu <b>${eins.length} einseitige${eins.length === 1 ? "r Bericht" : " Berichte"}</b> (z. B. Montageberichte), die zum Schluss kommen.` : "."),
+      [["einseitig", "Alles einseitig"], [null, "Abbrechen"], ["beidseitig", "Beidseitig drucken", true]], false, true);
     if(!wahl) return;
     if(wahl === "einseitig"){ await druckRahmen(berichte.flatMap(b => b.seiten)); report("print", list.length); return; }
     druckEinst({beidseitig: true});
-    // Vorderseiten: Seite 1, 3, 5 … jedes mehrseitigen Berichts; Rückseiten: 2, 4, 6 … (fehlende = leer)
-    const vorne = [], hinten = [];
-    for(const b of zwei) for(let i = 0; i < b.seiten.length; i += 2){ vorne.push(b.seiten[i]); hinten.push(b.seiten[i + 1] || null); }
-    await druckRahmen(vorne);
-    const w2 = await druckFrage("2. Rückseiten drucken",
-      `Die <b>${vorne.length} gedruckten Blätter</b> aus dem Drucker nehmen, <b>über die kurze Seite drehen</b> und wieder ins Papierfach legen (Reihenfolge nicht verändern). Dann auf „Rückseiten drucken“ klicken.<br><span class="hint">Beim ersten Mal mit einem Bericht ausprobieren – stimmen Reihenfolge oder Richtung nicht, unten umstellen; das bleibt gespeichert.</span>`,
-      [[null, "Abbrechen"], ["los", "2. Rückseiten drucken", true]], true);
-    if(!w2) return;
-    const e2 = druckEinst();
-    await druckRahmen(e2.umkehren ? hinten.slice().reverse() : hinten, e2.drehen);
+    // Vorderseiten: Seite 1, 3, 5 …; Rückseiten: 2, 4, 6 … (fehlende = leer)
+    const teile = b => { const v = [], h = []; for(let i = 0; i < b.seiten.length; i += 2){ v.push(b.seiten[i]); h.push(b.seiten[i + 1] || null); } return [v, h]; };
+    const gruppen = druckEinst().proBericht ? zwei.map(b => [b]) : [zwei];
+    for(let g = 0; g < gruppen.length; g++){
+      const vorne = [], hinten = [];
+      for(const b of gruppen[g]){ const [v, h] = teile(b); vorne.push(...v); hinten.push(...h); }
+      const wer = gruppen.length > 1 ? `Bericht ${g + 1} von ${gruppen.length}: ${gruppen[g][0].name}` : "";
+      if(g > 0){
+        const w1 = await druckFrage("Vorderseite – " + wer, `Nächster Bericht: <b>${gruppen[g][0].name}</b>. Normales Papier einlegen und die Vorderseite drucken.`,
+          [[null, "Abbrechen"], ["los", "Vorderseite drucken", true]]);
+        if(!w1) return;
+      }
+      await druckRahmen(vorne);
+      const w2 = await druckFrage("Rückseite" + (vorne.length > 1 ? "n" : "") + " drucken" + (wer ? " – " + wer : ""),
+        `${vorne.length === 1 ? "Das gedruckte Blatt" : `Die <b>${vorne.length} gedruckten Blätter</b>`} aus dem Drucker nehmen, <b>über die kurze Seite drehen</b> und wieder ins Papierfach legen${vorne.length > 1 ? " (Reihenfolge nicht verändern)" : ""}. Dann auf „Rückseite drucken“ klicken.<br><span class="hint">Stimmen Reihenfolge oder Richtung nicht, unten umstellen – das bleibt gespeichert.</span>`,
+        [[null, "Abbrechen"], ["los", "Rückseite drucken", true]], true);
+      if(!w2) return;
+      const e2 = druckEinst();
+      await druckRahmen(e2.umkehren ? hinten.slice().reverse() : hinten, e2.drehen);
+    }
     if(eins.length){
-      const w3 = await druckFrage("3. Einseitige Berichte", `Jetzt noch <b>${eins.length} einseitige${eins.length === 1 ? "r Bericht" : " Berichte"}</b> (${eins.reduce((s, b) => s + b.seiten.length, 0)} Seiten) drucken – normales Papier einlegen.`,
-        [[null, "Nicht drucken"], ["los", "3. Einseitige drucken", true]]);
+      const w3 = await druckFrage("Einseitige Berichte", `Jetzt noch <b>${eins.length} einseitige${eins.length === 1 ? "r Bericht" : " Berichte"}</b> (${eins.reduce((s, b) => s + b.seiten.length, 0)} Seiten) drucken – normales Papier einlegen.`,
+        [[null, "Nicht drucken"], ["los", "Einseitige drucken", true]]);
       if(w3) await druckRahmen(eins.flatMap(b => b.seiten));
     }
     report("print", list.length);
