@@ -79,7 +79,14 @@ func (a *app) handleMailZeiten(w http.ResponseWriter, r *http.Request) {
 
 // beim Programmstart: PowerShell schon starten und – nur falls Outlook läuft – verbinden
 func outlookLeichtVor() {
-	go func() { time.Sleep(3 * time.Second); _ = olw.auftrag(map[string]any{"art": "leicht"}, 60*time.Second) }()
+	go func() {
+		time.Sleep(3 * time.Second)
+		if err := olNativAuftrag(olAuftrag{art: "leicht"}, 60*time.Second); err == nil {
+			mailZeitMerken("Start: " + olw.zeiten)
+		} else {
+			mailZeitMerken("Start: " + err.Error())
+		}
+	}()
 }
 
 var olw = &outlookWorker{}
@@ -150,10 +157,18 @@ func (w *outlookWorker) auftrag(a map[string]any, timeout time.Duration) error {
 func (a *app) handleMailVor(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		olw.mu.Lock()
-		frisch := olw.cmd != nil && !olw.tot && time.Since(olw.letz) < 2*time.Minute
+		frisch := time.Since(olw.letz) < 2*time.Minute
 		olw.mu.Unlock()
 		if !frisch {
-			_ = olw.auftrag(map[string]any{"art": "vor"}, 90*time.Second)
+			if err := olNativAuftrag(olAuftrag{art: "vor"}, 90*time.Second); err != nil {
+				mailZeitMerken("Vorbereiten direkt fehlgeschlagen: " + err.Error())
+				_ = olw.auftrag(map[string]any{"art": "vor"}, 90*time.Second)
+			} else {
+				mailZeitMerken("Vorbereiten: " + olw.zeiten)
+			}
+			olw.mu.Lock()
+			olw.letz = time.Now()
+			olw.mu.Unlock()
 		}
 	}()
 	w.WriteHeader(http.StatusNoContent)

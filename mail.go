@@ -105,6 +105,13 @@ func (a *app) handleMail(w http.ResponseWriter, r *http.Request) {
 	}
 	// schnell: über die Hintergrund-PowerShell mit offener Outlook-Verbindung
 	dateien := time.Since(start).Milliseconds()
+	if err := olNativAuftrag(olAuftrag{art: "mail", subj: req.Subject, to: req.To, files: paths}, 90*time.Second); err == nil {
+		mailZeitMerken(fmt.Sprintf("Programm %s · Dateien %d · %s · gesamt %d", req.Vorb, dateien, olw.zeiten, time.Since(start).Milliseconds()))
+		writeJSON(w, map[string]any{"ok": true, "via": "outlook"})
+		return
+	} else {
+		mailZeitMerken("Outlook direkt fehlgeschlagen: " + err.Error())
+	}
 	if err := olw.auftrag(map[string]any{"art": "mail", "subj": req.Subject, "to": req.To, "files": paths}, 90*time.Second); err == nil {
 		mailZeitMerken(fmt.Sprintf("Programm %s · Dateien %d · %s · gesamt %d", req.Vorb, dateien, olw.zeiten, time.Since(start).Milliseconds()))
 		writeJSON(w, map[string]any{"ok": true, "via": "outlook"})
