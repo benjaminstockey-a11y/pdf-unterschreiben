@@ -1644,9 +1644,65 @@ async function saveDoc(doc){
   doc.saved = true; updateHead(doc); toast(`In „Downloads“ gespeichert: ${name}`);
 }
 /* ---------- Drucken ---------- */
-// Die unterschriebenen Seiten werden scharf gerendert und über den Windows-Druckdialog ausgegeben
-// (Drucker, Anzahl und Seiten wählt man dort wie gewohnt).
+// Die unterschriebenen Seiten werden scharf gerendert und über den Windows-Druckdialog ausgegeben.
+// Gedruckt wird aus einem eigenen, leeren Rahmen – so kann nichts von der Programmoberfläche
+// (z. B. eine leere erste Seite) mitgedruckt werden.
+// Mehrseitige Berichte (z. B. UVV) werden auf Wunsch manuell beidseitig gedruckt:
+// 1. Vorderseiten → Blätter über die kurze Seite drehen und wieder einlegen → 2. Rückseiten → 3. einseitige Berichte.
 let printing = false;
+const DRUCK_STANDARD = {beidseitig: true, umkehren: false, drehen: false};
+function druckEinst(neu){
+  let e = {...DRUCK_STANDARD};
+  try{ e = {...e, ...JSON.parse(localStorage.getItem("druckEinst") || "{}")}; }catch(x){}
+  if(neu){ e = {...e, ...neu}; try{ localStorage.setItem("druckEinst", JSON.stringify(e)); }catch(x){} }
+  return e;
+}
+// Seiten in einem leeren Rahmen drucken. seiten: [{url, quer} | null (= leere Rückseite)]
+async function druckRahmen(seiten, drehen){
+  const f = document.createElement("iframe");
+  f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(f);
+  const d = f.contentDocument;
+  d.open(); d.write(`<!doctype html><html><head><meta charset="utf-8"><style>
+@page{size:A4 portrait;margin:0}@page quer{size:A4 landscape;margin:0}
+html,body{margin:0;padding:0;background:#fff}
+.p{width:210mm;height:296.5mm;display:flex;align-items:center;justify-content:center;overflow:hidden;break-after:page;page-break-after:always}
+.p.quer{page:quer;width:297mm;height:209.5mm}
+.p:last-child{break-after:auto;page-break-after:auto}
+.p img{display:block;max-width:100%;max-height:100%;object-fit:contain}
+.p.drehen img{transform:rotate(180deg)}
+</style></head><body></body></html>`); d.close();
+  for(const s of seiten){
+    const p = d.createElement("div"); p.className = "p" + (s && s.quer ? " quer" : "") + (drehen ? " drehen" : "");
+    if(s){ const i = d.createElement("img"); i.src = s.url; i.alt = ""; p.appendChild(i); }
+    d.body.appendChild(p);
+  }
+  await Promise.all([...d.images].map(i => i.decode().catch(() => {})));
+  await new Promise(r => setTimeout(r, 80));
+  f.contentWindow.focus(); f.contentWindow.print();
+  setTimeout(() => f.remove(), 1500);
+}
+function druckFrage(titel, text, knoepfe, einst){
+  return new Promise(res => {
+    const dl = document.createElement("dialog"); dl.className = "druck-dlg";
+    dl.innerHTML = '<form method="dialog" class="dlg"><div class="dlg-head"><strong></strong></div><div class="dlg-body col" style="gap:10px"><p style="margin:0"></p></div><div class="dlg-foot"></div></form>';
+    dl.querySelector("strong").textContent = titel; dl.querySelector("p").innerHTML = text;
+    if(einst){
+      const box = document.createElement("div"); box.className = "col"; box.style.gap = "4px";
+      for(const [k, l] of [["umkehren", "Rückseiten in umgekehrter Reihenfolge drucken"], ["drehen", "Rückseiten um 180° drehen (falls sie auf dem Kopf stehen)"]]){
+        const la = document.createElement("label"); la.style.cssText = "display:flex;gap:8px;align-items:center;font-size:14px";
+        const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!druckEinst()[k]; c.onchange = () => druckEinst({[k]: c.checked});
+        la.append(c, document.createTextNode(l)); box.appendChild(la);
+      }
+      dl.querySelector(".dlg-body").appendChild(box);
+    }
+    const fuss = dl.querySelector(".dlg-foot"); fuss.style.cssText = "display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap";
+    for(const [wert, txt, prim] of knoepfe){ const b = document.createElement("button"); b.type = "button"; b.textContent = txt; if(prim) b.className = "primary"; else b.className = "ghost";
+      b.onclick = () => { dl.close(); dl.remove(); res(wert); }; fuss.appendChild(b); }
+    dl.addEventListener("cancel", e => { e.preventDefault(); dl.close(); dl.remove(); res(null); });
+    document.body.appendChild(dl); dl.showModal();
+  });
+}
 async function printDocs(list){
   if(printing || !ready()) return;
   const ohne = list.filter(d => !d.stamp);
@@ -1654,16 +1710,14 @@ async function printDocs(list){
   if(!list.length){ toast("Doppelklick auf eine Seite, um die Unterschrift zu setzen."); return; }
   const ohneMsg = `${ohne.length} ${ohne.length === 1 ? "Bericht hat" : "Berichte haben"} keine Unterschrift und ${ohne.length === 1 ? "wurde" : "wurden"} nicht gedruckt.`;
   printing = true; toast("Druck wird vorbereitet …", 20000);
-  const area = document.createElement("div"); area.id = "printArea";
-  const urls = []; let landscape = null;
+  const urls = [], berichte = [];
   try{
     for(const doc of list){
       const bytes = await signed(doc); if(!bytes) continue;
-      const pdf = await openPdf(bytes);
+      const pdf = await openPdf(bytes), seiten = [];
       for(let i = 1; i <= pdf.numPages; i++){
         const page = await pdf.getPage(i);
         const base = page.getViewport({scale: 1});
-        if(landscape === null) landscape = base.width > base.height;
         const scale = Math.min(300 / 72, 5000 / Math.max(base.width, base.height)); // ca. 300 dpi
         const vp = page.getViewport({scale});
         const cv = document.createElement("canvas"); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
@@ -1672,28 +1726,47 @@ async function printDocs(list){
         const blob = await new Promise(r => cv.toBlob(r, "image/png"));
         cv.width = cv.height = 0;
         const url = URL.createObjectURL(blob); urls.push(url);
-        const pg = document.createElement("div"); pg.className = "print-page";
-        const img = new Image(); img.src = url; img.alt = ""; pg.appendChild(img); area.appendChild(pg);
+        seiten.push({url, quer: base.width > base.height});
       }
       pdf.destroy();
+      if(seiten.length) berichte.push({name: doc.name, seiten});
     }
-    if(!area.children.length){ toast("Es gab nichts zu drucken."); return; }
-    const ps = document.createElement("style"); ps.id = "printPage";
-    ps.textContent = `@page{size:A4 ${landscape ? "landscape" : "portrait"};margin:0}`;
-    document.head.appendChild(ps); document.body.appendChild(area);
-    await Promise.all([...area.querySelectorAll("img")].map(i => i.decode().catch(() => {})));
+    if(!berichte.length){ toast("Es gab nichts zu drucken."); return; }
     $("#toast").hidden = true;
-    await new Promise(r => setTimeout(r, 50));
-    window.print();
+    const e = druckEinst();
+    const zwei = berichte.filter(b => b.seiten.length >= 2), eins = berichte.filter(b => b.seiten.length < 2);
+    if(!zwei.length){ await druckRahmen(berichte.flatMap(b => b.seiten)); report("print", list.length); return; }
+    const blaetter = zwei.reduce((s, b) => s + Math.ceil(b.seiten.length / 2), 0);
+    const wahl = await druckFrage("Drucken",
+      `<b>${zwei.length} mehrseitige${zwei.length === 1 ? "r Bericht" : " Berichte"}</b> (z. B. UVV) – beidseitig auf <b>${blaetter} Blatt</b>` + (eins.length ? `, dazu <b>${eins.length} einseitige${eins.length === 1 ? "r Bericht" : " Berichte"}</b> (z. B. Montageberichte).` : ".") +
+      `<br><br>Beidseitig geht in Schritten: zuerst die Vorderseiten, dann die Blätter über die kurze Seite drehen und wieder einlegen, dann die Rückseiten${eins.length ? ", zum Schluss die einseitigen Berichte" : ""}.`,
+      [["einseitig", "Alles einseitig"], [null, "Abbrechen"], ["beidseitig", "1. Vorderseiten drucken", true]]);
+    if(!wahl) return;
+    if(wahl === "einseitig"){ await druckRahmen(berichte.flatMap(b => b.seiten)); report("print", list.length); return; }
+    druckEinst({beidseitig: true});
+    // Vorderseiten: Seite 1, 3, 5 … jedes mehrseitigen Berichts; Rückseiten: 2, 4, 6 … (fehlende = leer)
+    const vorne = [], hinten = [];
+    for(const b of zwei) for(let i = 0; i < b.seiten.length; i += 2){ vorne.push(b.seiten[i]); hinten.push(b.seiten[i + 1] || null); }
+    await druckRahmen(vorne);
+    const w2 = await druckFrage("2. Rückseiten drucken",
+      `Die <b>${vorne.length} gedruckten Blätter</b> aus dem Drucker nehmen, <b>über die kurze Seite drehen</b> und wieder ins Papierfach legen (Reihenfolge nicht verändern). Dann auf „Rückseiten drucken“ klicken.<br><span class="hint">Beim ersten Mal mit einem Bericht ausprobieren – stimmen Reihenfolge oder Richtung nicht, unten umstellen; das bleibt gespeichert.</span>`,
+      [[null, "Abbrechen"], ["los", "2. Rückseiten drucken", true]], true);
+    if(!w2) return;
+    const e2 = druckEinst();
+    await druckRahmen(e2.umkehren ? hinten.slice().reverse() : hinten, e2.drehen);
+    if(eins.length){
+      const w3 = await druckFrage("3. Einseitige Berichte", `Jetzt noch <b>${eins.length} einseitige${eins.length === 1 ? "r Bericht" : " Berichte"}</b> (${eins.reduce((s, b) => s + b.seiten.length, 0)} Seiten) drucken – normales Papier einlegen.`,
+        [[null, "Nicht drucken"], ["los", "3. Einseitige drucken", true]]);
+      if(w3) await druckRahmen(eins.flatMap(b => b.seiten));
+    }
     report("print", list.length);
   }catch(e){
     toast("Drucken fehlgeschlagen: " + (e && e.message || e));
   }finally{
     setTimeout(() => {
-      area.remove(); const ps = $("#printPage"); if(ps) ps.remove();
       urls.forEach(u => URL.revokeObjectURL(u)); printing = false;
       if(ohne.length) toast(ohneMsg, 6000);
-    }, 500);
+    }, 2500);
   }
 }
 $("#printAll").onclick = () => printDocs(state.docs);
