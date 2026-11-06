@@ -121,6 +121,16 @@ try {
         if ($typ -eq 0 -or $sh.Name -like 'TS_QR*') { $sh.Delete() }
       }
     }
+    # gelbe Markierungen der Vorlage für leere Pflichtfelder (bedingte Formatierung) nicht mit ausgeben
+    try { [void]$ws.Cells.FormatConditions.Delete() } catch {}
+    # Reparaturauftrag: die leere zweite Seite (Fortsetzung Ersatzteile) nicht mitdrucken
+    if ($cfg.ersteSeite) {
+      try {
+        $ws.Activate(); $xl.ActiveWindow.View = 2; $r = $ws.HPageBreaks.Item(1).Location.Row - 1; $xl.ActiveWindow.View = 1
+        $pa = [string]$ws.PageSetup.PrintArea
+        if ($r -gt 10 -and $pa -match '^(.*\$)(\d+)$') { $ws.PageSetup.PrintArea = $matches[1] + $r }
+      } catch {}
+    }
     $ws.Activate()
     $ws.Range('A1').Select()
     if ($cfg.pdf) { $ws.ExportAsFixedFormat(0, $env:PU_PDF) }
@@ -229,7 +239,7 @@ func (a *app) handleFormular(w http.ResponseWriter, r *http.Request) {
 			bilder = append(bilder, map[string]any{"zelle": zelle, "pfad": p, "w": bw, "h": hh, "modus": b.Modus})
 		}
 	}
-	cfg, _ := json.Marshal(map[string]any{"bilder": bilder, "blatt": req.Blatt, "nach": req.Nach, "anzahl": min(req.Anzahl, 200), "einseite": req.Quelle != "", "bereich": strings.HasPrefix(req.Quelle, "@"), "drucken": req.Drucken, "werte": req.Werte, "kreuze": req.Kreuze, "xlsx": req.XLSX, "pdf": req.PDF})
+	cfg, _ := json.Marshal(map[string]any{"bilder": bilder, "blatt": req.Blatt, "nach": req.Nach, "anzahl": min(req.Anzahl, 200), "einseite": req.Quelle != "", "ersteSeite": req.Blatt == "Rep.auftrag+Kostenvor.", "bereich": strings.HasPrefix(req.Quelle, "@"), "drucken": req.Drucken, "werte": req.Werte, "kreuze": req.Kreuze, "xlsx": req.XLSX, "pdf": req.PDF})
 	cfgPath := filepath.Join(dir, "auftrag.json")
 	_ = os.WriteFile(cfgPath, cfg, 0o600)
 	xlsx, pdf := filepath.Join(dir, "formular.xlsx"), filepath.Join(dir, "formular.pdf")
