@@ -23,7 +23,8 @@ import (
 
 type mailReq struct {
 	Subject string `json:"subject"`
-	To      string `json:"to"` // optional: Empfänger schon eintragen
+	To      string `json:"to"`   // optional: Empfänger schon eintragen
+	Vorb    string `json:"vorb"` // Zeitmessung im Programm (Berichte vorbereiten)
 	Files   []struct {
 		Name string `json:"name"`
 		Data string `json:"data"`
@@ -72,6 +73,7 @@ func (a *app) handleMail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST", http.StatusMethodNotAllowed)
 		return
 	}
+	start := time.Now()
 	var req mailReq
 	if err := json.NewDecoder(io.LimitReader(r.Body, 200<<20)).Decode(&req); err != nil || len(req.Files) == 0 {
 		writeJSON(w, map[string]any{"ok": false, "error": "Keine Berichte zum Versenden."})
@@ -102,9 +104,13 @@ func (a *app) handleMail(w http.ResponseWriter, r *http.Request) {
 		req.To = ""
 	}
 	// schnell: über die Hintergrund-PowerShell mit offener Outlook-Verbindung
+	dateien := time.Since(start).Milliseconds()
 	if err := olw.auftrag(map[string]any{"art": "mail", "subj": req.Subject, "to": req.To, "files": paths}, 90*time.Second); err == nil {
+		mailZeitMerken(fmt.Sprintf("Programm %s · Dateien %d · %s · gesamt %d", req.Vorb, dateien, olw.zeiten, time.Since(start).Milliseconds()))
 		writeJSON(w, map[string]any{"ok": true, "via": "outlook"})
 		return
+	} else {
+		mailZeitMerken("Hintergrund-Outlook fehlgeschlagen: " + err.Error())
 	}
 	cmd := hidden("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", outlookScript)
 	cmd.Env = append(os.Environ(), "PU_SUBJ="+req.Subject, "PU_TO="+req.To, "PU_FILES="+strings.Join(paths, "|"))

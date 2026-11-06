@@ -68,6 +68,7 @@ func runApp(relaunch bool) {
 	a := &app{started: time.Now(), lastSeen: time.Now(), quit: make(chan struct{})}
 	a.srv = &http.Server{Handler: a.routes(), ReadHeaderTimeout: 10 * time.Second}
 	go a.srv.Serve(ln)
+	outlookLeichtVor()
 	writePortFile()
 	if relaunch && Port != legacyPort {
 		// Update von einer Version mit fester Adresse: das alte Fenster findet die neue Adresse
@@ -148,6 +149,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/excel/sign", a.handleExcelSign)
 	mux.HandleFunc("/api/mail", a.handleMail)
 	mux.HandleFunc("/api/mail/vor", a.handleMailVor)
+	mux.HandleFunc("/api/mail/zeiten", a.handleMailZeiten)
 	mux.HandleFunc("/api/ocr", a.handleOCR)
 	mux.HandleFunc("/api/typenschild", a.handleTypenschild)
 	mux.HandleFunc("/api/fotos", a.handleFotos)

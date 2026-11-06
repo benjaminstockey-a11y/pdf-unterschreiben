@@ -36,17 +36,20 @@ while ($true) {
   $l = [Console]::In.ReadLine()
   if ($l -eq $null) { break }
   try {
+    $sw = [Diagnostics.Stopwatch]::StartNew(); $t = @()
     $j = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($l)) | ConvertFrom-Json
-    $o = Ol
+    if ($j.art -eq 'leicht') { if (Get-Process outlook -ErrorAction SilentlyContinue) { [void](Ol) }; [Console]::Out.WriteLine('OK'); continue }
+    $o = Ol; $t += 'Outlook ' + $sw.ElapsedMilliseconds
     if ($j.art -eq 'mail') {
-      $m = $o.CreateItem(0)
+      $m = $o.CreateItem(0); $t += 'Neu ' + $sw.ElapsedMilliseconds
       $m.Subject = [string]$j.subj
       if ($j.to) { $m.To = [string]$j.to }
       foreach ($f in $j.files) { if ($f) { [void]$m.Attachments.Add([string]$f) } }
-      $m.Display($false)
+      $t += 'Anhaenge ' + $sw.ElapsedMilliseconds
+      $m.Display($false); $t += 'Anzeigen ' + $sw.ElapsedMilliseconds
       try { $m.GetInspector.Activate() } catch {}
     }
-    [Console]::Out.WriteLine('OK')
+    [Console]::Out.WriteLine('OK ' + ($t -join ', '))
   } catch { [Console]::Out.WriteLine('FEHLER ' + ($_.Exception.Message -replace '\s+', ' ')) }
 }`
 
@@ -57,6 +60,26 @@ type outlookWorker struct {
 	out  *bufio.Reader
 	tot  bool
 	letz time.Time
+	// Zeitmessung der letzten Aufträge (ms), zum Nachsehen unter /api/mail/zeiten
+	zeiten string
+}
+
+var mailZeiten []string
+
+func mailZeitMerken(z string) {
+	mailZeiten = append(mailZeiten, time.Now().Format("15:04:05")+" "+z)
+	if len(mailZeiten) > 20 {
+		mailZeiten = mailZeiten[len(mailZeiten)-20:]
+	}
+}
+
+func (a *app) handleMailZeiten(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]any{"zeiten": mailZeiten})
+}
+
+// beim Programmstart: PowerShell schon starten und – nur falls Outlook läuft – verbinden
+func outlookLeichtVor() {
+	go func() { time.Sleep(3 * time.Second); _ = olw.auftrag(map[string]any{"art": "leicht"}, 60*time.Second) }()
 }
 
 var olw = &outlookWorker{}
@@ -106,7 +129,8 @@ func (w *outlookWorker) auftrag(a map[string]any, timeout time.Duration) error {
 	select {
 	case s := <-ch:
 		w.letz = time.Now()
-		if s == "OK" {
+		if s == "OK" || strings.HasPrefix(s, "OK ") {
+			w.zeiten = strings.TrimSpace(strings.TrimPrefix(s, "OK"))
 			return nil
 		}
 		if s == "" {

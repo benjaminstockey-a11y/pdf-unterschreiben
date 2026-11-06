@@ -1825,11 +1825,12 @@ async function mailDocs(list){
   if(!list.length){ toast("Doppelklick auf eine Seite, um die Unterschrift zu setzen."); return; }
   mailing = true; toast("E-Mail wird vorbereitet …", 60000);
   try{
-    const files = [];
+    const files = [], t0 = performance.now();
     for(const d of list){ const b = await signed(d); if(b) files.push({name: outName(d), data: b64(b)}); }
     if(!files.length){ toast("Es gab nichts zu versenden."); return; }
-    const subject = await mailSubject(list);
-    const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({subject, files})})).json();
+    const t1 = performance.now(); const subject = await mailSubject(list); const t2 = performance.now();
+    const vorb = `PDFs ${Math.round(t1 - t0)} · Betreff ${Math.round(t2 - t1)} (${files.length} Berichte)`;
+    const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({subject, files, vorb})})).json();
     if(!r.ok){ toast(r.error || "E-Mail konnte nicht geöffnet werden.", 7000); return; }
     let msg = r.via === "explorer"
       ? "Kein E-Mail-Programm gefunden. Der Ordner mit den PDFs ist geöffnet – zieh sie einfach in deine E-Mail."
