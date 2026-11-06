@@ -53,6 +53,7 @@ func versandDir() string {
 const outlookScript = `$ErrorActionPreference = 'Stop'
 function Get-Ol { try { [Runtime.InteropServices.Marshal]::GetActiveObject('Outlook.Application') } catch { $null } }
 $o = Get-Ol
+if (-not $o -and (Get-Process outlook -ErrorAction SilentlyContinue)) { try { $o = New-Object -ComObject Outlook.Application } catch { $o = $null } }
 if (-not $o) {
   Start-Process 'outlook.exe'
   for ($i = 0; $i -lt 80 -and -not $o; $i++) { Start-Sleep -Milliseconds 500; $o = Get-Ol }
@@ -97,10 +98,15 @@ func (a *app) handleMail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := hidden("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", outlookScript)
 	if !mailRx.MatchString(req.To) {
 		req.To = ""
 	}
+	// schnell: über die Hintergrund-PowerShell mit offener Outlook-Verbindung
+	if err := olw.auftrag(map[string]any{"art": "mail", "subj": req.Subject, "to": req.To, "files": paths}, 90*time.Second); err == nil {
+		writeJSON(w, map[string]any{"ok": true, "via": "outlook"})
+		return
+	}
+	cmd := hidden("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", outlookScript)
 	cmd.Env = append(os.Environ(), "PU_SUBJ="+req.Subject, "PU_TO="+req.To, "PU_FILES="+strings.Join(paths, "|"))
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out

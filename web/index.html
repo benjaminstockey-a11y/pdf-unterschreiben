@@ -1065,7 +1065,7 @@ async function addDoc(name, bytes, handle, excel){
   const pages = [];
   for(let i = 1; i <= pdf.numPages; i++){ const vp = (await pdf.getPage(i)).getViewport({scale: 1}); pages.push({w: vp.width, h: vp.height}); }
   const doc = {id: uid(), name, bytes, pdf, pages, handle, excel: excel || null, stamp: null, found: null, saved: false, moved: false};
-  state.docs.push(doc);
+  state.docs.push(doc); outlookVor();
   doc.addDate = state.addDate;
   await autoPlace(doc);
   doc.checks = await findChecks(doc);
@@ -1643,6 +1643,9 @@ async function saveDoc(doc){
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   doc.saved = true; updateHead(doc); toast(`In „Downloads“ gespeichert: ${name}`);
 }
+// Outlook im Hintergrund schon bereit machen, sobald man auf das Versenden zugeht (höchstens alle 2 Minuten)
+let outlookVorZeit = 0;
+function outlookVor(){ if(Date.now() - outlookVorZeit < 120000) return; outlookVorZeit = Date.now(); fetch("/api/mail/vor", {method: "POST"}).catch(() => {}); }
 /* ---------- Drucken ---------- */
 // Die unterschriebenen Seiten werden scharf gerendert und über den Windows-Druckdialog ausgegeben.
 // Gedruckt wird aus einem eigenen, leeren Rahmen – so kann nichts von der Programmoberfläche
@@ -2449,7 +2452,7 @@ function renderDocu(){
 }
 $("#docuBtn").onclick = async () => {
   if(reportOn && state.blocked){ $("#blockDlg").showModal(); return; }
-  docuErr(""); $("#docuDlg").showModal(); await refreshDocu();
+  docuErr(""); $("#docuDlg").showModal(); outlookVor(); await refreshDocu();
 };
 $("#docuClose").onclick = () => $("#docuDlg").close();
 $("#docuAddDoc").onclick = () => $("#pdfFile").click();
@@ -4402,6 +4405,7 @@ async function formSpeichern(drucken, dispo){
   }
   if(r.xlsx) knopf("Excel speichern …", klick(bytes(r.xlsx), ".xlsx", "Excel-Arbeitsmappe", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
   // An die Dispo: Excel-Datei (Allgemeine Vorlage) als Anhang in einer neuen Outlook-Mail
+  if(!drucken) outlookVor();
   if(!drucken){ const db = knopf("📧 An Dispo senden", async () => {
     db.disabled = true; const alt = db.textContent; db.textContent = "Bitte warten …";
     try{

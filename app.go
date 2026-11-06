@@ -147,6 +147,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/excel/pdf", a.handleExcelPDF)
 	mux.HandleFunc("/api/excel/sign", a.handleExcelSign)
 	mux.HandleFunc("/api/mail", a.handleMail)
+	mux.HandleFunc("/api/mail/vor", a.handleMailVor)
 	mux.HandleFunc("/api/ocr", a.handleOCR)
 	mux.HandleFunc("/api/typenschild", a.handleTypenschild)
 	mux.HandleFunc("/api/fotos", a.handleFotos)
