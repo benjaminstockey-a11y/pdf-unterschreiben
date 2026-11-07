@@ -5,6 +5,8 @@
 var V_NUTZER = 'Nutzer Vorlagen', V_GERAETE = 'Geräteliste (Vorlagen)';
 var B_PRUEF = 'Batterieprüfungen';
 var M_DATEN = 'Meine Daten';
+var K_LISTE = 'Kunden';
+var K_KOPF = ['Kunde', 'Straße / Hausnummer', 'PLZ / Ort', 'Ansprechpartner', 'Telefon', 'E-Mail', 'Stand (ms)', 'Zuletzt gespeichert', 'Von'];
 var M_KOPF = ['E-Mail', 'Daten', 'Stand (ms)', 'Zuletzt gespeichert', 'Name'];
 // Firmenweite Einstellungen (Zeile „*alle*“ im Blatt „Meine Daten“): wer sie ändern darf
 var A_SCHLUESSEL = { '§batGrenz': ['j.niemann@schlueter-gabelstapler.de', 'b.stockey@schlueter-gabelstapler.de', 'b.stockey@hotmail.de'] };
@@ -105,6 +107,34 @@ function vorlagenAnfrage(d, programm) {
         n++;
       });
       return String(n);
+    }
+    // Service-Mappe: gemeinsame Kundenliste (aus allen Formularen, für alle Techniker)
+    if (ev === 'k_holen') {
+      const b = sheet(SpreadsheetApp.getActiveSpreadsheet(), K_LISTE, K_KOPF);
+      const seit = Number(d.seit) || 0, z = [String(Date.now())];
+      if (b.getLastRow() >= 2) {
+        b.getRange(2, 1, b.getLastRow() - 1, 9).getValues().forEach(function (row) {
+          if (Number(row[6]) > seit) z.push(row.slice(0, 6).map(function (v) { return String(v).replace(/[\t\r\n]/g, ' '); }).join('\t'));
+        });
+      }
+      return z.join('\n');
+    }
+    if (ev === 'k_speichern') {
+      if (!programm) throw new Error('Nicht erlaubt.');
+      const k = d.kunde || {};
+      const f = [k.name, k.strasse, k.ort, k.ansprech, k.tel, k.mail].map(function (v) { return clean(v, 200); });
+      if (vNorm(f[0]).length < 2) throw new Error('Kundenname fehlt.');
+      const lock = LockService.getScriptLock(); lock.waitLock(20000);
+      try {
+        const b = sheet(SpreadsheetApp.getActiveSpreadsheet(), K_LISTE, K_KOPF), last = b.getLastRow();
+        const schl = vNorm(f[0]) + '|' + vNorm(f[2]);
+        const keys = last >= 2 ? b.getRange(2, 1, last - 1, 3).getValues().map(function (r) { return vNorm(r[0]) + '|' + vNorm(r[2]); }) : [];
+        const i = keys.indexOf(schl), r = i >= 0 ? i + 2 : last + 1;
+        let alt = i >= 0 ? b.getRange(r, 1, 1, 6).getValues()[0] : ['', '', '', '', '', ''];
+        const neu = f.map(function (v, n) { return v || alt[n] || ''; });   // leere Felder löschen nichts
+        b.getRange(r, 1, 1, 9).setValues([neu.concat([Date.now(), new Date(), clean(d.name, 100)])]);
+        return '1';
+      } finally { lock.releaseLock(); }
     }
     // Service-Mappe: firmenweite Einstellungen, z. B. Grenzwerte der Batterieprüfung (legt Jannik Niemann fest)
     if (ev === 'a_holen' || ev === 'a_speichern') {

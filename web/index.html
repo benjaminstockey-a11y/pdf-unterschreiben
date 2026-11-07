@@ -255,6 +255,10 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .akte-e{border:1px solid var(--line,#ddd);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;font-size:13px}
 .akte-z{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.akte-z button{padding:4px 10px;font-size:12.5px}
 .akte-e ul{margin:2px 0 0 18px;padding:0}
+.kunde-vorschlag{position:absolute;left:0;right:0;top:100%;z-index:30;background:var(--sheet,#fff);border:1px solid var(--line,#ccc);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:4px;display:flex;flex-direction:column;max-height:300px;overflow:auto}
+.kunde-vorschlag button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;border:0;background:none;padding:6px 8px;border-radius:7px;font:inherit;color:inherit;cursor:pointer}
+.kunde-vorschlag button:hover{background:color-mix(in srgb,var(--accent,#c8102e) 8%,transparent)}
+.kunde-vorschlag button span{font-size:12px;color:var(--muted,#667)}
 .bat-info{font-size:13px;color:var(--muted,#556)}.bat-info.schlecht{color:#b42318;font-weight:600}
 .form-jn{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;font-size:13px}
 .form-jn>div{display:flex;gap:6px}.form-jn button{padding:4px 12px;border-radius:999px;font-size:13px;min-width:58px}
@@ -3022,6 +3026,7 @@ function formRender(){
         i.value = w[x.z] || ""; i.dataset.zelle = x.z;
         i.oninput = i.onchange = () => { set(x.z, i.value); if(x.merken){ merkSetzen(x.l, i.value); formMerken(); } };
         if(x.geraet) i.addEventListener("change", () => geraetSuchen(f, w, i.value));
+        if(FELD_MAP[f.id] && FELD_MAP[f.id].D5 === x.z) kundeVorschlag(i, f, w);
         if(f.id === "batterie" && (x.z === "G11" || x.z === "AC6")) i.addEventListener("change", () => { const ra = document.querySelector("#formInhalt .form-raster"); if(ra) batMarkieren(f, w, ra); });
         l.appendChild(i); felder.appendChild(l);
       } else if(x.t === "flaeche" || x.t === "zeilen"){
@@ -3377,7 +3382,7 @@ function auftragWerte(text){
   return res;
 }
 // Zielzellen je Formular (Schlüssel = Zellen im Reparaturauftrag)
-const REP = {E4: "E4", D5: "D5", D6: "D6", D7: "D7", D8: "D8", Q9: "Q9", D15: "D15", D16: "D16", D17: "D17", D19: "D19", D23: "D23"};
+const REP = {E4: "E4", D5: "D5", D6: "D6", D7: "D7", D8: "D8", D9: "D9", Q9: "Q9", D15: "D15", D16: "D16", D17: "D17", D19: "D19", D23: "D23"};
 // gleiche Angaben in allen Formularen (Schlüssel = Zellen im Reparaturauftrag)
 const FELD_MAP = {
   reparatur: REP,
@@ -4195,6 +4200,50 @@ function akteAnsicht(){
   };
   such.oninput = zeigen; zeigen(); such.focus();
 }
+/* ---- Kundenliste: einmal eingelesene Kunden für alle Techniker (Server, Blatt „Kunden“) ---- */
+let kunden = null;   // [{name, strasse, ort, ansprech, tel, mail}]
+const KUNDE_SPALTEN = [["name", "D5"], ["strasse", "D6"], ["ort", "D7"], ["ansprech", "D8"], ["tel", "Q9"], ["mail", "D9"]];
+async function kundenLaden(){
+  try{
+    const x = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "k_holen", seit: 0})})).json();
+    if(x.ok) kunden = x.text.split("\n").slice(1).filter(z => z.trim()).map(z => { const c = z.split("\t"); return {name: c[0], strasse: c[1], ort: c[2], ansprech: c[3], tel: c[4], mail: c[5]}; });
+  }catch(e){}
+}
+const kundeSchl = k => normNr(k.name) + "|" + normNr(k.ort);
+function kundeSpeichern(f, w){
+  const map = FELD_MAP[f.id]; if(!map || !map.D5) return;
+  const k = {}; for(const [n, z] of KUNDE_SPALTEN) k[n] = map[z] ? String(w[map[z]] || "").trim() : "";
+  if(k.name.replace(/\s/g, "").length < 2) return;
+  if(kunden){ const i = kunden.findIndex(x => kundeSchl(x) === kundeSchl(k)); const alt = i >= 0 ? kunden[i] : {};
+    const neu = {}; for(const [n] of KUNDE_SPALTEN) neu[n] = k[n] || alt[n] || ""; if(i >= 0) kunden[i] = neu; else kunden.push(neu); }
+  fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "k_speichern", kunde: k})}).catch(() => {});
+}
+// Vorschläge unter dem Kundennamen: „Win…“ → Windau GmbH … – Klick füllt Adresse, Ansprechpartner, Telefon
+function kundeVorschlag(i, f, w){
+  const box = document.createElement("div"); box.className = "kunde-vorschlag"; box.hidden = true;
+  i.setAttribute("autocomplete", "off");
+  const zu = () => { box.hidden = true; };
+  const zeigen = () => {
+    const q = i.value.trim().toLowerCase(); box.innerHTML = "";
+    if(!kunden || q.length < 2){ zu(); return; }
+    const w2 = q.split(/\s+/);
+    const t = kunden.filter(k => { const s = (k.name + " " + k.ort + " " + k.strasse).toLowerCase(); return w2.every(x => s.includes(x)); })
+      .filter(k => k.name.toLowerCase() !== q).slice(0, 8);
+    if(!t.length){ zu(); return; }
+    for(const k of t){
+      const b = document.createElement("button"); b.type = "button";
+      b.innerHTML = "<b></b><span></span>"; b.firstChild.textContent = k.name; b.lastChild.textContent = [k.strasse, k.ort, k.ansprech].filter(Boolean).join(" · ");
+      b.onmousedown = e => { e.preventDefault(); i.value = k.name;
+        const map = FELD_MAP[f.id]; for(const [n, z] of KUNDE_SPALTEN) if(map[z] && (k[n] || n === "name")) w[map[z]] = k[n] || "";
+        gemeinsamAus(f, w); formMerken(); zu(); formRender(); formMeldung("Kundendaten von „" + k.name + "“ übernommen.", 4000); };
+      box.appendChild(b);
+    }
+    box.hidden = false;
+  };
+  i.addEventListener("input", zeigen); i.addEventListener("focus", zeigen); i.addEventListener("blur", () => setTimeout(zu, 150));
+  i.addEventListener("keydown", e => { if(e.key === "Escape") zu(); });
+  setTimeout(() => { if(i.parentElement){ i.parentElement.style.position = "relative"; i.parentElement.appendChild(box); } }, 0);
+}
 /* ---- Ersatzteilliste (Schnellzugriff Außendienst/Werkstatt und Batteriedienst) ---- */
 // Listen: 💡 Vorschläge (aus Batterieprüfprotokoll und Wartungsplan), die beiden Schnellzugriffslisten, ⭐ Meine Artikel
 let etDaten = null, etListe = 1, etZiel = null, etAnsicht = [], etPlan = {i: -1, s: 0};
@@ -4468,7 +4517,7 @@ async function formSpeichern(drucken, dispo){
   }
   const vl = formState.daten._verlauf || (formState.daten._verlauf = []);
   vl.unshift({zeit: Date.now(), id: f.id, titel: f.titel, kunde: kundeName, nr: nrV, gedruckt: !!drucken, pfade, w: JSON.parse(JSON.stringify(w))});
-  vl.splice(300); if(f.id === "batterie"){ batHistEintragen(w); batHochladen(w); } formMerken();
+  vl.splice(300); kundeSpeichern(f, w); if(f.id === "batterie"){ batHistEintragen(w); batHochladen(w); } formMerken();
   if(drucken){ formMeldung("An den Drucker geschickt.", 6000); return; }
   // Das „Speichern unter“-Fenster darf der Browser nur direkt nach einem Klick öffnen – deshalb eigene Knöpfe
   const e = $("#formStatus"); clearTimeout(formMeldT); e.hidden = false; e.textContent = "Fertig – jetzt speichern: ";
@@ -4504,6 +4553,7 @@ const DISPO_MAIL = "service@schlueter-gabelstapler.de";
 $("#formBtn").onclick = () => {
   formLaden(); formRender(); $("#formDlg").showModal();
   formSicherungHolen();
+  kundenLaden();
   merkSync().then(neu => { if(neu && $("#formDlg").open && !document.activeElement.closest("#formInhalt")) formRender(); });
   fetch("/api/formular/register").then(r => r.json()).then(r => { if(r.ok){ formState.register = r.register || []; formRender(); } }).catch(() => {});
 };
