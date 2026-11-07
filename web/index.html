@@ -2803,6 +2803,9 @@ const FORMULARE = [
     {titel: "Monteur", felder: [{t: "datum", z: "G1", l: "Datum", d: HEUTE, echt: true}, {t: "text", z: "C3", l: "Servicetechniker", d: TECHNIKER}, {t: "text", z: "C4", l: "Kennzeichen", merken: true}, {t: "text", z: "C5", l: "Adresse", merken: true}, {t: "text", z: "C6", l: "Postleitzahl", merken: true}, {t: "text", z: "C7", l: "Wohnort", merken: true},
       {t: "xeins", l: "Versandart", o: [["F9", "Fach / Bereitstellungsraum"], ["F10", "Nachtversand"]]}]},
     {titel: "Ersatzteile", werkzeug: "tdoc", felder: [{t: "tabelle", l: "Teile", s: [["A", "Stück"], ["B", "Teile-Nr."], ["E", "Bezeichnung / Abmessungen"], ["I", "Lagerort"]], r: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]}]}]},
+  {id: "werkzeug", titel: "Bestellformular Werkzeug", datei: "werkzeug", abschnitte: [
+    {titel: "Besteller", felder: [{t: "text", z: "B1", l: "Name", d: TECHNIKER}, {t: "text", z: "D1", l: "Kennzeichen", merken: true}, {t: "datum", z: "E1", l: "Datum", d: HEUTE, echt: true}]},
+    {titel: "Werkzeug", felder: [{t: "tabelle", l: "Werkzeug", s: [["A", "Menge"], ["B", "Bestellnummer"], ["C", "Bezeichnung"], ["D", "Lieferant"], ["E", "Grund der Bestellung"]], r: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]}]}]},
   {id: "garantie", titel: "Garantieteil-Rückgabe-Schein", blatt: "Garantieteil-Rückgabe-Schein", typenschild: true, abschnitte: [
     {titel: "Kunde", werkzeug: "auftrag", felder: [{t: "text", z: "B3", l: "Kundenname"}, {t: "text", z: "B4", l: "Straße / Hausnummer"}, {t: "text", z: "B5", l: "PLZ / Ort"}]},
     {titel: "Auftrag und Gerät", werkzeug: "typenschild", felder: [{t: "text", z: "B7", l: "Servicetechniker", d: TECHNIKER}, {t: "datum", z: "B8", l: "Rückgabedatum"}, {t: "datum", z: "B9", l: "Servicedatum"}, {t: "text", z: "B10", l: "Montage-Auftrag-Nr."}, {t: "text", z: "B12", l: "Fabrikat", ts: "HERSTELLER"}, {t: "text", z: "B13", l: "Type", ts: "TYP"}, {t: "text", z: "B14", l: "Fahrgestell-Nr.", ts: "FABRNR"},
@@ -3514,7 +3517,8 @@ const PFLICHT = {
   ladegeraet: ["Name", "Seriennummer"],
   urlaub: [["Urlaub vom", "B9"]],
   toyota: ["Gerätenummer", "Betriebsstunden"],
-  batterie: ["Firma", "Batterie Nr.", ["Zellenmessung (Volt Zelle 1)", "G23"]]
+  batterie: ["Firma", "Batterie Nr.", ["Zellenmessung (Volt Zelle 1)", "G23"]],
+  werkzeug: ["Name", ["Werkzeug: Bezeichnung (Zeile 1)", "C3"]]
 };
 function pflichtFehlt(f, w){
   const out = [];
@@ -4404,6 +4408,7 @@ function formAnfrage(f, w, o){
   if(f.id === "reparatur" && werte.R6) werte.R56 = werte.R6;
   for(const a of f.abschnitte) for(const x of a.felder) for(const [z] of merkZellen(x)) if(!(z in werte)) werte[z] = "";
   if(f.id === "pruefung") werte.K13 = "A";   // Nennleistung immer in Ampere
+  if(f.id === "werkzeug") werte.D1 = "Kennzeichen: " + (werte.D1 || "");   // Beschriftung und Wert stehen in derselben Zelle
   if(f.id === "batterie" && !werte.M31){   // Gesamtspannung = Summe der Zellspannungen
     const ra = f.abschnitte.flatMap(a => a.felder).find(x => x.t === "raster"); let s = 0, n = 0;
     for(const [cv] of ra.g) for(const r of ra.r){ const v = parseFloat(String(werte[cv + r] || "").replace(",", ".")); if(!isNaN(v)){ s += v; n++; } }

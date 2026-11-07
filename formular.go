@@ -32,7 +32,10 @@ var vorlagenEingebaut []byte
 //go:embed vorlagen/Batteriepruefprotokoll.xlsx
 var vorlageBatterie []byte
 
-var eigeneVorlagen = map[string][]byte{"batterie": vorlageBatterie}
+//go:embed vorlagen/Werkzeugbestellung.xlsx
+var vorlageWerkzeug []byte
+
+var eigeneVorlagen = map[string][]byte{"batterie": vorlageBatterie, "werkzeug": vorlageWerkzeug}
 
 const vorlagenURL = "https://raw.githubusercontent.com/pdfunterschreiben-Admin/pdfunterschreiben/main/vorlagen/Allgemeine-Vorlagen.xlsm"
 
