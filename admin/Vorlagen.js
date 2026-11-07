@@ -132,6 +132,7 @@ function vorlagenAnfrage(d, programm) {
         const i = keys.indexOf(schl), r = i >= 0 ? i + 2 : last + 1;
         let alt = i >= 0 ? b.getRange(r, 1, 1, 6).getValues()[0] : ['', '', '', '', '', ''];
         const neu = f.map(function (v, n) { return v || alt[n] || ''; });   // leere Felder löschen nichts
+        b.getRange(r, 1, 1, 6).setNumberFormat('@');
         b.getRange(r, 1, 1, 9).setValues([neu.concat([Date.now(), new Date(), clean(d.name, 100)])]);
         return '1';
       } finally { lock.releaseLock(); }
