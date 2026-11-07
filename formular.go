@@ -370,7 +370,7 @@ func (a *app) handleFormularGeraete(w http.ResponseWriter, r *http.Request) {
 		Pruef   map[string]string `json:"pruefung"`
 		Daten   map[string]any    `json:"daten"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil || !map[string]bool{"g_holen": true, "g_speichern": true, "b_holen": true, "b_speichern": true, "m_holen": true, "m_speichern": true}[req.Event] {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil || !map[string]bool{"g_holen": true, "g_speichern": true, "b_holen": true, "b_speichern": true, "m_holen": true, "m_speichern": true, "a_holen": true, "a_speichern": true}[req.Event] {
 		writeJSON(w, map[string]any{"ok": false, "error": "Ungültige Anfrage."})
 		return
 	}

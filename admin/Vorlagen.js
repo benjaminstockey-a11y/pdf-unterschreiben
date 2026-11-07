@@ -6,6 +6,8 @@ var V_NUTZER = 'Nutzer Vorlagen', V_GERAETE = 'Geräteliste (Vorlagen)';
 var B_PRUEF = 'Batterieprüfungen';
 var M_DATEN = 'Meine Daten';
 var M_KOPF = ['E-Mail', 'Daten', 'Stand (ms)', 'Zuletzt gespeichert', 'Name'];
+// Firmenweite Einstellungen (Zeile „*alle*“ im Blatt „Meine Daten“): wer sie ändern darf
+var A_SCHLUESSEL = { '§batGrenz': ['j.niemann@schlueter-gabelstapler.de', 'b.stockey@schlueter-gabelstapler.de', 'b.stockey@hotmail.de'] };
 var B_KOPF = ['Batterie-Nr.', 'Prüfdatum', 'Kunde', 'Fahrzeug', 'Hersteller', 'Zellen', 'Zellentype', 'Mittel Volt', 'Mittel Säure', 'Auffällig', 'Zellwerte', 'Stand (ms)', 'Zuletzt gespeichert', 'Von'];
 var V_GERAETE_KOPF = ['Fabr. Nr.', 'Hersteller', 'Typenbezeichnung', 'Baujahr', 'Schutzklasse', 'Nennleistung', 'Einheit',
   'Nennspannung (V)', 'Nennstrom (A)', 'Geräteart', 'Prüflingsnr.', 'Stand (ms)', 'Zuletzt gespeichert', 'Von'];
@@ -103,6 +105,33 @@ function vorlagenAnfrage(d, programm) {
         n++;
       });
       return String(n);
+    }
+    // Service-Mappe: firmenweite Einstellungen, z. B. Grenzwerte der Batterieprüfung (legt Jannik Niemann fest)
+    if (ev === 'a_holen' || ev === 'a_speichern') {
+      if (!programm) throw new Error('Nicht erlaubt.');
+      const mail = String(d.email || '').trim().toLowerCase();
+      const lock = LockService.getScriptLock(); lock.waitLock(20000);
+      try {
+        const b = sheet(SpreadsheetApp.getActiveSpreadsheet(), M_DATEN, M_KOPF), last = b.getLastRow();
+        const mails = last >= 2 ? b.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return String(r[0]).trim().toLowerCase(); }) : [];
+        const i = mails.indexOf('*alle*');
+        let daten = {};
+        if (i >= 0) { try { daten = JSON.parse(String(b.getRange(i + 2, 2).getValue() || '{}')) || {}; } catch (x) { daten = {}; } }
+        if (ev === 'a_speichern') {
+          const neu = d.daten || {};
+          Object.keys(neu).forEach(function (k) {
+            const erlaubt = A_SCHLUESSEL[k];
+            if (!erlaubt) throw new Error('Unbekannte Einstellung.');
+            if (erlaubt.indexOf(mail) < 0) throw new Error('Diese Einstellung darf nur Jannik Niemann ändern.');
+            daten[k] = { v: String(neu[k].v == null ? '' : neu[k].v).slice(0, 5000), t: Date.now(), von: clean(d.name, 100) };
+          });
+          const r = i >= 0 ? i + 2 : last + 1;
+          b.getRange(r, 1, 1, 5).setValues([['*alle*', JSON.stringify(daten), Date.now(), new Date(), clean(d.name, 100)]]);
+        }
+        const darf = {};
+        Object.keys(A_SCHLUESSEL).forEach(function (k) { darf[k] = A_SCHLUESSEL[k].indexOf(mail) >= 0; });
+        return JSON.stringify({ daten: daten, darf: darf });
+      } finally { lock.releaseLock(); }
     }
     // Service-Mappe: eigene Daten je Nutzer (E-Mail aus der Anmeldung) – z. B. eigene Artikel, Textbausteine,
     // Messgeräte – auf allen Rechnern des Nutzers gleich. Je Eintrag gewinnt der neueste Stand.

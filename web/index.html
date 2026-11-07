@@ -3705,7 +3705,23 @@ function tdocWerkzeug(f, w){
 }
 /* ---- Batterieprüfung: Zellwerte bewerten, per Foto oder Sprache eintragen, Befund vorschlagen ---- */
 const BAT_GRENZ = {vMin: 1.9, vAbw: 0.05, sMin: 1.24, sAbw: 0.03};
-const batGrenz = () => ({...BAT_GRENZ, ...etMerk("§batGrenz", {})});
+// Grenzwerte gelten firmenweit – festgelegt von Jannik Niemann, für alle automatisch gleich (Server)
+function alleDaten(){ try{ return JSON.parse(localStorage.getItem("alleDaten") || "{}") || {}; }catch(e){ return {}; } }
+const batGrenz = () => { let g = {}; try{ const e = alleDaten().daten?.["§batGrenz"]; if(e) g = JSON.parse(e.v) || {}; }catch(e){} return {...BAT_GRENZ, ...g}; };
+let alleSyncLaeuft = null;
+function alleSync(daten){
+  if(!daten && alleSyncLaeuft) return alleSyncLaeuft;
+  const p = (async () => {
+    try{
+      const x = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(daten ? {event: "a_speichern", daten} : {event: "a_holen"})})).json();
+      if(!x.ok) return {fehler: x.error || "Keine Verbindung zum Server."};
+      const alt = localStorage.getItem("alleDaten"); localStorage.setItem("alleDaten", x.text);
+      return {neu: alt !== x.text};
+    }catch(e){ return {fehler: "Keine Verbindung zum Server."}; }
+  })();
+  if(!daten){ alleSyncLaeuft = p; p.finally(() => { alleSyncLaeuft = null; }); }
+  return p;
+}
 const batKomma = (v, n = 2) => v.toFixed(n).replace(".", ",");
 function batZellen(f){
   const ra = f.abschnitte.flatMap(a => a.felder).find(x => x.t === "raster"); const out = [];
@@ -3873,13 +3889,27 @@ function zellenWerkzeug(f, w){
   const st = document.createElement("span"); st.className = "hint";
   const qr = document.createElement("div"); qr.className = "form-qr"; qr.hidden = true;
   const gz = document.createElement("div"); gz.className = "form-felder"; gz.hidden = true;
-  const g = batGrenz();
+  const gInfo = document.createElement("span"); gInfo.className = "hint"; gInfo.style.gridColumn = "1 / -1";
+  const gFelder = [];
+  const gZeigen = () => {
+    const a = alleDaten(), g = batGrenz(), e = a.daten && a.daten["§batGrenz"], darf = !!(a.darf && a.darf["§batGrenz"]);
+    for(const [k, i] of gFelder){ i.value = String(g[k]).replace(".", ","); i.disabled = !darf; }
+    gInfo.textContent = (e ? "Gilt für alle – festgelegt von " + (e.von || "Jannik Niemann") + " am " + new Date(e.t).toLocaleDateString("de-DE") + "." : "Gilt für alle (Standardwerte).") + (darf ? " Du darfst die Werte ändern." : " Ändern kann nur Jannik Niemann.");
+  };
+  gz.appendChild(gInfo);
   for(const [k, l] of [["vMin", "Zelle mind. (Volt)"], ["vAbw", "max. unter Mittelwert (Volt)"], ["sMin", "Säure mind. (kg/l)"], ["sAbw", "max. unter Mittelwert (kg/l)"]]){
     const la = document.createElement("label"); la.innerHTML = "<span></span>"; la.firstChild.textContent = l;
-    const i = document.createElement("input"); i.inputMode = "decimal"; i.value = String(g[k]).replace(".", ",");
-    i.onchange = () => { const v = etZahl(i.value); const n = {...etMerk("§batGrenz", {})}; if(v > 0) n[k] = v; else delete n[k]; merkSetzen("§batGrenz", JSON.stringify(n)); formMerken(); batNeuZeichnen(f, w); };
+    const i = document.createElement("input"); i.inputMode = "decimal"; gFelder.push([k, i]);
+    i.onchange = async () => {
+      const n = {}; for(const [k2, i2] of gFelder){ const v = etZahl(i2.value); if(v > 0 && v !== BAT_GRENZ[k2]) n[k2] = v; }
+      const r = await alleSync({"§batGrenz": {v: JSON.stringify(n)}});
+      if(r.fehler) formMeldung("Grenzwerte nicht gespeichert: " + r.fehler, 7000); else formMeldung("Grenzwerte für alle gespeichert.", 4000);
+      gZeigen(); batNeuZeichnen(f, w);
+    };
     la.appendChild(i); gz.appendChild(la);
   }
+  gZeigen();
+  alleSync().then(r => { if(r && !r.fehler){ gZeigen(); if(r.neu) batNeuZeichnen(f, w); } });
   gk.onclick = () => { gz.hidden = !gz.hidden; };
   inp.onchange = async () => { const fs = [...inp.files]; inp.value = ""; if(fs.length) await batFoto(f, w, await Promise.all(fs.map(async x => new Uint8Array(await x.arrayBuffer()))), st); };
   hb.onclick = () => tsHandy({...f, id: "zellen"}, w, st, qr, hb, b => batFoto(f, w, b, st));
