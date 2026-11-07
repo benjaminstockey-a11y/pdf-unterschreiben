@@ -21,7 +21,7 @@ import (
 // das kostet Sekunden. Ein eigener Faden hält die Verbindung zu Outlook offen.
 
 type olAuftrag struct {
-	art   string // "leicht" (nur verbinden, falls Outlook läuft), "vor" (notfalls starten), "mail"
+	art   string // "leicht" (nur verbinden), "vor"/"start" (notfalls unsichtbar starten), "mail", "ende"
 	subj  string
 	to    string
 	files []string
@@ -60,6 +60,7 @@ func olNativSchleife() {
 		}
 	}
 	var app *ole.IDispatch
+	wirGestartet := false // Outlook wurde von der Service-Mappe unsichtbar gestartet → beim Beenden wieder schließen
 	verbinden := func(starten bool) error {
 		if app != nil {
 			if _, err := oleutil.GetProperty(app, "Version"); err == nil {
@@ -72,6 +73,27 @@ func olNativSchleife() {
 			if !starten {
 				return errors.New("Outlook läuft nicht")
 			}
+			// Outlook unsichtbar im Hintergrund starten (ohne Fenster) und Postfach schon laden,
+			// damit „Per E-Mail senden“ sofort reagiert
+			unk, err := oleutil.CreateObject("Outlook.Application")
+			if err == nil {
+				d, err2 := unk.QueryInterface(ole.IID_IDispatch)
+				unk.Release()
+				if err2 == nil {
+					app = d
+					wirGestartet = true
+					if nv, err := oleutil.CallMethod(app, "GetNamespace", "MAPI"); err == nil {
+						ns := nv.ToIDispatch()
+						_, _ = oleutil.CallMethod(ns, "Logon", "", "", false, false)
+						if fv, err := oleutil.CallMethod(ns, "GetDefaultFolder", 6); err == nil { // Posteingang
+							fv.ToIDispatch().Release()
+						}
+						ns.Release()
+					}
+					return nil
+				}
+			}
+			// Rückfall: normal (minimiert) starten
 			c := exec.Command("cmd", "/c", "start", "/min", "", "outlook.exe")
 			c.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 			_ = c.Run()
@@ -104,6 +126,31 @@ func olNativSchleife() {
 		start := time.Now()
 		var t []string
 		mark := func(n string) { t = append(t, fmt.Sprintf("%s %d", n, time.Since(start).Milliseconds())) }
+		if a.art == "ende" {
+			// nur schließen, wenn wir Outlook gestartet haben und kein Outlook-Fenster offen ist
+			// (sonst ginge z. B. eine noch offene Mail verloren)
+			if app != nil && wirGestartet {
+				offen := 0
+				for _, eig := range []string{"Explorers", "Inspectors"} {
+					if v, err := oleutil.GetProperty(app, eig); err == nil {
+						d := v.ToIDispatch()
+						if c, err := oleutil.GetProperty(d, "Count"); err == nil {
+							offen += int(c.Val)
+						}
+						d.Release()
+					}
+				}
+				if offen == 0 {
+					_, _ = oleutil.CallMethod(app, "Quit")
+				}
+			}
+			if app != nil {
+				app.Release()
+				app = nil
+			}
+			a.antw <- nil
+			continue
+		}
 		err := verbinden(a.art != "leicht")
 		mark("Outlook")
 		if err == nil && a.art == "mail" {

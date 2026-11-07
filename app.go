@@ -118,6 +118,7 @@ func (a *app) watchLifetime() {
 }
 
 func (a *app) shutdown() {
+	outlookBeenden()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = a.srv.Shutdown(ctx)

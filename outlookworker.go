@@ -81,7 +81,7 @@ func (a *app) handleMailZeiten(w http.ResponseWriter, r *http.Request) {
 func outlookLeichtVor() {
 	go func() {
 		time.Sleep(3 * time.Second)
-		if err := olNativAuftrag(olAuftrag{art: "leicht"}, 60*time.Second); err == nil {
+		if err := olNativAuftrag(olAuftrag{art: "start"}, 90*time.Second); err == nil {
 			mailZeitMerken("Start: " + olw.zeiten)
 		} else {
 			mailZeitMerken("Start: " + err.Error())
@@ -173,3 +173,6 @@ func (a *app) handleMailVor(w http.ResponseWriter, r *http.Request) {
 	}()
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// beim Beenden des Programms: selbst gestartetes Outlook wieder schließen
+func outlookBeenden() { _ = olNativAuftrag(olAuftrag{art: "ende"}, 8*time.Second) }
