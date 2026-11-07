@@ -368,8 +368,9 @@ func (a *app) handleFormularGeraete(w http.ResponseWriter, r *http.Request) {
 		Seit    int64             `json:"seit"`
 		Geraete [][]string        `json:"geraete"`
 		Pruef   map[string]string `json:"pruefung"`
+		Daten   map[string]any    `json:"daten"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil || !map[string]bool{"g_holen": true, "g_speichern": true, "b_holen": true, "b_speichern": true}[req.Event] {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil || !map[string]bool{"g_holen": true, "g_speichern": true, "b_holen": true, "b_speichern": true, "m_holen": true, "m_speichern": true}[req.Event] {
 		writeJSON(w, map[string]any{"ok": false, "error": "Ungültige Anfrage."})
 		return
 	}
@@ -378,7 +379,7 @@ func (a *app) handleFormularGeraete(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "Bitte zuerst im Programm anmelden."})
 		return
 	}
-	t, err := serverText(map[string]any{"key": ReportKey, "event": req.Event, "seit": req.Seit, "geraete": req.Geraete, "pruefung": req.Pruef,
+	t, err := serverText(map[string]any{"key": ReportKey, "event": req.Event, "seit": req.Seit, "geraete": req.Geraete, "pruefung": req.Pruef, "daten": req.Daten,
 		"name": u.Name, "email": u.Email, "version": Version}, 60*time.Second)
 	if err != nil {
 		writeJSON(w, map[string]any{"ok": false, "offline": true, "error": "Keine Verbindung zum Server."})

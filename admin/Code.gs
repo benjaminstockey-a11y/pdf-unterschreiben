@@ -58,7 +58,7 @@ function doPost(e) {
     return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.TEXT);
   }
   // Service-Mappe: gemeinsame Geräteliste (Formulare)
-  if (d && d.key === KEY && /^[gb]_(holen|speichern)$/.test(String(d.event || ''))) {
+  if (d && d.key === KEY && /^[gbm]_(holen|speichern)$/.test(String(d.event || ''))) {
     let t;
     try { t = 'OK\n' + vorlagenAnfrage(d, true); } catch (x) { t = 'FEHLER\n' + x.message; }
     return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.TEXT);

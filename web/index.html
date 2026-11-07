@@ -2901,7 +2901,46 @@ async function formSicherungHolen(){
 const formDef = () => FORMULARE.find(f => f.id === formState.akt);
 // gemerkte Zellen eines Feldes: [[Zelle, Schlüssel]]
 function merkZellen(x){ if(!x.merken) return []; if(typeof x.z === "string") return [[x.z, x.l]]; if(x.t === "tabelle") return x.r.flatMap(r => x.s.map(([c]) => [c + r, x.l + " " + c + r])); return []; }
-function merkSetzen(k, v){ try{ const m = JSON.parse(localStorage.getItem("formMerk") || "{}"); m[k] = v; localStorage.setItem("formMerk", JSON.stringify(m)); }catch(e){} }
+function merkSetzen(k, v){ try{ const m = JSON.parse(localStorage.getItem("formMerk") || "{}"); m[k] = v; localStorage.setItem("formMerk", JSON.stringify(m));
+  const z = merkZeiten(); z[k] = Date.now(); localStorage.setItem("formMerkZeit", JSON.stringify(z)); }catch(e){} merkSyncBald(); }
+/* ---- Eigene Daten auf allen Rechnern des Nutzers gleich (eigene Artikel, Textbausteine, Messgeräte, Grenzwerte …) ----
+   Abgleich über den Server, zugeordnet zur E-Mail der Anmeldung. Je Eintrag gewinnt der neueste Stand. */
+function merkZeiten(){ try{ return JSON.parse(localStorage.getItem("formMerkZeit") || "{}") || {}; }catch(e){ return {}; } }
+let merkSyncT = null, merkSyncLaeuft = null;
+function merkSyncBald(){ clearTimeout(merkSyncT); merkSyncT = setTimeout(() => merkSync(), 2500); }
+// Listen, die beim allerersten Abgleich zusammengeführt statt überschrieben werden
+function merkVereinen(k, lokal, server){
+  try{
+    const a = JSON.parse(lokal || "[]"), b = JSON.parse(server || "[]"); if(!Array.isArray(a) || !Array.isArray(b)) return server;
+    if(k === "§etEigene"){ const m = {}; for(const x of [...a, ...b]) if(x && x.nr) m[x.nr] = x; return JSON.stringify(Object.values(m).sort((x, y) => String(x.name).localeCompare(String(y.name)))); }
+    const gesehen = new Set(), l = []; for(const x of [...b, ...a]){ const key = JSON.stringify(x); if(!gesehen.has(key)){ gesehen.add(key); l.push(x); } } return JSON.stringify(l);
+  }catch(e){ return server; }
+}
+function merkSync(){
+  if(merkSyncLaeuft) return merkSyncLaeuft;
+  merkSyncLaeuft = (async () => {
+    let neu = false;
+    try{
+      const P = b => ({method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(b)});
+      const x = await (await fetch("/api/formular/geraete", P({event: "m_holen"}))).json(); if(!x.ok) return false;
+      const server = JSON.parse(x.text || "{}") || {};
+      const m = JSON.parse(localStorage.getItem("formMerk") || "{}"), z = merkZeiten(), hoch = {};
+      for(const k of new Set([...Object.keys(m), ...Object.keys(server)])){
+        const sv = server[k], lt = z[k] || 0;
+        if(sv && sv.t > lt){
+          if(!lt && k in m && (k === "§etEigene" || k === "§bausteine") && m[k] !== sv.v){ m[k] = merkVereinen(k, m[k], sv.v); z[k] = Date.now(); hoch[k] = {v: m[k], t: z[k]}; }
+          else { m[k] = sv.v; z[k] = sv.t; }
+          neu = true;
+        } else if(k in m && (!sv || lt > sv.t)){ if(!lt) z[k] = Date.now(); hoch[k] = {v: m[k], t: z[k]}; }
+      }
+      localStorage.setItem("formMerk", JSON.stringify(m)); localStorage.setItem("formMerkZeit", JSON.stringify(z));
+      if(Object.keys(hoch).length) await fetch("/api/formular/geraete", P({event: "m_speichern", daten: hoch}));
+      if(neu) formMerken();
+    }catch(e){}
+    return neu;
+  })().finally(() => { merkSyncLaeuft = null; });
+  return merkSyncLaeuft;
+}
 function formWerte(){
   const w = formState.daten[formState.akt] || (formState.daten[formState.akt] = formStart(formDef()));
   gemeinsamEin(formDef(), w);
@@ -2978,7 +3017,7 @@ function formRender(){
         if(x.t === "wahl"){ i = document.createElement("select"); for(const o of x.o){ const op = document.createElement("option"); op.textContent = o; i.appendChild(op); } }
         else { i = document.createElement("input"); i.type = x.t === "datum" ? "date" : "text"; }
         i.value = w[x.z] || ""; i.dataset.zelle = x.z;
-        i.oninput = i.onchange = () => { set(x.z, i.value); if(x.merken){ try{ const m = JSON.parse(localStorage.getItem("formMerk") || "{}"); m[x.l] = i.value; localStorage.setItem("formMerk", JSON.stringify(m)); }catch(e){} formMerken(); } };
+        i.oninput = i.onchange = () => { set(x.z, i.value); if(x.merken){ merkSetzen(x.l, i.value); formMerken(); } };
         if(x.geraet) i.addEventListener("change", () => geraetSuchen(f, w, i.value));
         if(f.id === "batterie" && (x.z === "G11" || x.z === "AC6")) i.addEventListener("change", () => { const ra = document.querySelector("#formInhalt .form-raster"); if(ra) batMarkieren(f, w, ra); });
         l.appendChild(i); felder.appendChild(l);
@@ -4139,6 +4178,7 @@ async function etOeffnen(f, w){
   if(!etDaten){ try{ etDaten = await (await fetch("/ersatzteilliste.json")).json(); }catch(e){ formMeldung("Die Ersatzteilliste konnte nicht geladen werden."); return; } }
   if(!wartDaten){ try{ wartDaten = await (await fetch("/wartungsplaene.json")).json(); }catch(e){ wartDaten = []; } }
   etZiel = {f, w}; $("#etSuche").value = "";
+  merkSync().then(neu => { if(neu && $("#etDlg").open) etZeigen(); });
   if(etPlan.i < 0) etPlan.i = etPlanRaten(w);
   for(const [nr, m] of Object.entries(etVorschlagMengen())) if(!(nr in etMengen)) etMengen[nr] = m;
   etListe = etVorschlaege().some(g => g.artikel.some(a => a.nr)) ? 0 : 1;
@@ -4429,6 +4469,7 @@ const DISPO_MAIL = "service@schlueter-gabelstapler.de";
 $("#formBtn").onclick = () => {
   formLaden(); formRender(); $("#formDlg").showModal();
   formSicherungHolen();
+  merkSync().then(neu => { if(neu && $("#formDlg").open && !document.activeElement.closest("#formInhalt")) formRender(); });
   fetch("/api/formular/register").then(r => r.json()).then(r => { if(r.ok){ formState.register = r.register || []; formRender(); } }).catch(() => {});
 };
 $("#formClose").onclick = () => $("#formDlg").close();

@@ -4,6 +4,8 @@
 
 var V_NUTZER = 'Nutzer Vorlagen', V_GERAETE = 'Geräteliste (Vorlagen)';
 var B_PRUEF = 'Batterieprüfungen';
+var M_DATEN = 'Meine Daten';
+var M_KOPF = ['E-Mail', 'Daten', 'Stand (ms)', 'Zuletzt gespeichert', 'Name'];
 var B_KOPF = ['Batterie-Nr.', 'Prüfdatum', 'Kunde', 'Fahrzeug', 'Hersteller', 'Zellen', 'Zellentype', 'Mittel Volt', 'Mittel Säure', 'Auffällig', 'Zellwerte', 'Stand (ms)', 'Zuletzt gespeichert', 'Von'];
 var V_GERAETE_KOPF = ['Fabr. Nr.', 'Hersteller', 'Typenbezeichnung', 'Baujahr', 'Schutzklasse', 'Nennleistung', 'Einheit',
   'Nennspannung (V)', 'Nennstrom (A)', 'Geräteart', 'Prüflingsnr.', 'Stand (ms)', 'Zuletzt gespeichert', 'Von'];
@@ -101,6 +103,37 @@ function vorlagenAnfrage(d, programm) {
         n++;
       });
       return String(n);
+    }
+    // Service-Mappe: eigene Daten je Nutzer (E-Mail aus der Anmeldung) – z. B. eigene Artikel, Textbausteine,
+    // Messgeräte – auf allen Rechnern des Nutzers gleich. Je Eintrag gewinnt der neueste Stand.
+    if (ev === 'm_holen' || ev === 'm_speichern') {
+      if (!programm) throw new Error('Nicht erlaubt.');
+      const mail = String(d.email || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+$/.test(mail)) throw new Error('Nicht angemeldet.');
+      const lock = LockService.getScriptLock(); lock.waitLock(20000);
+      try {
+        const b = sheet(SpreadsheetApp.getActiveSpreadsheet(), M_DATEN, M_KOPF), last = b.getLastRow();
+        const mails = last >= 2 ? b.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return String(r[0]).trim().toLowerCase(); }) : [];
+        const i = mails.indexOf(mail);
+        let daten = {};
+        if (i >= 0) { try { daten = JSON.parse(String(b.getRange(i + 2, 2).getValue() || '{}')) || {}; } catch (x) { daten = {}; } }
+        if (ev === 'm_speichern') {
+          const neu = d.daten || {};
+          let geaendert = false;
+          Object.keys(neu).forEach(function (k) {
+            const e = neu[k];
+            if (!e || typeof e.t !== 'number' || String(k).length > 200) return;
+            if (!daten[k] || Number(daten[k].t) < e.t) { daten[k] = { v: String(e.v == null ? '' : e.v).slice(0, 20000), t: e.t }; geaendert = true; }
+          });
+          if (geaendert) {
+            const txt = JSON.stringify(daten);
+            if (txt.length > 49000) throw new Error('Zu viele eigene Daten.');
+            const r = i >= 0 ? i + 2 : last + 1;
+            b.getRange(r, 1, 1, 5).setValues([[mail, txt, Date.now(), new Date(), clean(d.name, 100)]]);
+          }
+        }
+        return JSON.stringify(daten);
+      } finally { lock.releaseLock(); }
     }
     // Service-Mappe: gemeinsamer Batterie-Verlauf (Batterieprüfprotokolle aller Techniker)
     if (ev === 'b_holen') {
