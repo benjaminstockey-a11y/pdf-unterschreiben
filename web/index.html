@@ -4666,7 +4666,7 @@ $("#wartBtn").onclick = async () => {
 $("#wartClose").onclick = () => $("#wartDlg").close();
 
 /* ---------- Servicemitteilung Toyota (automatisch aus Outlook) ---------- */
-let smtDaten = null, smtLaden = null, smtLesen = null;
+let smtDaten = null, smtLaden = null, smtLesen = null; const smtNochmal = new Set();
 function smtHolen(neu){
   const nach = p => p.then(r => r.json()).then(d => { smtDaten = d; smtAuslesen(); return d; });
   if(neu) return smtLaden = nach(fetch("/api/smt", {method: "POST"})).catch(() => smtDaten);
@@ -4736,11 +4736,20 @@ async function smtPdfLesen(nr){
     }
   }
   pdf.destroy();
+  // Keine Tabelle gefunden: Gerätetypen im Text der ersten Seite suchen (z. B. „RRE140-250“, „SPE125L“, „8FBMT40-50“)
+  if(!modelle.length && texte[0]){
+    const raus = /^(TB|QM|ISO|EN|DIN|IEC|ACC|ECU|CAN|LED|USB|PDF|SAE\d{4}|V\d|T\d|G\d|MY\d)/;
+    for(const m of texte[0].toUpperCase().matchAll(/(?:^|[\s(,;:])(\d{0,2}-?\d?[A-Z]{2,6}\d{2,3}[A-Z0-9]*(?:[-\/][A-Z]{0,6}\d{2,3}[A-Z0-9]*)*)(?=$|[\s),;:.])/g)){
+      const t = m[1].replace(/^\d{2}-/, ""); if(raus.test(t) || /^\d{4,}/.test(t)) continue; modelle.push(t);
+    }
+  }
   return {modelle: [...new Set(modelle)], text: texte.join("\n").replace(/[ \t]+/g, " ").slice(0, 60000)};
 }
 function smtAuslesen(){
   if(smtLesen || !smtDaten) return;
-  const offen = smtDaten.liste.filter(e => !e.gelesen); if(!offen.length) return;
+  // neu, oder bisher ohne Gerätetypen gelesen (dann einmal pro Programmstart nochmal mit der neuesten Erkennung)
+  const offen = smtDaten.liste.filter(e => !e.gelesen || (!(e.modelle || []).length && !smtNochmal.has(e.nr))); if(!offen.length) return;
+  offen.forEach(e => smtNochmal.add(e.nr));
   smtLesen = (async () => {
     for(const e of offen){
       try{ const r = await smtPdfLesen(e.nr); Object.assign(e, r, {gelesen: true});
