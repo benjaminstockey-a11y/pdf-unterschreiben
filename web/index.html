@@ -1939,7 +1939,7 @@ addEventListener("resize", () => {
 
 /* ---------- Updates ---------- */
 // Admins bekommen auf Wunsch Testversionen, bevor sie für alle freigegeben werden.
-const ADMINS = ["b.stockey@hotmail.de"];
+const ADMINS = ["b.stockey@hotmail.de", "b.stockey@schlueter-gabelstapler.de"];
 const isAdmin = () => !!(state.user && state.user.verified && ADMINS.includes(state.user.email)
   && state.user.name.trim().toLowerCase() === "benjamin stockey");
 const kanal = () => (isAdmin() && state.testChannel !== false) ? "?kanal=test" : "";
