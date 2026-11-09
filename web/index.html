@@ -118,6 +118,34 @@ main{display:flex;flex-direction:column;gap:18px;min-width:0}
 .chk svg{position:absolute;overflow:visible;pointer-events:none}
 .chk path{fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .stamp .del{position:absolute;top:-12px;right:-12px;width:24px;height:24px;border-radius:50%;padding:0;justify-content:center;background:#1d3fb8;color:#fff;border:0;font-size:15px}
+.kalender{width:360px;padding:14px 16px;margin-top:8px;align-self:flex-start}
+.kal-kopf{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.kal-kopf strong{font:600 16px var(--f-display)}
+.kal-kopf button{font-size:20px;padding:2px 12px}
+.kal-tab{width:100%;border-collapse:collapse;text-align:center;font-size:13.5px}
+.kal-tab th{font-weight:600;color:var(--muted);font-size:12px;padding:4px 0}
+.kal-tab td{padding:0;height:32px}
+.kal-tab td span{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;border-radius:50%}
+.kal-tab .kw{color:var(--muted);font:11.5px var(--f-mono);width:30px}
+.kal-tab .we{color:var(--muted)}
+.kal-tab td.fremd{opacity:.35}
+.kal-tab td.frei span{color:var(--brand);font-weight:700}
+.kal-tab td.heute span{background:var(--brand);color:#fff;font-weight:700}
+.kal-fuss{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:13px;color:var(--muted)}
+.kal-fuss button{padding:3px 10px;font-size:12.5px}
+.kal-feiertag{font-size:12.5px;color:var(--muted);margin-top:4px;min-height:1em}
+.kal-tab td{cursor:pointer}.kal-tab td.kw{cursor:default}
+.kal-tab td span{position:relative}
+.kal-tab td.termin span::after{content:"";position:absolute;bottom:2px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:#2f6fd6}
+.kal-tab td.heute.termin span::after{background:#fff}
+.kal-tab td.gewaehlt:not(.heute) span{box-shadow:inset 0 0 0 2px var(--brand)}
+.kal-termine{border-top:1px solid var(--line);margin-top:10px;padding-top:8px}
+.kal-tkopf{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13.5px}
+.kal-tkopf button{padding:3px 10px;font-size:12.5px}
+.kal-t{display:flex;gap:10px;font-size:13px;padding:4px 0;border-bottom:1px dashed color-mix(in srgb,var(--line) 70%,transparent)}
+.kal-t:last-child{border-bottom:0}
+.kal-t .z{font:12px var(--f-mono);color:var(--muted);min-width:86px}
+.kal-t small{display:block;color:var(--muted)}
 .empty{padding:44px 28px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:8px;align-items:center}
 .empty b{font:600 17px var(--f-display);color:var(--ink)}
 #printArea{display:none}
@@ -527,6 +555,13 @@ body{padding-bottom:172px}
       </div>
       <div class="drop" id="drop" aria-hidden="true"><div><strong>Loslassen zum Öffnen</strong><p class="hint">PDFs und Excel-Dateien, auch mehrere auf einmal.</p></div></div>
       <div id="docs"></div>
+      <section class="kalender panel" id="kalender" aria-label="Kalender">
+        <div class="kal-kopf"><button type="button" class="ghost" id="kalZurueck" aria-label="Voriger Monat">‹</button><strong id="kalMonat"></strong><button type="button" class="ghost" id="kalVor" aria-label="Nächster Monat">›</button></div>
+        <table class="kal-tab"><thead><tr><th class="kw">KW</th><th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th class="we">Sa</th><th class="we">So</th></tr></thead><tbody id="kalTage"></tbody></table>
+        <div class="kal-fuss"><span id="kalHeute"></span><button type="button" class="ghost" id="kalHeuteBtn">Heute</button></div>
+        <div class="kal-feiertag" id="kalFeiertag"></div>
+        <div class="kal-termine"><div class="kal-tkopf"><b id="kalTagTitel">Heute</b><button type="button" class="ghost" id="kalNeu" title="Neuen Termin in Outlook anlegen">＋ Termin</button></div><div id="kalTermine" class="hint">Termine aus Outlook werden geladen …</div></div>
+      </section>
     </main>
   </div>
 </div>
@@ -1331,6 +1366,7 @@ function renderAll(){
     box.innerHTML = '<p class="hint leer-hinweis">Tipp: Berichte (PDF oder Excel) kannst du auch einfach ins Fenster ziehen.</p>';
   }
   state.docs.forEach(d => box.appendChild(buildDoc(d)));
+  const kal = document.getElementById("kalender"); if(kal) kal.hidden = !!state.docs.length;
   updateSaveAll();
 }
 function updateSaveAll(){
@@ -4965,6 +5001,82 @@ document.addEventListener("keydown", e => { if(e.key === "Escape" && $("#menu").
 for(const id of ["helpBtn", "ideaBtn", "ideasOpen", "claudeOpen", "openSheet"]){ const b = document.getElementById(id); if(b) b.addEventListener("click", () => menuAuf(false)); }
 // Noch keine Unterschrift: Menü beim Start einmal öffnen, damit man sie gleich einrichten kann
 setTimeout(() => { if(!state.sig) menuAuf(true); }, 900);
+
+/* ---------- Kalender (Startseite) mit Kalenderwochen und Feiertagen in Niedersachsen ---------- */
+const kal = {j: new Date().getFullYear(), m: new Date().getMonth()};
+function kalOstern(j){ const a = j % 19, b = Math.floor(j / 100), c = j % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451), mo = Math.floor((h + l - 7 * m + 114) / 31), t = ((h + l - 7 * m + 114) % 31) + 1; return new Date(j, mo - 1, t); }
+function kalFeiertage(j){
+  const o = kalOstern(j), plus = n => { const d = new Date(o); d.setDate(d.getDate() + n); return d; }, f = {};
+  const add = (d, n) => f[d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate()] = n;
+  add(new Date(j, 0, 1), "Neujahr"); add(plus(-2), "Karfreitag"); add(plus(1), "Ostermontag"); add(new Date(j, 4, 1), "Tag der Arbeit");
+  add(plus(39), "Christi Himmelfahrt"); add(plus(50), "Pfingstmontag"); add(new Date(j, 9, 3), "Tag der Deutschen Einheit");
+  add(new Date(j, 9, 31), "Reformationstag"); add(new Date(j, 11, 25), "1. Weihnachtstag"); add(new Date(j, 11, 26), "2. Weihnachtstag");
+  return f;
+}
+function kalKW(d){ const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())), w = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - w); const j1 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - j1) / 864e5 + 1) / 7); }
+function kalZeigen(){
+  const heute = new Date(), erst = new Date(kal.j, kal.m, 1), start = new Date(erst); start.setDate(1 - ((erst.getDay() + 6) % 7));
+  const frei = {...kalFeiertage(kal.j - 1), ...kalFeiertage(kal.j), ...kalFeiertage(kal.j + 1)}, tb = $("#kalTage"); tb.innerHTML = "";
+  $("#kalMonat").textContent = erst.toLocaleDateString("de-DE", {month: "long", year: "numeric"});
+  const imMonat = [];
+  for(let w = 0; w < 6; w++){
+    const tr = document.createElement("tr"), d0 = new Date(start); d0.setDate(start.getDate() + w * 7);
+    if(w === 5 && d0.getMonth() !== kal.m) break;
+    tr.insertAdjacentHTML("beforeend", `<td class="kw">${kalKW(d0)}</td>`);
+    for(let t = 0; t < 7; t++){
+      const d = new Date(d0); d.setDate(d0.getDate() + t); const key = d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate(), td = document.createElement("td");
+      td.innerHTML = `<span>${d.getDate()}</span>`;
+      if(d.getMonth() !== kal.m) td.classList.add("fremd");
+      if(t >= 5) td.classList.add("we");
+      if(frei[key]){ td.classList.add("frei"); td.title = frei[key]; if(d.getMonth() === kal.m) imMonat.push(d.getDate() + ". " + frei[key]); }
+      if(d.toDateString() === heute.toDateString()) td.classList.add("heute");
+      const ds = kalTagStr(d);
+      if(kalTermine.some(x => kalAm(x, ds))) td.classList.add("termin");
+      if(ds === kal.tag) td.classList.add("gewaehlt");
+      td.onclick = () => { kal.tag = ds; kalZeigen(); };
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+  $("#kalHeute").textContent = heute.toLocaleDateString("de-DE", {weekday: "long", day: "numeric", month: "long"}) + " · KW " + kalKW(heute);
+  $("#kalFeiertag").textContent = imMonat.length ? "Feiertage: " + imMonat.join(", ") : "";
+  kalListe();
+}
+// Termine aus Outlook (nur lesen) – Punkt unter dem Tag, Liste für den gewählten Tag
+let kalTermine = [], kalFehler = "", kalGeladen = "";
+const kalTagStr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const kalAm = (t, ds) => t.start.slice(0, 10) <= ds && (t.ende.slice(0, 10) > ds || t.ende.slice(0, 10) === ds && (t.ende.slice(11) !== "00:00" || t.start.slice(0, 10) === ds));
+async function kalLaden(erzwingen){
+  const von = new Date(kal.j, kal.m - 1, 20), bis = new Date(kal.j, kal.m + 1, 12), k = kalTagStr(von) + kalTagStr(bis);
+  if(!erzwingen && kalGeladen === k) return;
+  kalGeladen = k;
+  try{ const r = await (await fetch(`/api/termine?von=${kalTagStr(von)}&bis=${kalTagStr(bis)}`)).json();
+    if(kalGeladen !== k) return;
+    if(r.ok){ kalTermine = r.termine; kalFehler = ""; } else { kalTermine = []; kalFehler = r.error || "Outlook-Kalender nicht erreichbar"; } }
+  catch(e){ kalTermine = []; kalFehler = "Outlook-Kalender nicht erreichbar"; }
+  kalZeigen();
+}
+function kalListe(){
+  const ds = kal.tag || kalTagStr(new Date()), box = $("#kalTermine"), heuteS = kalTagStr(new Date());
+  const [y, m, d] = ds.split("-").map(Number);
+  $("#kalTagTitel").textContent = ds === heuteS ? "Heute" : new Date(y, m - 1, d).toLocaleDateString("de-DE", {weekday: "long", day: "numeric", month: "long"});
+  if(kalFehler){ box.className = "hint"; box.textContent = kalFehler + " – Termine erscheinen, sobald Outlook läuft."; return; }
+  const l = kalTermine.filter(t => kalAm(t, ds));
+  box.className = l.length ? "" : "hint"; box.innerHTML = l.length ? "" : "Keine Termine.";
+  for(const t of l){
+    const z = t.ganztag ? "ganztägig" : (t.start.slice(0, 10) === ds ? t.start.slice(11) : "…") + "–" + (t.ende.slice(0, 10) === ds ? t.ende.slice(11) : "…");
+    box.insertAdjacentHTML("beforeend", `<div class="kal-t"><span class="z">${esc(z)}</span><span>${esc(t.betreff || "(ohne Betreff)")}${t.ort ? `<small>${esc(t.ort)}</small>` : ""}</span></div>`);
+  }
+}
+const kalSchritt = n => { kal.m += n; if(kal.m < 0){ kal.m = 11; kal.j--; } if(kal.m > 11){ kal.m = 0; kal.j++; } kalZeigen(); kalLaden(); };
+$("#kalNeu").onclick = async () => { const r = await (await fetch("/api/termine/neu?datum=" + (kal.tag || kalTagStr(new Date())), {method: "POST"})).json().catch(() => ({ok: false})); if(!r.ok) toast(r.error || "Outlook konnte keinen Termin öffnen."); else setTimeout(() => kalLaden(true), 60000); };
+$("#kalZurueck").onclick = () => kalSchritt(-1);
+$("#kalVor").onclick = () => kalSchritt(1);
+$("#kalHeuteBtn").onclick = () => { kal.j = new Date().getFullYear(); kal.m = new Date().getMonth(); kal.tag = ""; kalZeigen(); kalLaden(); };
+kalZeigen();
+setTimeout(() => kalLaden(), 2500);
+setInterval(() => { if(!document.hidden){ kalZeigen(); kalLaden(true); } }, 10 * 60 * 1000);
+addEventListener("focus", () => kalLaden(true));
 
 /* Fenster: minimieren, maximieren, schließen (für die großen Fenster) */
 for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg", "smtDlg", "pdfLeser"]){

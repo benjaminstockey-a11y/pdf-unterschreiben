@@ -154,6 +154,8 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/mail/zeiten", a.handleMailZeiten)
 	mux.HandleFunc("/api/smt", a.handleSmt)
 	mux.HandleFunc("/api/claude", a.handleClaude)
+	mux.HandleFunc("/api/termine", a.handleTermine)
+	mux.HandleFunc("/api/termine/neu", a.handleTerminNeu)
 	mux.HandleFunc("/api/smt/oeffnen", a.handleSmtOeffnen)
 	mux.HandleFunc("/api/smt/pdf", a.handleSmtPdf)
 	mux.HandleFunc("/api/smt/info", a.handleSmtInfo)
