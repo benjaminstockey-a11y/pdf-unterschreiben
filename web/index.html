@@ -460,6 +460,7 @@ body{padding-bottom:172px}
         <label class="check"><input type="checkbox" id="testChannel"> Testversionen vor allen anderen bekommen</label>
         <p class="hint">Neue Funktionen kommen hier zuerst an. Erst wenn du sie freigibst, bekommen alle anderen das Update.</p>
         <button id="ideasOpen">Verbesserungsvorschläge lesen</button>
+        <button id="claudeOpen">🤖 Auftrag an Claude</button>
         <p class="hint">Nutzerliste und Sperren: <button class="ghost" id="openSheet" style="padding:0;font-size:13px;text-decoration:underline">Google-Tabelle öffnen</button></p>
       </section>
 
@@ -753,6 +754,20 @@ body{padding-bottom:172px}
       <button type="button" class="ghost" id="ideaCancel">Abbrechen</button>
       <button class="primary" id="ideaSend">Absenden</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="claudeDlg">
+  <form method="dialog" class="dlg" onsubmit="return false">
+    <div class="dlg-head"><strong>🤖 Auftrag an Claude</strong><button type="button" class="ghost" id="claudeZu">Schließen</button></div>
+    <div class="dlg-body col" style="gap:10px;min-width:min(620px,80vw)">
+      <span class="hint">Beschreibe, was geändert oder eingebaut werden soll, und hänge Dateien an (z. B. eine neue Wartungsliste). Werktags zwischen 7 und 18 Uhr wird das stündlich abgearbeitet – das Ergebnis kommt als Testversion. Für alle freigegeben wird erst, wenn du im Chat „freigeben“ sagst.</span>
+      <textarea id="claudeText" rows="7" style="font:inherit;padding:8px 10px;border-radius:8px" maxlength="8000" placeholder="z. B. Bitte die angehängte Wartungsplanliste mit den bestehenden Wartungsplänen abgleichen und aktualisieren."></textarea>
+      <label class="btn file-btn" style="align-self:flex-start">📎 Dateien anhängen<input type="file" id="claudeDateien" multiple hidden></label>
+      <span class="hint" id="claudeListe"></span>
+      <span class="hint err" id="claudeFehler" style="color:var(--warn)" hidden></span>
+    </div>
+    <div class="dlg-foot"><span></span><button type="button" class="primary" id="claudeSenden">Senden</button></div>
   </form>
 </dialog>
 
@@ -4853,6 +4868,28 @@ $("#smtTyp").oninput = $("#smtSuche").oninput = () => smtZeigen();
 $("#smtOrdner").onclick = () => fetch("/api/smt/oeffnen", {method: "POST"});
 $("#smtHolen").onclick = async () => { const b = $("#smtHolen"); b.disabled = true; b.textContent = "⏳ Outlook wird durchsucht …"; await smtHolen(true); b.disabled = false; b.textContent = "🔄 Aus Outlook holen"; smtZeigen(); };
 setTimeout(() => smtHolen(), 4000);
+
+/* ---------- Auftrag an Claude (nur Admin) ---------- */
+let claudeDat = [];
+$("#claudeOpen").onclick = () => { $("#claudeFehler").hidden = true; $("#claudeDlg").showModal(); setTimeout(() => $("#claudeText").focus(), 50); };
+$("#claudeZu").onclick = () => $("#claudeDlg").close();
+const claudeListe = () => { $("#claudeListe").textContent = claudeDat.length ? "Angehängt: " + claudeDat.map(f => f.name).join(", ") : ""; };
+$("#claudeDateien").onchange = e => { claudeDat = claudeDat.concat([...e.target.files]); e.target.value = ""; claudeListe(); };
+$("#claudeSenden").onclick = async () => {
+  const f = $("#claudeFehler"), b = $("#claudeSenden"), text = $("#claudeText").value.trim(); f.hidden = true;
+  if(text.length < 3){ f.textContent = "Bitte beschreiben, was geändert werden soll."; f.hidden = false; return; }
+  if(claudeDat.reduce((n, x) => n + x.size, 0) > 20 * 1024 * 1024){ f.textContent = "Die Dateien sind zusammen zu groß (höchstens 20 MB)."; f.hidden = false; return; }
+  b.disabled = true; b.textContent = "Wird gesendet …";
+  try{
+    const dateien = await Promise.all(claudeDat.map(x => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok({name: x.name, b64: String(r.result).split(",")[1] || ""}); r.onerror = no; r.readAsDataURL(x); })));
+    const von = state.user ? `${state.user.name} <${state.user.email}>` : "";
+    const r = await (await fetch("/api/claude", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, von, dateien})})).json();
+    if(!r.ok) throw new Error(r.error || "Senden fehlgeschlagen.");
+    $("#claudeText").value = ""; claudeDat = []; claudeListe(); $("#claudeDlg").close();
+    toast("Gesendet. Das Ergebnis kommt als Testversion – meist innerhalb einer Stunde (werktags 7–18 Uhr).", 8000);
+  }catch(e){ f.textContent = e.message; f.hidden = false; }
+  b.disabled = false; b.textContent = "Senden";
+};
 
 /* Fenster: minimieren, maximieren, schließen (für die großen Fenster) */
 for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg", "smtDlg", "pdfLeser"]){

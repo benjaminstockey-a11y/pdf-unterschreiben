@@ -21,9 +21,11 @@ import (
 // das kostet Sekunden. Ein eigener Faden hält die Verbindung zu Outlook offen.
 
 type olAuftrag struct {
-	art   string // "leicht" (nur verbinden), "vor"/"start" (notfalls unsichtbar starten), "mail", "ende"
-	subj  string
-	to    string
+	art  string // "leicht" (nur verbinden), "vor"/"start" (notfalls unsichtbar starten), "mail", "ende"
+	subj string
+	to   string
+	body string // nur bei „senden“
+
 	files []string
 	fn    func(app *ole.IDispatch) error // art "fn": beliebige Arbeit mit der Outlook-Verbindung (z. B. Servicemitteilungen holen)
 	antw  chan error
@@ -168,7 +170,7 @@ func olNativSchleife() {
 			a.antw <- err
 			continue
 		}
-		if err == nil && a.art == "mail" {
+		if err == nil && (a.art == "mail" || a.art == "senden") {
 			err = func() (err error) {
 				defer func() {
 					if r := recover(); r != nil {
@@ -201,6 +203,13 @@ func olNativSchleife() {
 				}
 				att.Release()
 				mark("Anhaenge")
+				if a.art == "senden" { // ohne Fenster direkt abschicken (Auftrag an Claude)
+					if a.body != "" {
+						_, _ = oleutil.PutProperty(m, "Body", a.body)
+					}
+					_, err := oleutil.CallMethod(m, "Send")
+					return err
+				}
 				if _, err := oleutil.CallMethod(m, "Display", false); err != nil {
 					return err
 				}
