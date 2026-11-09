@@ -25,6 +25,7 @@ type olAuftrag struct {
 	subj  string
 	to    string
 	files []string
+	fn    func(app *ole.IDispatch) error // art "fn": beliebige Arbeit mit der Outlook-Verbindung (z. B. Servicemitteilungen holen)
 	antw  chan error
 }
 
@@ -151,8 +152,22 @@ func olNativSchleife() {
 			a.antw <- nil
 			continue
 		}
-		err := verbinden(a.art != "leicht")
+		err := verbinden(a.art != "leicht" && a.art != "fn")
 		mark("Outlook")
+		if a.art == "fn" {
+			if err == nil {
+				err = func() (err error) {
+					defer func() {
+						if r := recover(); r != nil {
+							err = fmt.Errorf("%v", r)
+						}
+					}()
+					return a.fn(app)
+				}()
+			}
+			a.antw <- err
+			continue
+		}
 		if err == nil && a.art == "mail" {
 			err = func() (err error) {
 				defer func() {

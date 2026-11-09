@@ -207,6 +207,13 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .wz.o{background:#2f6fd6}.wz.y{background:#2e9d5b}.wz.x{background:#c8102e}.wz.i{background:#d98a00}.wz.c{background:#7a4cc2}
 .wz-text{font-size:12px;color:var(--muted);display:block}
 @media print{#wartDlg{display:none}}
+#smtDlg{width:min(980px,calc(100vw - 32px))}
+#smtDlg .dlg-body{max-height:calc(100vh - 220px);overflow:auto;padding:0 16px 12px}
+.smt-tab td.nr{white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.smt-tab tr.passt td{background:color-mix(in srgb,var(--accent,#c8102e) 8%,transparent)}
+.smt-hinweis{grid-column:1/-1;display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:8px;border:1px solid color-mix(in srgb,var(--accent,#c8102e) 40%,transparent);background:color-mix(in srgb,var(--accent,#c8102e) 6%,transparent);font-size:13px}
+.smt-hinweis b{color:var(--accent,#c8102e)}
+.smt-hinweis button{padding:2px 8px;font-size:12.5px;margin-right:6px}
 #formDlg .dlg-body{max-height:calc(100vh - 190px);overflow:auto}
 .form-liste{display:flex;flex-direction:column;gap:4px;min-width:200px;position:sticky;top:0}
 .form-liste button{text-align:left}
@@ -474,6 +481,7 @@ body{padding-bottom:172px}
         <button class="kachel" id="docuBtn"><span class="k-icon" aria-hidden="true">📷</span><span><b>Dokumentation</b><small>Berichte mit Fotos per E-Mail senden</small></span></button>
         <button class="kachel" id="formBtn"><span class="k-icon" aria-hidden="true">📋</span><span><b>Formulare</b><small>Prüfprotokoll, Reparaturauftrag, Bestellungen …</small></span></button>
         <button class="kachel" id="wartBtn"><span class="k-icon" aria-hidden="true">🔧</span><span><b>Wartungspläne</b><small>Arbeiten und Intervalle je Gerätetyp</small></span></button>
+        <button class="kachel" id="smtBtn"><span class="k-icon" aria-hidden="true">📣</span><span><b>Servicemitteilung Toyota</b><small>Kommt automatisch aus Outlook – passend zur Type</small></span></button>
       </div>
       <div class="aktionen row">
         <input type="file" id="pdfFile" accept="application/pdf,.pdf,.xlsx,.xlsm,.xls,.xlsb" multiple hidden>
@@ -536,6 +544,7 @@ body{padding-bottom:172px}
       <p>Jedes gespeicherte Formular liegt zusätzlich unter <b>Dokumente\Service-Mappe\Berichte\&lt;Kunde&gt;</b>. Unter <b>🕘 Verlauf</b> (links bei den Formularen) stehen alle erstellten Formulare – „Öffnen“ lädt die Eingaben wieder, z. B. zum Ändern oder neu Drucken. Die <b>📋 Geräteliste</b> zeigt alle gespeicherten Ladegeräte. Der <b>🔋 Batterie-Verlauf</b> zeigt alle Batterieprüfungen aller Techniker – Batterie anklicken, um die Zellwerte aller Prüfungen nebeneinander zu vergleichen.</p>
       <h3>6. Wartungspläne</h3>
       <p>Die Kachel <b>Wartungspläne</b> zeigt alle Pläne (RRE, VRE, VCE, Traigo, 7FB…) mit den Arbeiten je Intervall – Legende: Kontrollieren, Reinigen, Wechseln, Fetten, Einstellen. Mit Suche und Drucken.</p>
+      <p>Die Kachel <b>Servicemitteilung Toyota</b> holt die Mitteilungen automatisch aus Outlook (Mails mit „Servicemitteilung“ im Betreff, PDFs TB…/QM…) und legt sie unter Dokumente\Service-Mappe\Servicemitteilungen Toyota ab. In den Formularen erscheint unter <b>Type</b> ein Hinweis, wenn eine Mitteilung zum Gerät passt.</p>
       <h3>7. Dokumentation (Umbau, Gewaltschaden, Garantie)</h3>
       <p>„Dokumentation“ öffnen, Berichte auswählen und alle Fotos auf einmal hinzufügen (oder per QR-Code vom Handy). Die Fotos werden nach Aufnahmezeit sortiert und dem richtigen Auftrag zugeordnet; je Auftrag öffnet sich eine E-Mail an d.dokumentation@schlueter-gabelstapler.de mit einer PDF (Bericht vorne, danach die Fotos). TruckReport-Dateien hängen zusätzlich an.</p>
       <h3>Sonstiges</h3>
@@ -583,6 +592,15 @@ body{padding-bottom:172px}
       <nav id="wartListe" class="form-liste"></nav>
       <div id="wartInhalt" class="form-inhalt"></div>
     </div>
+  </form>
+</dialog>
+
+<dialog id="smtDlg">
+  <form method="dialog" class="dlg" onsubmit="return false">
+    <div class="dlg-head"><strong>Servicemitteilung Toyota</strong><button type="button" class="ghost" id="smtClose">Schließen</button></div>
+    <div class="et-kopf"><input type="search" id="smtTyp" placeholder="Type des Geräts, z. B. 9FBE18T oder 8FBMT25 …"><input type="search" id="smtSuche" placeholder="Suchen: Nummer oder Stichwort …"></div>
+    <div class="dlg-body"><table class="et-tab smt-tab"><thead><tr><th>Nummer</th><th>Mitteilung</th><th>Eingang</th><th></th></tr></thead><tbody id="smtListe"></tbody></table></div>
+    <div class="dlg-foot"><span class="hint" id="smtStand"></span><span style="display:flex;gap:8px"><button type="button" class="ghost" id="smtOrdner">📂 Ordner öffnen</button><button type="button" class="primary" id="smtHolen">🔄 Aus Outlook holen</button></span></div>
   </form>
 </dialog>
 
@@ -3030,6 +3048,7 @@ function formRender(){
         if(FELD_MAP[f.id] && FELD_MAP[f.id].D5 === x.z) kundeVorschlag(i, f, w);
         if(f.id === "batterie" && (x.z === "G11" || x.z === "AC6")) i.addEventListener("change", () => { const ra = document.querySelector("#formInhalt .form-raster"); if(ra) batMarkieren(f, w, ra); });
         l.appendChild(i); felder.appendChild(l);
+        if(x.l === "Type" && f.id !== "batterie" && !(a.titel || "").startsWith("Ladegerät")) smtFeld(i, felder);
       } else if(x.t === "flaeche" || x.t === "zeilen"){
         const l = document.createElement("label"); l.className = "form-voll"; const s = document.createElement("span"); s.textContent = x.l; l.appendChild(s);
         const ta = document.createElement("textarea");
@@ -4634,8 +4653,65 @@ $("#wartBtn").onclick = async () => {
 };
 $("#wartClose").onclick = () => $("#wartDlg").close();
 
+/* ---------- Servicemitteilung Toyota (automatisch aus Outlook) ---------- */
+let smtDaten = null, smtLaden = null;
+function smtHolen(neu){
+  if(neu) return smtLaden = fetch("/api/smt", {method: "POST"}).then(r => r.json()).then(d => smtDaten = d).catch(() => smtDaten);
+  if(!smtLaden) smtLaden = fetch("/api/smt").then(r => r.json()).then(d => smtDaten = d).catch(() => (smtDaten = {liste: []}));
+  return smtLaden;
+}
+// Passt die Mitteilung zur Type? „9FBE15-20T“ passt zu 9FBE18T, „8FBMT40-50“ zu 8FBMT45, „LWE/SWE“ zu LWE200, „SAI125CB“ zu SAI125CB
+function smtPasst(typ, titel){
+  const roh = String(typ || "").toUpperCase(), typen = [...roh.split(/[\s,;/]+/), roh.replace(/^TOYOTA\s*/, "").replace(/\s+/g, "")].map(t => t.replace(/[-.]/g, "")).filter(t => t.length >= 3);
+  if(!typen.length) return false;
+  const T = String(titel || "");
+  const muster = [];
+  for(const m of T.matchAll(/\b(\d?[A-Z]{2,})(\d{2,3})(?:-(\d{2,3}))?([A-Z]*)\b/g)){ if(/^(TB|QM)$/.test(m[1])) continue; muster.push({p: m[1], a: +m[2], b: m[3] ? +m[3] : +m[2]}); }
+  for(const m of T.matchAll(/(?:^|[\s/,(])([A-Z]{3,})(?=$|[\s/,):])/g)) muster.push({p: m[1]});
+  return typen.some(t => muster.some(mu => {
+    if(!t.startsWith(mu.p)) return false;
+    const rest = t.slice(mu.p.length);
+    if(mu.a === undefined) return rest === "" || /^\d/.test(rest);
+    const n = +((rest.match(/^\d+/) || [])[0] || NaN);
+    return n >= mu.a && n <= mu.b;
+  }));
+}
+const smtOeffnen = nr => fetch("/api/smt/oeffnen?nr=" + encodeURIComponent(nr), {method: "POST"}).then(r => { if(!r.ok) toast("Die Datei der Mitteilung wurde nicht gefunden."); });
+function smtFeld(input, felder){
+  const box = document.createElement("div"); box.className = "smt-hinweis"; box.hidden = true; felder.appendChild(box);
+  const zeigen = () => {
+    const l = ((smtDaten && smtDaten.liste) || []).filter(e => smtPasst(input.value, e.titel));
+    box.hidden = !l.length; box.innerHTML = "";
+    if(!l.length) return;
+    box.insertAdjacentHTML("beforeend", `<span><b>📣 ${l.length === 1 ? "Eine Toyota-Servicemitteilung passt" : l.length + " Toyota-Servicemitteilungen passen"} zu dieser Type:</b></span>`);
+    for(const e of l){ const z = document.createElement("span"); const b = document.createElement("button"); b.type = "button"; b.textContent = "Öffnen"; b.onclick = () => smtOeffnen(e.nr); z.append(b, document.createTextNode(e.nr + " – " + (e.titel || e.datei))); box.appendChild(z); }
+  };
+  let t; input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(zeigen, 300); });
+  input.addEventListener("change", zeigen);
+  smtHolen().then(zeigen);
+}
+function smtZeigen(){
+  const tb = $("#smtListe"), d = smtDaten || {liste: []}, typ = $("#smtTyp").value.trim(), q = $("#smtSuche").value.trim().toLowerCase();
+  tb.innerHTML = "";
+  let l = d.liste.filter(e => !q || (e.nr + " " + e.titel + " " + e.betreff).toLowerCase().includes(q));
+  if(typ) l = l.filter(e => smtPasst(typ, e.titel));
+  for(const e of l){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="nr">${esc(e.nr)}</td><td>${esc(e.titel || e.datei)}</td><td class="l">${esc((e.datum || "").split("-").reverse().join("."))}</td><td></td>`;
+    const b = document.createElement("button"); b.type = "button"; b.textContent = "📄 Öffnen"; b.onclick = () => smtOeffnen(e.nr); tr.lastChild.appendChild(b);
+    tb.appendChild(tr);
+  }
+  if(!l.length) tb.insertAdjacentHTML("beforeend", `<tr><td colspan="4" class="hint" style="padding:14px 6px">${d.liste.length ? (typ ? "Keine Servicemitteilung passt zu dieser Type." : "Nichts gefunden.") : "Noch keine Servicemitteilungen. Sie kommen automatisch aus Outlook, sobald eine Mail mit „Servicemitteilung“ im Betreff und den PDFs (TB…, QM…) im Posteingang liegt."}</td></tr>`);
+  $("#smtStand").textContent = (d.laeuft ? "Outlook wird gerade durchsucht … " : "") + (d.stand ? `${d.liste.length} Mitteilungen · zuletzt aus Outlook geholt: ${d.stand.split(" ")[0].split("-").reverse().join(".")} ${d.stand.split(" ")[1] || ""}` : "") + (d.fehler && !d.laeuft ? ` · ${d.fehler === "Outlook läuft nicht" ? "Outlook ist nicht geöffnet" : d.fehler}` : "");
+}
+$("#smtBtn").onclick = async () => { await smtHolen(); smtZeigen(); $("#smtDlg").showModal(); };
+$("#smtClose").onclick = () => $("#smtDlg").close();
+$("#smtTyp").oninput = $("#smtSuche").oninput = () => smtZeigen();
+$("#smtOrdner").onclick = () => fetch("/api/smt/oeffnen", {method: "POST"});
+$("#smtHolen").onclick = async () => { const b = $("#smtHolen"); b.disabled = true; b.textContent = "⏳ Outlook wird durchsucht …"; await smtHolen(true); b.disabled = false; b.textContent = "🔄 Aus Outlook holen"; smtZeigen(); };
+
 /* Fenster: minimieren, maximieren, schließen (für die großen Fenster) */
-for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg"]){
+for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg", "smtDlg"]){
   const d = document.getElementById(id); if(!d) continue;
   const head = d.querySelector(".dlg-head"); if(!head) continue;
   d.classList.add("fenster");
