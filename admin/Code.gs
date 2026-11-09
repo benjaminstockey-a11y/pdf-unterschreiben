@@ -5,7 +5,7 @@
 // Beim Einspielen werden admin/Typenschild.js, admin/QrCode.js und admin/Vorlagen.js unten angehängt (jeweils ohne die letzte module.exports-Zeile).
 const KEY = 'HIER_SCHLUESSEL_EINTRAGEN';
 const DOMAIN = 'schlueter-gabelstapler.de';
-const ADMIN_MAILS = ['b.stockey@hotmail.de']; // Admin darf sich mit dieser Adresse anmelden
+const ADMIN_MAILS = ['b.stockey@hotmail.de', 'b.stockey@schlueter-gabelstapler.de']; // Admin darf sich mit dieser Adresse anmelden
 const CODE_MINUTEN = 30;
 // Gerätelisten (Excel) melden sich mit diesem eigenen Schlüssel. Er erlaubt NUR die Nutzungsmeldung
 // der Listen – keine Anmeldung, keine Admin-Funktionen. Muss mit MELDE_KEY in den Listen übereinstimmen.
