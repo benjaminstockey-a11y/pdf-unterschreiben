@@ -549,7 +549,7 @@ body{padding-bottom:172px}
       <p>Jedes gespeicherte Formular liegt zusätzlich unter <b>Dokumente\Service-Mappe\Berichte\&lt;Kunde&gt;</b>. Unter <b>🕘 Verlauf</b> (links bei den Formularen) stehen alle erstellten Formulare – „Öffnen“ lädt die Eingaben wieder, z. B. zum Ändern oder neu Drucken. Die <b>📋 Geräteliste</b> zeigt alle gespeicherten Ladegeräte. Der <b>🔋 Batterie-Verlauf</b> zeigt alle Batterieprüfungen aller Techniker – Batterie anklicken, um die Zellwerte aller Prüfungen nebeneinander zu vergleichen.</p>
       <h3>6. Wartungspläne</h3>
       <p>Die Kachel <b>Wartungspläne</b> zeigt alle Pläne (RRE, VRE, VCE, Traigo, 7FB…) mit den Arbeiten je Intervall – Legende: Kontrollieren, Reinigen, Wechseln, Fetten, Einstellen. Mit Suche und Drucken.</p>
-      <p>Die Kachel <b>Servicemitteilung Toyota</b> holt die Mitteilungen automatisch aus Outlook (Mails mit „Servicemitteilung“ im Betreff, PDFs TB…/QM…) und legt sie unter Dokumente\Service-Mappe\Servicemitteilungen Toyota ab. Jede PDF wird einmal selbst gelesen: die Gerätetypen aus der Tabelle „Model(s)“ und der ganze Text für die Suche (z. B. TruckCom, I-Site, DHU). In den Formularen erscheint unter <b>Type</b> ein Hinweis, wenn eine Mitteilung zum Gerät passt. Die PDF öffnet sich im eingebauten PDF-Leser (Suchen, Zoomen, Drucken).</p>
+      <p>Die Kachel <b>Servicemitteilung Toyota</b> holt die Mitteilungen automatisch aus Outlook (Mails mit „Servicemitteilung“ im Betreff, PDFs TB…/QM… und ältere BSM…/TSM…/TQM…) und legt sie unter Dokumente\Service-Mappe\Servicemitteilungen Toyota ab. Jede PDF wird einmal selbst gelesen: die Gerätetypen aus der Tabelle „Model(s)“ und der ganze Text für die Suche (z. B. TruckCom, I-Site, DHU). In den Formularen erscheint unter <b>Type</b> ein Hinweis, wenn eine Mitteilung zum Gerät passt. Die PDF öffnet sich im eingebauten PDF-Leser (Suchen, Zoomen, Drucken).</p>
       <h3>7. Dokumentation (Umbau, Gewaltschaden, Garantie)</h3>
       <p>„Dokumentation“ öffnen, Berichte auswählen und alle Fotos auf einmal hinzufügen (oder per QR-Code vom Handy). Die Fotos werden nach Aufnahmezeit sortiert und dem richtigen Auftrag zugeordnet; je Auftrag öffnet sich eine E-Mail an d.dokumentation@schlueter-gabelstapler.de mit einer PDF (Bericht vorne, danach die Fotos). TruckReport-Dateien hängen zusätzlich an.</p>
       <h3>Sonstiges</h3>
@@ -4702,7 +4702,7 @@ function smtPasstModelle(typ, modelle){
 function smtPasst(typ, titel){
   const typen = smtTypen(typ); if(!typen.length) return false;
   const T = String(titel || ""), muster = [];
-  for(const m of T.matchAll(/\b(\d?[A-Z]{2,})(\d{2,3})(?:-(\d{2,3}))?([A-Z]*)\b/g)){ if(/^(TB|QM)$/.test(m[1])) continue; muster.push({p: m[1], a: +m[2], b: m[3] ? +m[3] : +m[2]}); }
+  for(const m of T.matchAll(/\b(\d?[A-Z]{2,})(\d{2,3})(?:-(\d{2,3}))?([A-Z]*)\b/g)){ if(/^(TB|QM|BSM|TSM|TQM|BQM|BTB|TTB)$/.test(m[1])) continue; muster.push({p: m[1], a: +m[2], b: m[3] ? +m[3] : +m[2]}); }
   for(const m of T.matchAll(/(?:^|[\s/,(])([A-Z]{3,})(?=$|[\s/,):])/g)) muster.push({p: m[1]});
   return typen.some(t => muster.some(mu => {
     if(!t.startsWith(mu.p)) return false;
@@ -4732,18 +4732,21 @@ async function smtPdfLesen(nr){
       const text = z.map(t => t.s).join(" ");
       if(/^\s*1\b/.test(text) && /general|allgemein|information/i.test(text) || /^\s*1\s*$/.test(text)) break;
       const sp = z.filter(t => t.x >= x0 && t.x < x1).map(t => t.s).join(" ").trim();
-      for(const tok of sp.split(/[\s,;]+/)) if(/^\d*[A-Z]+\d/i.test(tok) && !/^(TB|QM|T)\d/i.test(tok)) modelle.push(tok.toUpperCase());
+      for(const tok of sp.split(/[\s,;]+/)) if(/^\d*[A-Z]+\d/i.test(tok) && !/^(TB|QM|BSM|TSM|TQM|BQM|T)\d/i.test(tok)) modelle.push(tok.toUpperCase());
     }
   }
   pdf.destroy();
   // Keine Tabelle gefunden: Gerätetypen im Text der ersten Seite suchen (z. B. „RRE140-250“, „SPE125L“, „8FBMT40-50“)
   if(!modelle.length && texte[0]){
-    const raus = /^(TB|QM|ISO|EN|DIN|IEC|ACC|ECU|CAN|LED|USB|PDF|SAE\d{4}|V\d|T\d|G\d|MY\d)/;
+    const raus = /^(TB|QM|BSM|TSM|TQM|BQM|ISO|EN|DIN|IEC|ACC|ECU|CAN|LED|USB|PDF|SAE\d{4}|V\d|T\d|G\d|MY\d)/;
     for(const m of texte[0].toUpperCase().matchAll(/(?:^|[\s(,;:])(\d{0,2}-?\d?[A-Z]{2,6}\d{2,3}[A-Z0-9]*(?:[-\/][A-Z]{0,6}\d{2,3}[A-Z0-9]*)*)(?=$|[\s),;:.])/g)){
       const t = m[1].replace(/^\d{2}-/, ""); if(raus.test(t) || /^\d{4,}/.test(t)) continue; modelle.push(t);
     }
   }
-  return {modelle: [...new Set(modelle)], text: texte.join("\n").replace(/[ \t]+/g, " ").slice(0, 60000)};
+  // Titel: die Zeile nach „Technical bulletin/TB…“, „Service Message/BSM: …“, „Technische Mitteilung/…“
+  const zl = (texte[0] || "").split("\n").map(z => z.trim()).filter(Boolean), ti = zl.findIndex(z => /(bulletin|message|mitteilung|meldung)\s*\/\s*[A-Z]{2,4}/i.test(z));
+  const titel = ti >= 0 && zl[ti + 1] ? zl[ti + 1] + (zl[ti + 2] && !/^(This|Diese|Model)/i.test(zl[ti + 2]) && zl[ti + 2].length < 60 ? " " + zl[ti + 2] : "") : "";
+  return {titel, modelle: [...new Set(modelle)], text: texte.join("\n").replace(/[ \t]+/g, " ").slice(0, 60000)};
 }
 function smtAuslesen(){
   if(smtLesen || !smtDaten) return;
@@ -4752,7 +4755,7 @@ function smtAuslesen(){
   offen.forEach(e => smtNochmal.add(e.nr));
   smtLesen = (async () => {
     for(const e of offen){
-      try{ const r = await smtPdfLesen(e.nr); Object.assign(e, r, {gelesen: true});
+      try{ const r = await smtPdfLesen(e.nr); const alt = e.titel; Object.assign(e, r, {gelesen: true}); if(alt) e.titel = alt;
         await fetch("/api/smt/info", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({nr: e.nr, ...r})}); }
       catch(err){ e.gelesen = true; }
       if($("#smtDlg").open) smtZeigen();
@@ -4820,7 +4823,7 @@ function smtZeigen(){
     const b = document.createElement("button"); b.type = "button"; b.textContent = "📄 Öffnen"; b.onclick = () => smtOeffnen(e.nr); tr.lastChild.appendChild(b);
     tb.appendChild(tr);
   }
-  if(!l.length) tb.insertAdjacentHTML("beforeend", `<tr><td colspan="4" class="hint" style="padding:14px 6px">${d.liste.length ? (typ ? "Keine Servicemitteilung passt zu dieser Type." : "Nichts gefunden.") : "Noch keine Servicemitteilungen. Sie kommen automatisch aus Outlook, sobald eine Mail mit „Servicemitteilung“ im Betreff und den PDFs (TB…, QM…) im Posteingang liegt."}</td></tr>`);
+  if(!l.length) tb.insertAdjacentHTML("beforeend", `<tr><td colspan="4" class="hint" style="padding:14px 6px">${d.liste.length ? (typ ? "Keine Servicemitteilung passt zu dieser Type." : "Nichts gefunden.") : "Noch keine Servicemitteilungen. Sie kommen automatisch aus Outlook, sobald eine Mail mit „Servicemitteilung“ im Betreff und den PDFs (TB…, QM…, BSM…, TSM…, TQM…) im Posteingang liegt."}</td></tr>`);
   const lesen = d.liste.filter(e => !e.gelesen).length;
   $("#smtStand").textContent = (d.laeuft ? "Outlook wird gerade durchsucht … " : "") + (lesen ? `${lesen} PDFs werden noch gelesen … ` : "") + (d.stand ? `${d.liste.length} Mitteilungen · zuletzt aus Outlook geholt: ${d.stand.split(" ")[0].split("-").reverse().join(".")} ${d.stand.split(" ")[1] || ""}` : "") + (d.fehler && !d.laeuft ? ` · ${d.fehler === "Outlook läuft nicht" ? "Outlook ist nicht geöffnet" : d.fehler}` : "");
 }

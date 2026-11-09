@@ -34,17 +34,21 @@ type smtEintrag struct {
 }
 
 type smtIndex struct {
-	Liste  []smtEintrag `json:"liste"`
-	Mails  []string     `json:"mails"` // schon ausgewertete Mails (EntryID)
-	Stand  string       `json:"stand"`
-	Fehler string       `json:"fehler,omitempty"`
+	Liste   []smtEintrag `json:"liste"`
+	Mails   []string     `json:"mails"` // schon ausgewertete Mails (EntryID)
+	Stand   string       `json:"stand"`
+	Version int          `json:"version,omitempty"` // 2: auch ältere Nummern (BSM, TSM, TQM …) – Mails einmal neu durchsehen
+	Fehler  string       `json:"fehler,omitempty"`
 }
 
 var (
 	smtMu     sync.Mutex
 	smtLaeuft bool
-	smtZeile  = regexp.MustCompile(`(?m)^[\s\x{00A0}]*((?:TB|QM)\s?\d{5})[\s\x{00A0}]*[-–—:][\s\x{00A0}]*(.+?)[\s\x{00A0}]*$`)
-	smtDatei  = regexp.MustCompile(`(?i)^((?:TB|QM)\d{5})\b.*\.pdf$`)
+	// Nummern: TB26038, QM26007 und die älteren BSM2582, TSM…, TQM…, BQM…
+	smtArt   = `(?:TB|QM|BSM|TSM|TQM|BQM|BTB|TTB|BTM|TTM)`
+	smtZeile = regexp.MustCompile(`(?mi)^[\s\x{00A0}]*(` + smtArt + `[\s:]?\s?\d{4,5})[\s\x{00A0}]*[-–—:][\s\x{00A0}]*(.+?)[\s\x{00A0}]*$`)
+	smtDatei = regexp.MustCompile(`(?i)^(` + smtArt + `[\s_:-]?\d{4,5})(?:\D.*)?\.pdf$`)
+	smtNrWeg = regexp.MustCompile(`[\s_:-]+`)
 )
 
 func smtDir() string {
@@ -86,6 +90,9 @@ func smtAbruf() (smtIndex, error) {
 	defer func() { smtMu.Lock(); smtLaeuft = false; smtMu.Unlock() }()
 
 	x := smtLaden()
+	if x.Version < 2 {
+		x.Mails, x.Version = nil, 2
+	}
 	bekannt := map[string]bool{}
 	for _, m := range x.Mails {
 		bekannt[m] = true
@@ -129,7 +136,7 @@ func smtAbruf() (smtIndex, error) {
 			}
 			eingaenge = append(eingaenge, fv.ToIDispatch())
 		}
-		filter := `@SQL=("urn:schemas:httpmail:subject" LIKE '%ervicemitteilung%' OR "urn:schemas:httpmail:subject" LIKE '%ervice-Mitteilung%')`
+		filter := `@SQL=("urn:schemas:httpmail:subject" LIKE '%itteilung%' OR "urn:schemas:httpmail:subject" LIKE '%ervice message%' OR "urn:schemas:httpmail:subject" LIKE '%bulletin%' OR "urn:schemas:httpmail:subject" LIKE '%BSM%' OR "urn:schemas:httpmail:subject" LIKE '%TSM%' OR "urn:schemas:httpmail:subject" LIKE '%TQM%' OR "urn:schemas:httpmail:subject" LIKE '%BQM%')`
 		var ordner func(f *ole.IDispatch, tiefe int)
 		ordner = func(f *ole.IDispatch, tiefe int) {
 			defer f.Release()
@@ -154,7 +161,7 @@ func smtAbruf() (smtIndex, error) {
 				}
 				items.Release()
 			}
-			if tiefe >= 2 {
+			if tiefe >= 4 {
 				return
 			}
 			if fv, err := oleutil.GetProperty(f, "Folders"); err == nil {
@@ -217,7 +224,7 @@ func smtMail(m *ole.IDispatch, x *smtIndex, bekannt map[string]bool, nach map[st
 	}
 	titel := map[string]string{}
 	for _, z := range smtZeile.FindAllStringSubmatch(smtText(m, "Body"), -1) {
-		nr := strings.ReplaceAll(strings.ToUpper(z[1]), " ", "")
+		nr := smtNrWeg.ReplaceAllString(strings.ToUpper(z[1]), "")
 		if _, ok := titel[nr]; !ok {
 			titel[nr] = strings.TrimSpace(z[2])
 		}
@@ -237,7 +244,7 @@ func smtMail(m *ole.IDispatch, x *smtIndex, bekannt map[string]bool, nach map[st
 			a := iv.ToIDispatch()
 			name := smtText(a, "FileName")
 			if t := smtDatei.FindStringSubmatch(name); t != nil {
-				nr := strings.ToUpper(t[1])
+				nr := smtNrWeg.ReplaceAllString(strings.ToUpper(t[1]), "")
 				ziel := filepath.Join(smtDir(), ablageName.ReplaceAllString(name, "_"))
 				if _, err := os.Stat(ziel); err != nil {
 					_, err = oleutil.CallMethod(a, "SaveAsFile", ziel)
@@ -374,6 +381,7 @@ func (a *app) handleSmtInfo(w http.ResponseWriter, r *http.Request) {
 		Nr      string   `json:"nr"`
 		Modelle []string `json:"modelle"`
 		Text    string   `json:"text"`
+		Titel   string   `json:"titel"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20)).Decode(&in); err != nil {
 		http.Error(w, "json", http.StatusBadRequest)
@@ -388,6 +396,9 @@ func (a *app) handleSmtInfo(w http.ResponseWriter, r *http.Request) {
 	for i := range x.Liste {
 		if x.Liste[i].Nr == strings.ToUpper(in.Nr) {
 			x.Liste[i].Modelle, x.Liste[i].Text, x.Liste[i].Gelesen = in.Modelle, in.Text, true
+			if x.Liste[i].Titel == "" && in.Titel != "" {
+				x.Liste[i].Titel = in.Titel
+			}
 		}
 	}
 	_ = smtSpeichern(x)
