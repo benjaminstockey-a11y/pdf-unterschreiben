@@ -421,14 +421,12 @@ body{padding-bottom:172px}
 .fz .mast.neigen{transform-origin:61% 86%;animation:neigen 5.2s ease-in-out infinite}
 .fz .mast.schub{animation:schub 6s ease-in-out infinite}
 .fz1{height:142px;animation-delay:0s}.fz1 .mast img.g{--hub:-38%}
-.fz2{height:150px;animation-delay:-7.3s}.fz2 .mast img.g{--hub:-34%;animation-delay:-1.5s}
-.fz3{height:80px;animation-delay:-14.6s}.fz3 .mast img.g{--hub:-5%;animation-delay:-3s;animation-duration:3s}
-/* großer Diesel-/Gasstapler: fährt auf der hinteren Spur von rechts nach links (Gabel vorn) */
-.fz4{height:132px;bottom:16px;z-index:-1;animation-name:fahrenL;animation-duration:26s;animation-delay:-5s;filter:drop-shadow(0 4px 3px rgba(0,0,0,.16)) saturate(.95)}
-.fz4 .mast img.g{--hub:-30%;animation-delay:-2.2s;animation-duration:5s}
-.fz4 .mast.neigen{transform-origin:23% 66%;animation-name:neigenL;animation-duration:6s}
-@keyframes fahrenL{0%{transform:translateX(calc(100cqw + 40px))}100%{transform:translateX(-420px)}}
-@keyframes neigenL{0%,15%{transform:rotate(0)}35%,50%{transform:rotate(3.5deg)}70%,85%{transform:rotate(-2.5deg)}100%{transform:rotate(0)}}
+.fz2{height:150px;animation-delay:-5.5s}.fz2 .mast img.g{--hub:-34%;animation-delay:-1.5s}
+.fz3{height:80px;animation-delay:-11s}.fz3 .mast img.g{--hub:-5%;animation-delay:-3s;animation-duration:3s}
+/* großer Gasstapler: fährt wie die anderen nach rechts, Mast neigt, Gabel hebt */
+.fz4{height:150px;animation-delay:-16.5s}
+.fz4 .mast img.g{--hub:-28%;animation-delay:-2.2s;animation-duration:5s}
+.fz4 .mast.neigen{transform-origin:77% 66%;animation-duration:6s}
 @keyframes neigen{0%,15%{transform:rotate(0)}35%,50%{transform:rotate(-3.5deg)}70%,85%{transform:rotate(2.5deg)}100%{transform:rotate(0)}}
 @keyframes schub{0%,15%{transform:translateX(0)}40%,65%{transform:translateX(16%)}90%,100%{transform:translateX(0)}}
 @keyframes fahren{0%{transform:translateX(-420px)}100%{transform:translateX(calc(100cqw + 40px))}}
