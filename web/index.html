@@ -4693,8 +4693,9 @@ function smtTypen(typ){
   return [...roh.split(/[\s,;/]+/), roh.replace(/^TOYOTA\s*/, "").replace(/\s+/g, "")].map(t => t.replace(/[-.]/g, "")).filter(t => t.length >= 3);
 }
 function smtPasstModelle(typ, modelle){
-  const typen = smtTypen(typ).map(t => /^(\d*[A-Z]+)(\d+)/.exec(t)).filter(Boolean);
-  return !!typen.length && (modelle || []).some(m => smtRegeln(m).some(r => typen.some(t => t[1] === r.p && +t[2] >= r.a && +t[2] <= r.b)));
+  // nur das Kürzel ohne Zahl (z. B. „RRE“) → alle Mitteilungen für diese Baureihe
+  const typen = smtTypen(typ).map(t => /^(\d*[A-Z]+)(\d+)?/.exec(t)).filter(Boolean);
+  return !!typen.length && (modelle || []).some(m => smtRegeln(m).some(r => typen.some(t => t[1] === r.p && (t[2] === undefined || +t[2] >= r.a && +t[2] <= r.b))));
 }
 // Passt die Mitteilung zur Type? Erst die Typen aus der PDF, sonst der Titel aus der Mail
 function smtPasst(typ, titel){
@@ -4779,7 +4780,7 @@ function smtZeigen(){
   tb.innerHTML = "";
   const worte = q.split(/\s+/).filter(Boolean);
     const knapp = t => t.replace(/[-_\s.\/]+/g, "");
-  let l = d.liste.filter(e => { const h = (e.nr + " " + e.titel + " " + e.betreff + " " + (e.modelle || []).join(" ") + " " + (e.text || "")).toLowerCase(), hk = knapp(h); return worte.every(w => h.includes(w) || hk.includes(knapp(w))); });
+  let l = d.liste.filter(e => { const h = (e.nr + " " + e.titel + " " + e.betreff + " " + (e.modelle || []).join(" ") + " " + (e.text || "")).toLowerCase(), hk = knapp(h); return worte.every(w => new RegExp("(^|[^a-z0-9äöüß])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(h) || knapp(w).length >= 4 && hk.includes(knapp(w))); });
   if(typ) l = l.filter(e => smtPasstE(typ, e));
   for(const e of l){
     const tr = document.createElement("tr");
