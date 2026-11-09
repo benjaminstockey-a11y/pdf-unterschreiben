@@ -23,11 +23,14 @@ import (
 // in Dokumente\Service-Mappe\Servicemitteilungen Toyota und merkt sich Nummer und Titel aus dem Mailtext.
 
 type smtEintrag struct {
-	Nr      string `json:"nr"`
-	Titel   string `json:"titel"`
-	Datei   string `json:"datei"`
-	Datum   string `json:"datum"`
-	Betreff string `json:"betreff"`
+	Nr      string   `json:"nr"`
+	Titel   string   `json:"titel"`
+	Datei   string   `json:"datei"`
+	Datum   string   `json:"datum"`
+	Betreff string   `json:"betreff"`
+	Modelle []string `json:"modelle,omitempty"` // Gerätetypen aus der PDF (Abschnitt „Model(s)“)
+	Text    string   `json:"text,omitempty"`    // Text der PDF für die Suche (klein geschrieben)
+	Gelesen bool     `json:"gelesen,omitempty"` // PDF wurde schon einmal ausgelesen
 }
 
 type smtIndex struct {
@@ -178,7 +181,17 @@ func smtAbruf() (smtIndex, error) {
 	if err != nil {
 		x.Fehler = err.Error()
 	}
+	smtMu.Lock()
+	jetzt := smtLaden() // inzwischen ausgelesene PDFs (Gerätetypen, Text) nicht überschreiben
+	for i := range x.Liste {
+		for _, j := range jetzt.Liste {
+			if j.Nr == x.Liste[i].Nr && j.Datei == x.Liste[i].Datei && j.Gelesen && !x.Liste[i].Gelesen {
+				x.Liste[i].Modelle, x.Liste[i].Text, x.Liste[i].Gelesen = j.Modelle, j.Text, true
+			}
+		}
+	}
 	_ = smtSpeichern(x)
+	smtMu.Unlock()
 	return x, err
 }
 
@@ -253,6 +266,9 @@ func smtMail(m *ole.IDispatch, x *smtIndex, bekannt map[string]bool, nach map[st
 			if x.Liste[i].Datum > e.Datum {
 				e.Datum = x.Liste[i].Datum
 			}
+			if x.Liste[i].Datei == e.Datei {
+				e.Modelle, e.Text, e.Gelesen = x.Liste[i].Modelle, x.Liste[i].Text, x.Liste[i].Gelesen
+			}
 			x.Liste[i] = e
 		} else {
 			nach[nr] = len(x.Liste)
@@ -323,5 +339,57 @@ func (a *app) handleSmtOeffnen(w http.ResponseWriter, r *http.Request) {
 		_ = os.MkdirAll(ziel, 0o755)
 	}
 	_ = hidden("rundll32.exe", "url.dll,FileProtocolHandler", ziel).Start()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PDF einer Mitteilung für den eingebauten PDF-Leser
+func (a *app) handleSmtPdf(w http.ResponseWriter, r *http.Request) {
+	nr := strings.ToUpper(r.URL.Query().Get("nr"))
+	for _, e := range smtLaden().Liste {
+		if e.Nr == nr {
+			p := filepath.Join(smtDir(), filepath.Base(e.Datei))
+			f, err := os.Open(p)
+			if err != nil {
+				http.Error(w, "Datei fehlt", http.StatusNotFound)
+				return
+			}
+			defer f.Close()
+			st, _ := f.Stat()
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Header().Set("Content-Disposition", `inline; filename="`+strings.ReplaceAll(filepath.Base(e.Datei), `"`, "")+`"`)
+			http.ServeContent(w, r, "", st.ModTime(), f)
+			return
+		}
+	}
+	http.Error(w, "unbekannt", http.StatusNotFound)
+}
+
+// Ergebnis des Auslesens (Gerätetypen und Text) aus der Oberfläche speichern
+func (a *app) handleSmtInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST", http.StatusMethodNotAllowed)
+		return
+	}
+	var in struct {
+		Nr      string   `json:"nr"`
+		Modelle []string `json:"modelle"`
+		Text    string   `json:"text"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20)).Decode(&in); err != nil {
+		http.Error(w, "json", http.StatusBadRequest)
+		return
+	}
+	if len(in.Text) > 60000 {
+		in.Text = in.Text[:60000]
+	}
+	smtMu.Lock()
+	defer smtMu.Unlock()
+	x := smtLaden()
+	for i := range x.Liste {
+		if x.Liste[i].Nr == strings.ToUpper(in.Nr) {
+			x.Liste[i].Modelle, x.Liste[i].Text, x.Liste[i].Gelesen = in.Modelle, in.Text, true
+		}
+	}
+	_ = smtSpeichern(x)
 	w.WriteHeader(http.StatusNoContent)
 }

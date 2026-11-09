@@ -208,7 +208,11 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .wz-text{font-size:12px;color:var(--muted);display:block}
 @media print{#wartDlg{display:none}}
 #smtDlg{width:min(980px,calc(100vw - 32px))}
+#pdfLeser{width:min(1100px,calc(100vw - 32px));height:calc(100vh - 32px)}
+#pdfLeser .dlg{height:100%;display:flex;flex-direction:column}
+#pdfLeser iframe{flex:1;width:100%;border:0;background:#525659}
 #smtDlg .dlg-body{max-height:calc(100vh - 220px);overflow:auto;padding:0 16px 12px}
+.smt-tab td:last-child{white-space:nowrap}
 .smt-tab td.nr{white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
 .smt-tab tr.passt td{background:color-mix(in srgb,var(--accent,#c8102e) 8%,transparent)}
 .smt-hinweis{grid-column:1/-1;display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:8px;border:1px solid color-mix(in srgb,var(--accent,#c8102e) 40%,transparent);background:color-mix(in srgb,var(--accent,#c8102e) 6%,transparent);font-size:13px}
@@ -544,7 +548,7 @@ body{padding-bottom:172px}
       <p>Jedes gespeicherte Formular liegt zusätzlich unter <b>Dokumente\Service-Mappe\Berichte\&lt;Kunde&gt;</b>. Unter <b>🕘 Verlauf</b> (links bei den Formularen) stehen alle erstellten Formulare – „Öffnen“ lädt die Eingaben wieder, z. B. zum Ändern oder neu Drucken. Die <b>📋 Geräteliste</b> zeigt alle gespeicherten Ladegeräte. Der <b>🔋 Batterie-Verlauf</b> zeigt alle Batterieprüfungen aller Techniker – Batterie anklicken, um die Zellwerte aller Prüfungen nebeneinander zu vergleichen.</p>
       <h3>6. Wartungspläne</h3>
       <p>Die Kachel <b>Wartungspläne</b> zeigt alle Pläne (RRE, VRE, VCE, Traigo, 7FB…) mit den Arbeiten je Intervall – Legende: Kontrollieren, Reinigen, Wechseln, Fetten, Einstellen. Mit Suche und Drucken.</p>
-      <p>Die Kachel <b>Servicemitteilung Toyota</b> holt die Mitteilungen automatisch aus Outlook (Mails mit „Servicemitteilung“ im Betreff, PDFs TB…/QM…) und legt sie unter Dokumente\Service-Mappe\Servicemitteilungen Toyota ab. In den Formularen erscheint unter <b>Type</b> ein Hinweis, wenn eine Mitteilung zum Gerät passt.</p>
+      <p>Die Kachel <b>Servicemitteilung Toyota</b> holt die Mitteilungen automatisch aus Outlook (Mails mit „Servicemitteilung“ im Betreff, PDFs TB…/QM…) und legt sie unter Dokumente\Service-Mappe\Servicemitteilungen Toyota ab. Jede PDF wird einmal selbst gelesen: die Gerätetypen aus der Tabelle „Model(s)“ und der ganze Text für die Suche (z. B. TruckCom, I-Site, DHU). In den Formularen erscheint unter <b>Type</b> ein Hinweis, wenn eine Mitteilung zum Gerät passt. Die PDF öffnet sich im eingebauten PDF-Leser (Suchen, Zoomen, Drucken).</p>
       <h3>7. Dokumentation (Umbau, Gewaltschaden, Garantie)</h3>
       <p>„Dokumentation“ öffnen, Berichte auswählen und alle Fotos auf einmal hinzufügen (oder per QR-Code vom Handy). Die Fotos werden nach Aufnahmezeit sortiert und dem richtigen Auftrag zugeordnet; je Auftrag öffnet sich eine E-Mail an d.dokumentation@schlueter-gabelstapler.de mit einer PDF (Bericht vorne, danach die Fotos). TruckReport-Dateien hängen zusätzlich an.</p>
       <h3>Sonstiges</h3>
@@ -598,9 +602,16 @@ body{padding-bottom:172px}
 <dialog id="smtDlg">
   <form method="dialog" class="dlg" onsubmit="return false">
     <div class="dlg-head"><strong>Servicemitteilung Toyota</strong><button type="button" class="ghost" id="smtClose">Schließen</button></div>
-    <div class="et-kopf"><input type="search" id="smtTyp" placeholder="Type des Geräts, z. B. 9FBE18T oder 8FBMT25 …"><input type="search" id="smtSuche" placeholder="Suchen: Nummer oder Stichwort …"></div>
+    <div class="et-kopf"><input type="search" id="smtTyp" placeholder="Type des Geräts, z. B. 9FBE18T oder 8FBMT25 …"><input type="search" id="smtSuche" placeholder="Suchen in allen Mitteilungen: TruckCom, I-Site, DHU, Nummer …"></div>
     <div class="dlg-body"><table class="et-tab smt-tab"><thead><tr><th>Nummer</th><th>Mitteilung</th><th>Eingang</th><th></th></tr></thead><tbody id="smtListe"></tbody></table></div>
     <div class="dlg-foot"><span class="hint" id="smtStand"></span><span style="display:flex;gap:8px"><button type="button" class="ghost" id="smtOrdner">📂 Ordner öffnen</button><button type="button" class="primary" id="smtHolen">🔄 Aus Outlook holen</button></span></div>
+  </form>
+</dialog>
+
+<dialog id="pdfLeser">
+  <form method="dialog" class="dlg" onsubmit="return false">
+    <div class="dlg-head"><strong id="pdfLeserTitel">PDF</strong><button type="button" class="ghost" id="pdfLeserZu">Schließen</button></div>
+    <iframe id="pdfLeserRahmen" title="PDF" src="about:blank"></iframe>
   </form>
 </dialog>
 
@@ -4654,18 +4665,41 @@ $("#wartBtn").onclick = async () => {
 $("#wartClose").onclick = () => $("#wartDlg").close();
 
 /* ---------- Servicemitteilung Toyota (automatisch aus Outlook) ---------- */
-let smtDaten = null, smtLaden = null;
+let smtDaten = null, smtLaden = null, smtLesen = null;
 function smtHolen(neu){
-  if(neu) return smtLaden = fetch("/api/smt", {method: "POST"}).then(r => r.json()).then(d => smtDaten = d).catch(() => smtDaten);
-  if(!smtLaden) smtLaden = fetch("/api/smt").then(r => r.json()).then(d => smtDaten = d).catch(() => (smtDaten = {liste: []}));
+  const nach = p => p.then(r => r.json()).then(d => { smtDaten = d; smtAuslesen(); return d; });
+  if(neu) return smtLaden = nach(fetch("/api/smt", {method: "POST"})).catch(() => smtDaten);
+  if(!smtLaden) smtLaden = nach(fetch("/api/smt")).catch(() => (smtDaten = {liste: []}));
   return smtLaden;
 }
-// Passt die Mitteilung zur Type? „9FBE15-20T“ passt zu 9FBE18T, „8FBMT40-50“ zu 8FBMT45, „LWE/SWE“ zu LWE200, „SAI125CB“ zu SAI125CB
+// „LWE140/160/180“, „RRE140H2-250H2“, „R314-R325“, „9FBRE14-25“, „SWE120L/140L“ → Regeln {p: Kürzel, a: von, b: bis}
+function smtRegeln(s){
+  const out = []; let pre = null;
+  for(const teil of String(s).toUpperCase().replace(/\s/g, "").split("/")){
+    // „250H2“ ist nur eine Zahl (Kürzel wie oben), „8FBRE16S“ dagegen ein eigenes Kürzel mit Zahl
+    const zerl = t => { if(pre && /^\d/.test(t) && !/^\d+[A-Z]{2,}\d/.test(t)){ const z = /^(\d+)/.exec(t); return z && [t, null, z[1]]; } return /^(\d*[A-Z]+)?(\d+)/.exec(t || ""); };
+    const [x, y] = teil.split("-"), m = zerl(x || ""); if(!m) continue;
+    // „RRE140H/H2-250H2“: „H2“ ist nur eine Ausführung des vorigen Typs, das Ende der Spanne gilt trotzdem
+    if(pre && m[1] && +m[2] < 10 && out.length){ const n = y && zerl(y); if(n) out[out.length - 1].b = Math.max(out[out.length - 1].b, +n[2]); continue; }
+    if(m[1]) pre = m[1]; if(!pre) continue;
+    const n = y && zerl(y), a = +m[2], b = n ? +n[2] : a;
+    out.push({p: pre, a: Math.min(a, b), b: Math.max(a, b)});
+  }
+  return out;
+}
+// Gerätetyp zerlegen: „RRE160H“ → RRE/160, „Toyota 8FBMT 25“ → 8FBMT/25
+function smtTypen(typ){
+  const roh = String(typ || "").toUpperCase();
+  return [...roh.split(/[\s,;/]+/), roh.replace(/^TOYOTA\s*/, "").replace(/\s+/g, "")].map(t => t.replace(/[-.]/g, "")).filter(t => t.length >= 3);
+}
+function smtPasstModelle(typ, modelle){
+  const typen = smtTypen(typ).map(t => /^(\d*[A-Z]+)(\d+)/.exec(t)).filter(Boolean);
+  return !!typen.length && (modelle || []).some(m => smtRegeln(m).some(r => typen.some(t => t[1] === r.p && +t[2] >= r.a && +t[2] <= r.b)));
+}
+// Passt die Mitteilung zur Type? Erst die Typen aus der PDF, sonst der Titel aus der Mail
 function smtPasst(typ, titel){
-  const roh = String(typ || "").toUpperCase(), typen = [...roh.split(/[\s,;/]+/), roh.replace(/^TOYOTA\s*/, "").replace(/\s+/g, "")].map(t => t.replace(/[-.]/g, "")).filter(t => t.length >= 3);
-  if(!typen.length) return false;
-  const T = String(titel || "");
-  const muster = [];
+  const typen = smtTypen(typ); if(!typen.length) return false;
+  const T = String(titel || ""), muster = [];
   for(const m of T.matchAll(/\b(\d?[A-Z]{2,})(\d{2,3})(?:-(\d{2,3}))?([A-Z]*)\b/g)){ if(/^(TB|QM)$/.test(m[1])) continue; muster.push({p: m[1], a: +m[2], b: m[3] ? +m[3] : +m[2]}); }
   for(const m of T.matchAll(/(?:^|[\s/,(])([A-Z]{3,})(?=$|[\s/,):])/g)) muster.push({p: m[1]});
   return typen.some(t => muster.some(mu => {
@@ -4676,11 +4710,60 @@ function smtPasst(typ, titel){
     return n >= mu.a && n <= mu.b;
   }));
 }
-const smtOeffnen = nr => fetch("/api/smt/oeffnen?nr=" + encodeURIComponent(nr), {method: "POST"}).then(r => { if(!r.ok) toast("Die Datei der Mitteilung wurde nicht gefunden."); });
+const smtPasstE = (typ, e) => smtPasstModelle(typ, e.modelle) || smtPasst(typ, e.titel);
+// Jede PDF einmal selbst lesen: Gerätetypen aus der Tabelle „Model(s) / Modell(e)“ und den ganzen Text für die Suche
+async function smtPdfLesen(nr){
+  const buf = await (await fetch("/api/smt/pdf?nr=" + encodeURIComponent(nr))).arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: new Uint8Array(buf), ...PDF_OPTS}).promise;
+  const texte = [], modelle = [];
+  for(let i = 1; i <= Math.min(pdf.numPages, 15); i++){
+    const pg = await pdf.getPage(i), tc = await pg.getTextContent();
+    const zeilen = new Map();
+    for(const it of tc.items){ if(!it.str || !it.str.trim()) continue; const y = Math.round(it.transform[5] / 3); if(!zeilen.has(y)) zeilen.set(y, []); zeilen.get(y).push({x: it.transform[4], s: it.str}); }
+    const L = [...zeilen.entries()].sort((a, b) => b[0] - a[0]).map(([, z]) => z.sort((a, b) => a.x - b.x));
+    texte.push(L.map(z => z.map(t => t.s).join(" ")).join("\n"));
+    if(i > 2 || modelle.length) continue;
+    // Spalte „Model(s)“ bis zur Spalte „Code(s)“, bis zum Abschnitt „1 General information / Allgemeine Informationen“
+    const k = L.findIndex(z => z.some(t => /^\s*Modell?(\s*\((s|e)\)|\/e)?\s*$/i.test(t.s))); if(k < 0) continue;
+    const x0 = L[k].find(t => /^\s*Model/i.test(t.s)).x - 3, c = L[k].find(t => /Code|Art\.|Software|Serial|Serien/i.test(t.s) && t.x > x0 + 20), x1 = c ? c.x - 3 : Infinity;
+    for(const z of L.slice(k + 1)){
+      const text = z.map(t => t.s).join(" ");
+      if(/^\s*1\b/.test(text) && /general|allgemein|information/i.test(text) || /^\s*1\s*$/.test(text)) break;
+      const sp = z.filter(t => t.x >= x0 && t.x < x1).map(t => t.s).join(" ").trim();
+      for(const tok of sp.split(/[\s,;]+/)) if(/^\d*[A-Z]+\d/i.test(tok) && !/^(TB|QM|T)\d/i.test(tok)) modelle.push(tok.toUpperCase());
+    }
+  }
+  pdf.destroy();
+  return {modelle: [...new Set(modelle)], text: texte.join("\n").replace(/[ \t]+/g, " ").slice(0, 60000)};
+}
+function smtAuslesen(){
+  if(smtLesen || !smtDaten) return;
+  const offen = smtDaten.liste.filter(e => !e.gelesen); if(!offen.length) return;
+  smtLesen = (async () => {
+    for(const e of offen){
+      try{ const r = await smtPdfLesen(e.nr); Object.assign(e, r, {gelesen: true});
+        await fetch("/api/smt/info", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({nr: e.nr, ...r})}); }
+      catch(err){ e.gelesen = true; }
+      if($("#smtDlg").open) smtZeigen();
+      document.dispatchEvent(new Event("smt-neu"));
+    }
+    smtLesen = null;
+  })();
+}
+// Eingebauter PDF-Leser (Suchen, Zoomen, Drucken, Speichern – direkt im Programmfenster)
+function smtOeffnen(nr){
+  const e = ((smtDaten && smtDaten.liste) || []).find(x => x.nr === nr);
+  $("#pdfLeserTitel").textContent = nr + (e && e.titel ? " – " + e.titel : "");
+  $("#pdfLeserRahmen").src = "/api/smt/pdf?nr=" + encodeURIComponent(nr) + "#view=FitH";
+  $("#pdfLeser").showModal();
+}
+$("#pdfLeserZu").onclick = () => $("#pdfLeser").close();
+$("#pdfLeser").addEventListener("close", () => { $("#pdfLeserRahmen").src = "about:blank"; });
 function smtFeld(input, felder){
   const box = document.createElement("div"); box.className = "smt-hinweis"; box.hidden = true; felder.appendChild(box);
   const zeigen = () => {
-    const l = ((smtDaten && smtDaten.liste) || []).filter(e => smtPasst(input.value, e.titel));
+    if(!box.isConnected){ document.removeEventListener("smt-neu", zeigen); return; }
+    const l = ((smtDaten && smtDaten.liste) || []).filter(e => smtPasstE(input.value, e));
     box.hidden = !l.length; box.innerHTML = "";
     if(!l.length) return;
     box.insertAdjacentHTML("beforeend", `<span><b>📣 ${l.length === 1 ? "Eine Toyota-Servicemitteilung passt" : l.length + " Toyota-Servicemitteilungen passen"} zu dieser Type:</b></span>`);
@@ -4688,30 +4771,35 @@ function smtFeld(input, felder){
   };
   let t; input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(zeigen, 300); });
   input.addEventListener("change", zeigen);
+  document.addEventListener("smt-neu", zeigen);
   smtHolen().then(zeigen);
 }
 function smtZeigen(){
   const tb = $("#smtListe"), d = smtDaten || {liste: []}, typ = $("#smtTyp").value.trim(), q = $("#smtSuche").value.trim().toLowerCase();
   tb.innerHTML = "";
-  let l = d.liste.filter(e => !q || (e.nr + " " + e.titel + " " + e.betreff).toLowerCase().includes(q));
-  if(typ) l = l.filter(e => smtPasst(typ, e.titel));
+  const worte = q.split(/\s+/).filter(Boolean);
+    const knapp = t => t.replace(/[-_\s.\/]+/g, "");
+  let l = d.liste.filter(e => { const h = (e.nr + " " + e.titel + " " + e.betreff + " " + (e.modelle || []).join(" ") + " " + (e.text || "")).toLowerCase(), hk = knapp(h); return worte.every(w => h.includes(w) || hk.includes(knapp(w))); });
+  if(typ) l = l.filter(e => smtPasstE(typ, e));
   for(const e of l){
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td class="nr">${esc(e.nr)}</td><td>${esc(e.titel || e.datei)}</td><td class="l">${esc((e.datum || "").split("-").reverse().join("."))}</td><td></td>`;
+    tr.innerHTML = `<td class="nr">${esc(e.nr)}</td><td>${esc(e.titel || e.datei)}${e.modelle && e.modelle.length ? `<span class="info">Geräte: ${esc(e.modelle.join(", "))}</span>` : ""}</td><td class="l">${esc((e.datum || "").split("-").reverse().join("."))}</td><td></td>`;
     const b = document.createElement("button"); b.type = "button"; b.textContent = "📄 Öffnen"; b.onclick = () => smtOeffnen(e.nr); tr.lastChild.appendChild(b);
     tb.appendChild(tr);
   }
   if(!l.length) tb.insertAdjacentHTML("beforeend", `<tr><td colspan="4" class="hint" style="padding:14px 6px">${d.liste.length ? (typ ? "Keine Servicemitteilung passt zu dieser Type." : "Nichts gefunden.") : "Noch keine Servicemitteilungen. Sie kommen automatisch aus Outlook, sobald eine Mail mit „Servicemitteilung“ im Betreff und den PDFs (TB…, QM…) im Posteingang liegt."}</td></tr>`);
-  $("#smtStand").textContent = (d.laeuft ? "Outlook wird gerade durchsucht … " : "") + (d.stand ? `${d.liste.length} Mitteilungen · zuletzt aus Outlook geholt: ${d.stand.split(" ")[0].split("-").reverse().join(".")} ${d.stand.split(" ")[1] || ""}` : "") + (d.fehler && !d.laeuft ? ` · ${d.fehler === "Outlook läuft nicht" ? "Outlook ist nicht geöffnet" : d.fehler}` : "");
+  const lesen = d.liste.filter(e => !e.gelesen).length;
+  $("#smtStand").textContent = (d.laeuft ? "Outlook wird gerade durchsucht … " : "") + (lesen ? `${lesen} PDFs werden noch gelesen … ` : "") + (d.stand ? `${d.liste.length} Mitteilungen · zuletzt aus Outlook geholt: ${d.stand.split(" ")[0].split("-").reverse().join(".")} ${d.stand.split(" ")[1] || ""}` : "") + (d.fehler && !d.laeuft ? ` · ${d.fehler === "Outlook läuft nicht" ? "Outlook ist nicht geöffnet" : d.fehler}` : "");
 }
 $("#smtBtn").onclick = async () => { await smtHolen(); smtZeigen(); $("#smtDlg").showModal(); };
 $("#smtClose").onclick = () => $("#smtDlg").close();
 $("#smtTyp").oninput = $("#smtSuche").oninput = () => smtZeigen();
 $("#smtOrdner").onclick = () => fetch("/api/smt/oeffnen", {method: "POST"});
 $("#smtHolen").onclick = async () => { const b = $("#smtHolen"); b.disabled = true; b.textContent = "⏳ Outlook wird durchsucht …"; await smtHolen(true); b.disabled = false; b.textContent = "🔄 Aus Outlook holen"; smtZeigen(); };
+setTimeout(() => smtHolen(), 4000);
 
 /* Fenster: minimieren, maximieren, schließen (für die großen Fenster) */
-for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg", "smtDlg"]){
+for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg", "smtDlg", "pdfLeser"]){
   const d = document.getElementById(id); if(!d) continue;
   const head = d.querySelector(".dlg-head"); if(!head) continue;
   d.classList.add("fenster");
