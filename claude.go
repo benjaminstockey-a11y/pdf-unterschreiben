@@ -25,6 +25,7 @@ func (a *app) handleClaude(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Text    string `json:"text"`
 		Von     string `json:"von"`
+		Art     string `json:"art"` // "freigabe": getestete Testversion für alle freigeben
 		Dateien []struct {
 			Name string `json:"name"`
 			B64  string `json:"b64"`
@@ -35,6 +36,20 @@ func (a *app) handleClaude(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Text = strings.TrimSpace(in.Text)
+	if in.Art == "freigabe" {
+		if !strings.Contains(Version, "-test") {
+			writeJSON(w, map[string]any{"ok": false, "error": "Freigeben geht nur aus einer Testversion."})
+			return
+		}
+		nr := strings.SplitN(Version, "-test", 2)[0]
+		body := "Bitte Testversion " + Version + " als Version " + nr + " für alle freigeben.\n\n---\nGesendet aus der Service-Mappe " + Version + " am " + time.Now().Format("02.01.2006 15:04") + " von " + in.Von
+		if err := olNativAuftrag(olAuftrag{art: "senden", subj: "[Service-Mappe Freigabe] " + nr, to: claudePostfach, body: body}, 90*time.Second); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": "Outlook konnte die Nachricht nicht senden: " + err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "version": nr})
+		return
+	}
 	if len(in.Text) < 3 {
 		writeJSON(w, map[string]any{"ok": false, "error": "Bitte beschreiben, was geändert werden soll."})
 		return

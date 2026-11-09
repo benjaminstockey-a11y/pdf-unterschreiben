@@ -461,6 +461,7 @@ body{padding-bottom:172px}
         <p class="hint">Neue Funktionen kommen hier zuerst an. Erst wenn du sie freigibst, bekommen alle anderen das Update.</p>
         <button id="ideasOpen">Verbesserungsvorschläge lesen</button>
         <button id="claudeOpen">🤖 Auftrag an Claude</button>
+        <button id="claudeFrei">✅ Diese Testversion für alle freigeben</button>
         <p class="hint">Nutzerliste und Sperren: <button class="ghost" id="openSheet" style="padding:0;font-size:13px;text-decoration:underline">Google-Tabelle öffnen</button></p>
       </section>
 
@@ -4889,6 +4890,15 @@ $("#claudeSenden").onclick = async () => {
     toast("Gesendet. Das Ergebnis kommt als Testversion – meist innerhalb einer Stunde (werktags 7–18 Uhr).", 8000);
   }catch(e){ f.textContent = e.message; f.hidden = false; }
   b.disabled = false; b.textContent = "Senden";
+};
+
+$("#claudeFrei").onclick = async () => {
+  const v = String(($("#verText") && $("#verText").textContent) || "");
+  if(!/-test/.test(v)){ toast("Freigeben geht nur aus einer Testversion. Gerade läuft " + (v || "keine Testversion") + ".", 7000); return; }
+  if(!confirm(`${v.replace(/Testversion$/, "").trim()} für alle freigeben?\n\nAlle Kollegen bekommen dann dieses Update (werktags 7–18 Uhr innerhalb einer Stunde).`)) return;
+  const von = state.user ? `${state.user.name} <${state.user.email}>` : "";
+  const r = await (await fetch("/api/claude", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({art: "freigabe", text: "freigeben", von})})).json().catch(() => ({ok: false}));
+  toast(r.ok ? `Freigabe für Version ${r.version} gesendet – kommt werktags 7–18 Uhr innerhalb einer Stunde bei allen an.` : (r.error || "Senden fehlgeschlagen."), 8000);
 };
 
 /* Fenster: minimieren, maximieren, schließen (für die großen Fenster) */
