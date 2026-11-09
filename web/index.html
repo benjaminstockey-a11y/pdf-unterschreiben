@@ -293,8 +293,9 @@ h1::after{content:"";display:block;width:28px;height:3px;border-radius:2px;backg
 .lead{margin:3px 0 0;font-size:13px;letter-spacing:.02em}
 .panel{border-radius:14px;box-shadow:var(--shadow);border-color:color-mix(in srgb,var(--line) 70%,transparent)}
 .step b{color:var(--brand)}
-.kacheln{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:1fr;gap:14px;margin-bottom:14px}
-@media (max-width:1350px){.kacheln{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kacheln{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:1fr;gap:14px;margin-bottom:14px}
+.kacheln>.kachel{grid-column:span 2}.kacheln>#wartBtn,.kacheln>#smtBtn{grid-column:span 3}
+@media (max-width:1350px){.kacheln{grid-template-columns:repeat(2,minmax(0,1fr))}.kacheln>.kachel,.kacheln>#wartBtn,.kacheln>#smtBtn{grid-column:auto}.kacheln>.kachel:first-child{grid-column:1/-1}}
 @media (max-width:1100px){.kacheln{grid-template-columns:minmax(0,1fr)}.kachel{flex-direction:row;align-items:center}}
 .kachel{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:12px;text-align:left;padding:18px 20px;height:100%;border-radius:14px;background:var(--sheet);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:var(--shadow);transition:transform .12s,box-shadow .12s,border-color .12s}
 .kachel:hover{transform:translateY(-2px);border-color:var(--brand);box-shadow:0 8px 24px rgba(16,24,40,.10)}
@@ -489,7 +490,7 @@ body{padding-bottom:172px}
         <button class="kachel" id="docuBtn"><span class="k-icon" aria-hidden="true">📷</span><span><b>Dokumentation</b><small>Berichte mit Fotos per E-Mail senden</small></span></button>
         <button class="kachel" id="formBtn"><span class="k-icon" aria-hidden="true">📋</span><span><b>Formulare</b><small>Prüfprotokoll, Reparaturauftrag, Bestellungen …</small></span></button>
         <button class="kachel" id="wartBtn"><span class="k-icon" aria-hidden="true">🔧</span><span><b>Wartungspläne</b><small>Arbeiten und Intervalle je Gerätetyp</small></span></button>
-        <button class="kachel" id="smtBtn"><span class="k-icon" aria-hidden="true">📣</span><span><b>Servicemitteilung Toyota</b><small>Kommt automatisch aus Outlook – passend zur Type</small></span></button>
+        <button class="kachel" id="smtBtn"><span class="k-icon" aria-hidden="true">📣</span><span><b>Servicemitteilung Toyota</b><small>Kommt automatisch aus Outlook</small></span></button>
       </div>
       <div class="aktionen row">
         <input type="file" id="pdfFile" accept="application/pdf,.pdf,.xlsx,.xlsm,.xls,.xlsb" multiple hidden>
