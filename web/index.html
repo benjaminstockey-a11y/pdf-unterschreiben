@@ -211,7 +211,8 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 #pdfLeser{width:min(1100px,calc(100vw - 32px));height:calc(100vh - 32px)}
 #pdfLeser .dlg{height:100%;display:flex;flex-direction:column}
 #pdfLeser iframe{flex:1;width:100%;border:0;background:#525659}
-.pdf-dreh{display:flex;gap:6px;margin-left:16px}.pdf-dreh button{padding:4px 10px;font-size:13px}
+.pdf-dreh{display:flex;gap:6px;margin-left:16px}
+#pdfLeserTitel[data-warte]::after{content:" · wird gedreht …";font-weight:400;color:var(--muted)}.pdf-dreh button{padding:4px 10px;font-size:13px}
 #smtDlg .dlg-body{max-height:calc(100vh - 220px);overflow:auto;padding:0 16px 12px}
 .smt-tab td:last-child{white-space:nowrap}
 .smt-tab td.nr{white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
@@ -4765,36 +4766,55 @@ function smtAuslesen(){
   })();
 }
 // Eingebauter PDF-Leser (Suchen, Zoomen, Drucken, Speichern – direkt im Programmfenster)
-// Drehen nach links/rechts/gerade: die PDF wird mit der neuen Drehung neu erzeugt und wieder angezeigt.
-const pdfLeser = {nr: "", bytes: null, dreh: 0, url: null};
-function pdfLeserZeigen(){
-  if(pdfLeser.url){ URL.revokeObjectURL(pdfLeser.url); pdfLeser.url = null; }
-  if(!pdfLeser.dreh || !pdfLeser.bytes){ $("#pdfLeserRahmen").src = "/api/smt/pdf?nr=" + encodeURIComponent(pdfLeser.nr) + "#view=FitH"; return; }
-  return (async () => {
-    const {PDFDocument, degrees} = PDFLib, doc = await PDFDocument.load(pdfLeser.bytes, {ignoreEncryption: true});
-    for(const pg of doc.getPages()) pg.setRotation(degrees(((pg.getRotation().angle + pdfLeser.dreh) % 360 + 360) % 360));
-    pdfLeser.url = URL.createObjectURL(new Blob([await doc.save()], {type: "application/pdf"}));
-    $("#pdfLeserRahmen").src = pdfLeser.url + "#view=FitH";
-  })().catch(() => toast("Die PDF konnte nicht gedreht werden."));
+// Drehen nach links/rechts/gerade: alle vier Drehungen werden gleich nach dem Öffnen im Hintergrund vorbereitet,
+// ein Klick zeigt dann nur noch die fertige Fassung an.
+const pdfLeser = {nr: "", dreh: 0, urls: {}, arbeit: null, lauf: 0};
+function pdfLeserAufraeumen(){ for(const u of Object.values(pdfLeser.urls)) if(u.startsWith("blob:")) URL.revokeObjectURL(u); pdfLeser.urls = {}; pdfLeser.arbeit = null; pdfLeser.lauf++; }
+function pdfLeserVorbereiten(){
+  if(pdfLeser.arbeit) return pdfLeser.arbeit;
+  const lauf = pdfLeser.lauf, nr = pdfLeser.nr;
+  return pdfLeser.arbeit = (async () => {
+    if(!window.PDFLib) throw new Error("PDFLib");
+    const bytes = new Uint8Array(await (await fetch("/api/smt/pdf?nr=" + encodeURIComponent(nr))).arrayBuffer());
+    const {PDFDocument, degrees} = PDFLib, doc = await PDFDocument.load(bytes, {ignoreEncryption: true, updateMetadata: false});
+    const seiten = doc.getPages(), start = seiten.map(pg => pg.getRotation().angle);
+    // zuerst die wahrscheinlichsten: rechts, links, dann kopfüber
+    for(const d of [90, 270, 180]){
+      if(lauf !== pdfLeser.lauf) return;
+      seiten.forEach((pg, i) => pg.setRotation(degrees((start[i] + d) % 360)));
+      const out = await doc.save({useObjectStreams: false, addDefaultPage: false, updateFieldAppearances: false});
+      if(lauf !== pdfLeser.lauf) return;
+      pdfLeser.urls[d] = URL.createObjectURL(new Blob([out], {type: "application/pdf"}));
+    }
+  })();
 }
-async function pdfDrehen(um){
-  if(!window.PDFLib){ toast("Zum Drehen braucht das Programm einmal Internet. Bitte verbinden und das Programm neu öffnen.", 7000); return; }
-  if(!pdfLeser.bytes) pdfLeser.bytes = new Uint8Array(await (await fetch("/api/smt/pdf?nr=" + encodeURIComponent(pdfLeser.nr))).arrayBuffer());
-  pdfLeser.dreh = um === 0 ? 0 : (pdfLeser.dreh + um + 360) % 360;
-  pdfLeserZeigen();
+async function pdfLeserZeigen(){
+  const d = pdfLeser.dreh, lauf = pdfLeser.lauf;
+  if(!pdfLeser.urls[d]){
+    $("#pdfLeserTitel").dataset.warte = "1";
+    try{ while(!pdfLeser.urls[d]){ await pdfLeserVorbereiten(); if(lauf !== pdfLeser.lauf || !pdfLeser.urls[d]) break; } }
+    catch(e){ toast(e.message === "PDFLib" ? "Zum Drehen braucht das Programm einmal Internet. Bitte verbinden und das Programm neu öffnen." : "Die PDF konnte nicht gedreht werden.", 7000); }
+    delete $("#pdfLeserTitel").dataset.warte;
+    if(lauf !== pdfLeser.lauf || !pdfLeser.urls[d]) return;
+  }
+  $("#pdfLeserRahmen").src = pdfLeser.urls[d] + "#view=FitH";
 }
+function pdfDrehen(um){ pdfLeser.dreh = um === 0 ? 0 : (pdfLeser.dreh + um + 360) % 360; pdfLeserZeigen(); }
 function smtOeffnen(nr){
   const e = ((smtDaten && smtDaten.liste) || []).find(x => x.nr === nr);
-  Object.assign(pdfLeser, {nr, bytes: null, dreh: 0});
+  pdfLeserAufraeumen();
+  Object.assign(pdfLeser, {nr, dreh: 0});
+  pdfLeser.urls[0] = "/api/smt/pdf?nr=" + encodeURIComponent(nr);
   $("#pdfLeserTitel").textContent = nr + (e && e.titel ? " – " + e.titel : "");
   pdfLeserZeigen();
   $("#pdfLeser").showModal();
+  setTimeout(() => pdfLeserVorbereiten().catch(() => {}), 600);
 }
 $("#pdfLinks").onclick = () => pdfDrehen(-90);
 $("#pdfRechts").onclick = () => pdfDrehen(90);
 $("#pdfGerade").onclick = () => pdfDrehen(0);
 $("#pdfLeserZu").onclick = () => $("#pdfLeser").close();
-$("#pdfLeser").addEventListener("close", () => { if(!$("#pdfLeser").dataset.wechsel){ $("#pdfLeserRahmen").src = "about:blank"; if(pdfLeser.url){ URL.revokeObjectURL(pdfLeser.url); pdfLeser.url = null; } } });
+$("#pdfLeser").addEventListener("close", () => { if(!$("#pdfLeser").dataset.wechsel){ $("#pdfLeserRahmen").src = "about:blank"; pdfLeserAufraeumen(); } });
 function smtFeld(input, felder){
   const box = document.createElement("div"); box.className = "smt-hinweis"; box.hidden = true; felder.appendChild(box);
   const zeigen = () => {
