@@ -211,6 +211,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 #pdfLeser{width:min(1100px,calc(100vw - 32px));height:calc(100vh - 32px)}
 #pdfLeser .dlg{height:100%;display:flex;flex-direction:column}
 #pdfLeser iframe{flex:1;width:100%;border:0;background:#525659}
+.pdf-dreh{display:flex;gap:6px;margin-left:16px}.pdf-dreh button{padding:4px 10px;font-size:13px}
 #smtDlg .dlg-body{max-height:calc(100vh - 220px);overflow:auto;padding:0 16px 12px}
 .smt-tab td:last-child{white-space:nowrap}
 .smt-tab td.nr{white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
@@ -610,7 +611,7 @@ body{padding-bottom:172px}
 
 <dialog id="pdfLeser">
   <form method="dialog" class="dlg" onsubmit="return false">
-    <div class="dlg-head"><strong id="pdfLeserTitel">PDF</strong><button type="button" class="ghost" id="pdfLeserZu">Schließen</button></div>
+    <div class="dlg-head"><strong id="pdfLeserTitel">PDF</strong><span class="pdf-dreh"><button type="button" id="pdfLinks" title="Alle Seiten nach links drehen">⟲ Links</button><button type="button" id="pdfRechts" title="Alle Seiten nach rechts drehen">⟳ Rechts</button><button type="button" id="pdfGerade" title="Drehung zurücksetzen">↺ Gerade</button></span><button type="button" class="ghost" id="pdfLeserZu">Schließen</button></div>
     <iframe id="pdfLeserRahmen" title="PDF" src="about:blank"></iframe>
   </form>
 </dialog>
@@ -4752,14 +4753,36 @@ function smtAuslesen(){
   })();
 }
 // Eingebauter PDF-Leser (Suchen, Zoomen, Drucken, Speichern – direkt im Programmfenster)
+// Drehen nach links/rechts/gerade: die PDF wird mit der neuen Drehung neu erzeugt und wieder angezeigt.
+const pdfLeser = {nr: "", bytes: null, dreh: 0, url: null};
+function pdfLeserZeigen(){
+  if(pdfLeser.url){ URL.revokeObjectURL(pdfLeser.url); pdfLeser.url = null; }
+  if(!pdfLeser.dreh || !pdfLeser.bytes){ $("#pdfLeserRahmen").src = "/api/smt/pdf?nr=" + encodeURIComponent(pdfLeser.nr) + "#view=FitH"; return; }
+  return (async () => {
+    const {PDFDocument, degrees} = PDFLib, doc = await PDFDocument.load(pdfLeser.bytes, {ignoreEncryption: true});
+    for(const pg of doc.getPages()) pg.setRotation(degrees(((pg.getRotation().angle + pdfLeser.dreh) % 360 + 360) % 360));
+    pdfLeser.url = URL.createObjectURL(new Blob([await doc.save()], {type: "application/pdf"}));
+    $("#pdfLeserRahmen").src = pdfLeser.url + "#view=FitH";
+  })().catch(() => toast("Die PDF konnte nicht gedreht werden."));
+}
+async function pdfDrehen(um){
+  if(!window.PDFLib){ toast("Zum Drehen braucht das Programm einmal Internet. Bitte verbinden und das Programm neu öffnen.", 7000); return; }
+  if(!pdfLeser.bytes) pdfLeser.bytes = new Uint8Array(await (await fetch("/api/smt/pdf?nr=" + encodeURIComponent(pdfLeser.nr))).arrayBuffer());
+  pdfLeser.dreh = um === 0 ? 0 : (pdfLeser.dreh + um + 360) % 360;
+  pdfLeserZeigen();
+}
 function smtOeffnen(nr){
   const e = ((smtDaten && smtDaten.liste) || []).find(x => x.nr === nr);
+  Object.assign(pdfLeser, {nr, bytes: null, dreh: 0});
   $("#pdfLeserTitel").textContent = nr + (e && e.titel ? " – " + e.titel : "");
-  $("#pdfLeserRahmen").src = "/api/smt/pdf?nr=" + encodeURIComponent(nr) + "#view=FitH";
+  pdfLeserZeigen();
   $("#pdfLeser").showModal();
 }
+$("#pdfLinks").onclick = () => pdfDrehen(-90);
+$("#pdfRechts").onclick = () => pdfDrehen(90);
+$("#pdfGerade").onclick = () => pdfDrehen(0);
 $("#pdfLeserZu").onclick = () => $("#pdfLeser").close();
-$("#pdfLeser").addEventListener("close", () => { $("#pdfLeserRahmen").src = "about:blank"; });
+$("#pdfLeser").addEventListener("close", () => { if(!$("#pdfLeser").dataset.wechsel){ $("#pdfLeserRahmen").src = "about:blank"; if(pdfLeser.url){ URL.revokeObjectURL(pdfLeser.url); pdfLeser.url = null; } } });
 function smtFeld(input, felder){
   const box = document.createElement("div"); box.className = "smt-hinweis"; box.hidden = true; felder.appendChild(box);
   const zeigen = () => {
