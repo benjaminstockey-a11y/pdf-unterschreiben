@@ -1946,7 +1946,7 @@
 ]
 },
 {
-"arbeit": "Achsöl Donax TD \nrechts 1l links 0,85l",
+"arbeit": "Achsöl Donax TD\nrechts 1l links 0,85l",
 "werte": [
 "o",
 "",
@@ -2294,7 +2294,7 @@
 ]
 },
 {
-"arbeit": "Achsöl Donax TD \nrechts 2,5l links 1,7l",
+"arbeit": "Achsöl Donax TD\nrechts 2,5l links 1,7l",
 "werte": [
 "o",
 "",
@@ -2612,7 +2612,7 @@
 ]
 },
 {
-"arbeit": "Fahrerschutzdach Sichtprüfung \nBefestigungsschrauben prüfen",
+"arbeit": "Fahrerschutzdach Sichtprüfung\nBefestigungsschrauben prüfen",
 "werte": [
 "o c",
 "",
@@ -2652,7 +2652,7 @@
 ]
 },
 {
-"arbeit": "Achsöl Donax TD \nrechts ca.1l links ca.0,9l",
+"arbeit": "Achsöl Donax TD\nrechts ca.1l links ca.0,9l",
 "werte": [
 "o",
 "",
@@ -2980,7 +2980,7 @@
 ]
 },
 {
-"arbeit": "Fahrerschutzdach Sichtprüfung \nBefestigungsschrauben prüfen",
+"arbeit": "Fahrerschutzdach Sichtprüfung\nBefestigungsschrauben prüfen",
 "werte": [
 "o c",
 "",
@@ -3030,7 +3030,7 @@
 ]
 },
 {
-"arbeit": "Rücklauffilter 93075-T8990-71 O-Ring 91669T899071",
+"arbeit": "Rücklauffilter 93075-T8990-71 O-Ring 91669-T8990-71",
 "werte": [
 "",
 "",
@@ -3923,6 +3923,702 @@
 "",
 "",
 "x"
+]
+}
+]
+},
+{
+"blatt": "Traigo 48 9er i",
+"titel": "Toyota Traigo i 48 9FB/E15-20T",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung\nBefestigungsschrauben prüfen",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl 75W90 rechts 0,55l links 0,55l",
+"werte": [
+"o",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"o y",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Rundum 160Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremsflüssigkeit ATF Dexron DIII",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker (Cobra)",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+}
+]
+},
+{
+"blatt": "Traigo 48 9er DIN",
+"titel": "Toyota Traigo DIN 48 9FB/E15-20T",
+"spalten": [
+{
+"name": "500Wh",
+"hinweis": "min.1mal jährlich"
+},
+{
+"name": "1000Wh",
+"hinweis": ""
+},
+{
+"name": "2000Wh",
+"hinweis": ""
+},
+{
+"name": "4000Wh",
+"hinweis": ""
+},
+{
+"name": "1.Wartung",
+"hinweis": "250Wh"
+}
+],
+"zeilen": [
+{
+"arbeit": "Gerät ausblasen",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
+]
+},
+{
+"arbeit": "Lenkung entlasten, auf Spiel und Leckage prüfen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Radlager",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Motoranschlußkabel auf festen Sitz prüfen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Schütze prüfen",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hupe",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Lichtanlage",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anzeigeninstrumente",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Fahrerschutzdach Sichtprüfung\nBefestigungsschrauben prüfen",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Rückhaltesystem",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Alle Schmierstellen",
+"werte": [
+"o i",
+"",
+"",
+"",
+"o i"
+]
+},
+{
+"arbeit": "Hydrauliköl HLP46",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Achsöl ATF Dexron DIII rechts 0,55l links 0,55l",
+"werte": [
+"o",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Rücklauffilter",
+"werte": [
+"",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Belüftungsfilter",
+"werte": [
+"o y",
+"",
+"x",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubmast und Befestigung",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Hubketten",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Hubgabeln",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Anbaugerät und Befestigung",
+"werte": [
+"o i c",
+"",
+"",
+"",
+"o i c"
+]
+},
+{
+"arbeit": "Reifen",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Radmuttern Rundum 160Nm",
+"werte": [
+"o c",
+"",
+"",
+"",
+"o c"
+]
+},
+{
+"arbeit": "Kontergewicht Befestigung",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Bremsflüssigkeit ATF Dexron DIII",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Feststellbremse",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batterie",
+"werte": [
+"o y",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Batteriestecker",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladegerät Sichtkontrolle",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Ladefunktion",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "UVV Plakette",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Probefahrt",
+"werte": [
+"o",
+"",
+"",
+"",
+"o"
+]
+},
+{
+"arbeit": "Reinigen Abputzen des Staplers",
+"werte": [
+"y",
+"",
+"",
+"",
+"y"
 ]
 }
 ]
