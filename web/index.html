@@ -26,7 +26,8 @@ body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);paddin
 .top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
 h1{font:700 30px/1.1 var(--f-display);margin:0;letter-spacing:-.01em}
 .lead{margin:6px 0 0;color:var(--muted);max-width:66ch}
-.burger{font-size:22px!important;line-height:1;padding:6px 12px!important;border-radius:10px}
+.burger{font-size:22px!important;line-height:1;padding:6px 12px!important;border-radius:10px;position:relative}
+.burger[data-neu]:not([data-neu=""])::after{content:attr(data-neu);position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--brand);color:#fff;font:700 11px/18px var(--f-body);text-align:center;box-shadow:0 0 0 2px #fff}
 .menu-schleier{position:fixed;inset:0;background:rgba(10,15,30,.35);z-index:900}
 .menu{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:var(--paper);box-shadow:-12px 0 32px rgba(16,24,40,.18);z-index:901;overflow:auto;padding:0 16px 24px;transform:translateX(105%);transition:transform .18s ease-out;visibility:hidden}
 .menu.offen{transform:none;visibility:visible}
@@ -2211,6 +2212,7 @@ $("#blockRetry").onclick = async () => {
 };
 function renderAdmin(){
   $("#adminPanel").hidden = !isAdmin();
+  if(isAdmin()) setTimeout(ideenNeuPruefen, 3000);
   $("#ideaBtn").hidden = !(reportOn && state.user && state.user.verified);
   $("#testChannel").checked = state.testChannel !== false;
   const v = $("#verText").dataset.v;
@@ -2260,10 +2262,25 @@ $("#ideaForm").addEventListener("submit", async e => {
   if(!r.ok) return ideaErr(r.error || "Senden fehlgeschlagen.");
   $("#ideaText").value = ""; $("#ideaDlg").close(); toast("Danke! Dein Vorschlag wurde gesendet.");
 });
+// Neue Vorschläge: Zahl am Menü ☰ und am Knopf „Verbesserungsvorschläge lesen“
+let ideenSeit = 0; try{ ideenSeit = +localStorage.getItem("ideenGesehen") || 0; }catch(e){}
+function ideenZahl(n){
+  const k = $("#ideasOpen"); k.textContent = "Verbesserungsvorschläge lesen" + (n ? ` (${n} neu)` : "");
+  k.classList.toggle("primary", !!n);
+  $("#menuBtn").dataset.neu = n ? String(n) : "";
+}
+async function ideenNeuPruefen(){
+  if(!isAdmin()) return;
+  const r = await call("feedbacklist");
+  if(!r.ok){ $("#ideasOpen").title = r.error || ""; return; }
+  ideenZahl(r.items.filter(i => new Date(i.zeit).getTime() > ideenSeit && !i.antwort).length);
+}
+setInterval(() => { if(!document.hidden) ideenNeuPruefen(); }, 15 * 60 * 1000);
 $("#ideasOpen").onclick = async () => {
   const list = $("#ideasList"); list.innerHTML = '<span class="hint">Wird geladen …</span>';
   $("#ideasDlg").showModal();
   const r = await call("feedbacklist");
+  if(r.ok){ ideenSeit = Date.now(); try{ localStorage.setItem("ideenGesehen", String(ideenSeit)); }catch(e){} ideenZahl(0); }
   if(!r.ok){ list.innerHTML = `<span class="hint">${esc(r.error || "Konnte nicht geladen werden.")}</span>`; return; }
   if(!r.items.length){ list.innerHTML = '<span class="hint">Noch keine Vorschläge.</span>'; return; }
   list.innerHTML = "";
