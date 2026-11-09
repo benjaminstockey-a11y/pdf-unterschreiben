@@ -423,6 +423,12 @@ body{padding-bottom:172px}
 .fz1{height:142px;animation-delay:0s}.fz1 .mast img.g{--hub:-38%}
 .fz2{height:150px;animation-delay:-7.3s}.fz2 .mast img.g{--hub:-34%;animation-delay:-1.5s}
 .fz3{height:80px;animation-delay:-14.6s}.fz3 .mast img.g{--hub:-5%;animation-delay:-3s;animation-duration:3s}
+/* großer Diesel-/Gasstapler: fährt auf der hinteren Spur von rechts nach links (Gabel vorn) */
+.fz4{height:132px;bottom:16px;z-index:-1;animation-name:fahrenL;animation-duration:26s;animation-delay:-5s;filter:drop-shadow(0 4px 3px rgba(0,0,0,.16)) saturate(.95)}
+.fz4 .mast img.g{--hub:-30%;animation-delay:-2.2s;animation-duration:5s}
+.fz4 .mast.neigen{transform-origin:23% 66%;animation-name:neigenL;animation-duration:6s}
+@keyframes fahrenL{0%{transform:translateX(calc(100cqw + 40px))}100%{transform:translateX(-420px)}}
+@keyframes neigenL{0%,15%{transform:rotate(0)}35%,50%{transform:rotate(3.5deg)}70%,85%{transform:rotate(-2.5deg)}100%{transform:rotate(0)}}
 @keyframes neigen{0%,15%{transform:rotate(0)}35%,50%{transform:rotate(-3.5deg)}70%,85%{transform:rotate(2.5deg)}100%{transform:rotate(0)}}
 @keyframes schub{0%,15%{transform:translateX(0)}40%,65%{transform:translateX(16%)}90%,100%{transform:translateX(0)}}
 @keyframes fahren{0%{transform:translateX(-420px)}100%{transform:translateX(calc(100cqw + 40px))}}
@@ -431,7 +437,7 @@ body{padding-bottom:172px}
 </style>
 </head>
 <body>
-<div class="strasse" aria-hidden="true"><div class="fz fz1"><img class="k" src="/fz-stapler-k.png" alt=""><div class="mast neigen"><img src="/fz-stapler-m.png" alt=""><img class="g" src="/fz-stapler-g.png" alt=""></div></div><div class="fz fz2"><div class="mast schub"><img src="/fz-schubmast-m.png" alt=""><img class="g" src="/fz-schubmast-g.png" alt=""></div><img class="k" src="/fz-schubmast-k.png" alt=""></div><div class="fz fz3"><img class="k" src="/fz-hubwagen-k.png" alt=""><div class="mast"><img class="g" src="/fz-hubwagen-g.png" alt=""></div></div></div>
+<div class="strasse" aria-hidden="true"><div class="fz fz1"><img class="k" src="/fz-stapler-k.png" alt=""><div class="mast neigen"><img src="/fz-stapler-m.png" alt=""><img class="g" src="/fz-stapler-g.png" alt=""></div></div><div class="fz fz2"><div class="mast schub"><img src="/fz-schubmast-m.png" alt=""><img class="g" src="/fz-schubmast-g.png" alt=""></div><img class="k" src="/fz-schubmast-k.png" alt=""></div><div class="fz fz3"><img class="k" src="/fz-hubwagen-k.png" alt=""><div class="mast"><img class="g" src="/fz-hubwagen-g.png" alt=""></div></div><div class="fz fz4"><img class="k" src="/fz-diesel-k.png" alt=""><div class="mast neigen"><img src="/fz-diesel-m.png" alt=""><img class="g" src="/fz-diesel-g.png" alt=""></div></div></div>
 <div class="wrap">
   <header class="top">
     <div class="marke">
