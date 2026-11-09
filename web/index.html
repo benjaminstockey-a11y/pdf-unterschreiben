@@ -2269,13 +2269,16 @@ function ideenZahl(n){
   k.classList.toggle("primary", !!n);
   $("#menuBtn").dataset.neu = n ? String(n) : "";
 }
+let ideenLetzt = 0;
 async function ideenNeuPruefen(){
   if(!isAdmin()) return;
+  ideenLetzt = Date.now();
   const r = await call("feedbacklist");
   if(!r.ok){ $("#ideasOpen").title = r.error || ""; return; }
   ideenZahl(r.items.filter(i => new Date(i.zeit).getTime() > ideenSeit && !i.antwort).length);
 }
-setInterval(() => { if(!document.hidden) ideenNeuPruefen(); }, 15 * 60 * 1000);
+setInterval(() => { if(!document.hidden) ideenNeuPruefen(); }, 5 * 60 * 1000);
+addEventListener("focus", () => { if(Date.now() - ideenLetzt > 60000) ideenNeuPruefen(); });
 $("#ideasOpen").onclick = async () => {
   const list = $("#ideasList"); list.innerHTML = '<span class="hint">Wird geladen …</span>';
   $("#ideasDlg").showModal();
@@ -5011,7 +5014,7 @@ function menuAuf(an){
   $("#menuSchleier").hidden = !an; $("#menuBtn").setAttribute("aria-expanded", String(an));
   if(an && !state.sig) setTimeout(sizePad, 220);
 }
-$("#menuBtn").onclick = () => menuAuf(!$("#menu").classList.contains("offen"));
+$("#menuBtn").onclick = () => { const an = !$("#menu").classList.contains("offen"); menuAuf(an); if(an && typeof ideenNeuPruefen === "function") ideenNeuPruefen(); };
 $("#menuZu").onclick = $("#menuSchleier").onclick = () => menuAuf(false);
 document.addEventListener("keydown", e => { if(e.key === "Escape" && $("#menu").classList.contains("offen") && !document.querySelector("dialog[open]")) menuAuf(false); });
 // Knöpfe im Menü, die ein Fenster öffnen, schließen das Menü
