@@ -138,8 +138,16 @@ try {
     $ws.Range('A1').Select()
     if ($cfg.pdf) { $ws.ExportAsFixedFormat(0, $env:PU_PDF) }
     if ($cfg.drucken) { [void]$ws.PrintOut() }
-    # Excel: die ganze Allgemeine Vorlage mit allen Registern (ohne Makros und Knöpfe), nur dieses Formular ausgefüllt
-    if ($cfg.xlsx) { $wb.SaveAs($env:PU_XLSX, 51) }
+    # Excel: die Allgemeine Vorlage mit ihren Registern (ohne Makros, Knöpfe, Geräteliste und Typenschild-Text), nur dieses Formular ausgefüllt
+    if ($cfg.xlsx) {
+      # Hilfsregister der Allgemeinen Vorlage (Geräteliste, Typenschild-Text) nicht mit in die Excel-Datei
+      foreach ($n in @($cfg.ohneRegister)) {
+        if (-not $n) { continue }
+        try { $s = $wb.Worksheets.Item([string]$n); if ($s.Name -ne $ws.Name -and $wb.Worksheets.Count -gt 1) { $s.Visible = -1; [void]$s.Delete() } } catch {}
+      }
+      $ws.Activate()
+      $wb.SaveAs($env:PU_XLSX, 51)
+    }
   } finally { $wb.Close($false) }
 } finally {
   if ($xl) { $xl.Quit(); [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl) }
@@ -242,7 +250,12 @@ func (a *app) handleFormular(w http.ResponseWriter, r *http.Request) {
 			bilder = append(bilder, map[string]any{"zelle": zelle, "pfad": p, "w": bw, "h": hh, "modus": b.Modus})
 		}
 	}
-	cfg, _ := json.Marshal(map[string]any{"bilder": bilder, "blatt": req.Blatt, "nach": req.Nach, "anzahl": min(req.Anzahl, 200), "einseite": req.Quelle != "", "ersteSeite": req.Blatt == "Rep.auftrag+Kostenvor.", "bereich": strings.HasPrefix(req.Quelle, "@"), "drucken": req.Drucken, "werte": req.Werte, "kreuze": req.Kreuze, "xlsx": req.XLSX, "pdf": req.PDF})
+	// Excel-Datei aus den Allgemeinen Vorlagen: ohne die Hilfsregister Geräteliste und Typenschild-Text
+	ohneRegister := []string{}
+	if req.Quelle == "" {
+		ohneRegister = []string{"Geräteliste", "Typenschild-Text"}
+	}
+	cfg, _ := json.Marshal(map[string]any{"bilder": bilder, "blatt": req.Blatt, "nach": req.Nach, "anzahl": min(req.Anzahl, 200), "einseite": req.Quelle != "", "ersteSeite": req.Blatt == "Rep.auftrag+Kostenvor.", "bereich": strings.HasPrefix(req.Quelle, "@"), "drucken": req.Drucken, "werte": req.Werte, "kreuze": req.Kreuze, "xlsx": req.XLSX, "pdf": req.PDF, "ohneRegister": ohneRegister})
 	cfgPath := filepath.Join(dir, "auftrag.json")
 	_ = os.WriteFile(cfgPath, cfg, 0o600)
 	xlsx, pdf := filepath.Join(dir, "formular.xlsx"), filepath.Join(dir, "formular.pdf")
