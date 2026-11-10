@@ -428,7 +428,7 @@ function berechtigungenPruefen() {
 // ---------------- Persönliche Kundendaten (Visitenkarten) ----------------
 // Nur der angemeldete Nutzer sieht und ändert seine eigenen Einträge. Blatt „Kundendaten“, nach Besitzer gefiltert.
 function kundendatenSheet(ss) {
-  return sheet(ss || SpreadsheetApp.getActiveSpreadsheet(), 'Kundendaten', ['Besitzer', 'Firma', 'Name', 'E-Mail', 'ID', 'Zuletzt']);
+  return sheet(ss || SpreadsheetApp.getActiveSpreadsheet(), 'Kundendaten', ['Besitzer', 'Firma', 'Name', 'E-Mail', 'Telefon', 'ID', 'Zuletzt']);
 }
 function kundendatenAnfrage(d) {
   const mail = clean(d.email, 150).toLowerCase();
@@ -438,24 +438,24 @@ function kundendatenAnfrage(d) {
   if (ev === 'kd_holen') {
     const v = s.getDataRange().getValues(), out = [];
     for (let i = 1; i < v.length; i++) if (String(v[i][0]).toLowerCase() === mail)
-      out.push([v[i][4], v[i][1], v[i][2], v[i][3]].map(function (x) { return String(x == null ? '' : x).replace(/[\t\n]/g, ' '); }).join('\t'));
+      out.push([v[i][5], v[i][1], v[i][2], v[i][3], v[i][4]].map(function (x) { return String(x == null ? '' : x).replace(/[\t\n]/g, ' '); }).join('\t'));
     return out.join('\n');
   }
   const kd = d.kd || {};
   if (ev === 'kd_speichern') {
     const id = clean(kd.id, 40) || Utilities.getUuid().replace(/-/g, '').slice(0, 12);
-    const firma = clean(kd.firma, 120), name = clean(kd.name, 120), em = clean(kd.email, 150);
-    if (!firma && !name && !em) throw new Error('Leerer Eintrag.');
+    const firma = clean(kd.firma, 120), name = clean(kd.name, 120), em = clean(kd.email, 150), tel = clean(kd.tel, 60);
+    if (!firma && !name && !em && !tel) throw new Error('Leerer Eintrag.');
     const v = s.getDataRange().getValues(); let row = 0;
-    for (let i = 1; i < v.length; i++) if (String(v[i][4]) === id && String(v[i][0]).toLowerCase() === mail) { row = i + 1; break; }
-    const zeile = [mail, firma, name, em, id, new Date()];
-    if (row) s.getRange(row, 1, 1, 6).setValues([zeile]); else s.appendRow(zeile);
+    for (let i = 1; i < v.length; i++) if (String(v[i][5]) === id && String(v[i][0]).toLowerCase() === mail) { row = i + 1; break; }
+    const zeile = [mail, firma, name, em, tel, id, new Date()];
+    if (row) s.getRange(row, 1, 1, 7).setValues([zeile]); else s.appendRow(zeile);
     return id;
   }
   if (ev === 'kd_loeschen') {
     const id = clean(kd.id, 40); if (!id) throw new Error('Keine ID.');
     const v = s.getDataRange().getValues();
-    for (let i = v.length - 1; i >= 1; i--) if (String(v[i][4]) === id && String(v[i][0]).toLowerCase() === mail) s.deleteRow(i + 1);
+    for (let i = v.length - 1; i >= 1; i--) if (String(v[i][5]) === id && String(v[i][0]).toLowerCase() === mail) s.deleteRow(i + 1);
     return 'ok';
   }
   throw new Error('Unbekannte Anfrage.');

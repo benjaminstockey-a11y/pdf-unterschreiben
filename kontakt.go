@@ -26,6 +26,7 @@ func (a *app) handleKontakt(w http.ResponseWriter, r *http.Request) {
 		Firma string `json:"firma"`
 		Name  string `json:"name"`
 		Email string `json:"email"`
+		Tel   string `json:"tel"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "Ungültige Anfrage."})
@@ -34,8 +35,10 @@ func (a *app) handleKontakt(w http.ResponseWriter, r *http.Request) {
 	in.Email = strings.TrimSpace(in.Email)
 	in.Name = strings.TrimSpace(in.Name)
 	in.Firma = strings.TrimSpace(in.Firma)
-	if !kontaktMail.MatchString(in.Email) {
-		writeJSON(w, map[string]any{"ok": false, "error": "Keine gültige E-Mail."})
+	in.Tel = strings.TrimSpace(in.Tel)
+	hasMail := kontaktMail.MatchString(in.Email)
+	if !hasMail && in.Tel == "" {
+		writeJSON(w, map[string]any{"ok": false, "error": "Weder E-Mail noch Telefon."})
 		return
 	}
 	err := olNativAuftrag(olAuftrag{art: "fn", fn: func(app *ole.IDispatch) error {
@@ -58,10 +61,12 @@ func (a *app) handleKontakt(w http.ResponseWriter, r *http.Request) {
 		items := iv.ToIDispatch()
 		defer items.Release()
 		// Gibt es die E-Mail-Adresse schon? Dann nichts anlegen (keine Dubletten).
-		if fv, err := oleutil.CallMethod(items, "Find", "[Email1Address] = '"+strings.ReplaceAll(in.Email, "'", "''")+"'"); err == nil {
-			if d := fv.ToIDispatch(); d != nil {
-				d.Release()
-				return nil
+		if hasMail {
+			if fv, err := oleutil.CallMethod(items, "Find", "[Email1Address] = '"+strings.ReplaceAll(in.Email, "'", "''")+"'"); err == nil {
+				if d := fv.ToIDispatch(); d != nil {
+					d.Release()
+					return nil
+				}
 			}
 		}
 		cv, err := oleutil.CallMethod(app, "CreateItem", 2) // olContactItem
@@ -80,8 +85,13 @@ func (a *app) handleKontakt(w http.ResponseWriter, r *http.Request) {
 		if in.Firma != "" {
 			_, _ = oleutil.PutProperty(c, "CompanyName", in.Firma)
 		}
-		_, _ = oleutil.PutProperty(c, "Email1Address", in.Email)
-		_, _ = oleutil.PutProperty(c, "Email1DisplayName", strings.TrimSpace(name+" ("+in.Firma+")"))
+		if hasMail {
+			_, _ = oleutil.PutProperty(c, "Email1Address", in.Email)
+			_, _ = oleutil.PutProperty(c, "Email1DisplayName", strings.TrimSpace(name+" ("+in.Firma+")"))
+		}
+		if in.Tel != "" {
+			_, _ = oleutil.PutProperty(c, "BusinessTelephoneNumber", in.Tel)
+		}
 		_, err = oleutil.CallMethod(c, "Save")
 		return err
 	}}, 60*time.Second)
