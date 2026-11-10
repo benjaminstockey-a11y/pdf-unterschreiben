@@ -456,7 +456,7 @@ body{padding-bottom:172px}
   <div class="menu-schleier" id="menuSchleier" hidden></div>
   <div class="menu" id="menu" aria-hidden="true" inert>
     <div class="menu-kopf"><strong>Menü</strong><button type="button" class="ghost" id="menuZu" aria-label="Menü schließen">✕</button></div>
-    <div class="menu-knoepfe"><button class="ghost" id="checkBtn" hidden>🔄 Nach Updates suchen</button><button id="helpBtn">📖 Anleitung</button><button id="ideaBtn" hidden>💡 Verbesserungsvorschlag</button></div>
+    <div class="menu-knoepfe"><button class="ghost" id="checkBtn" hidden>🔄 Nach Updates suchen</button><button id="helpBtn">📖 Anleitung</button><button id="kdOpen">👤 Kundendaten</button><button id="ideaBtn" hidden>💡 Verbesserungsvorschlag</button></div>
     <p class="menu-ver"><span id="verText">Version …</span></p>
   <div class="grid">
     <aside>
@@ -676,6 +676,28 @@ body{padding-bottom:172px}
     <div class="et-kopf"><input type="search" id="smtTyp" placeholder="Type des Geräts, z. B. 9FBE18T oder 8FBMT25 …"><input type="search" id="smtSuche" placeholder="Suchen in allen Mitteilungen: TruckCom, I-Site, DHU, Nummer …"></div>
     <div class="dlg-body"><table class="et-tab smt-tab"><thead><tr><th>Nummer</th><th>Mitteilung</th><th>Eingang</th><th></th></tr></thead><tbody id="smtListe"></tbody></table></div>
     <div class="dlg-foot"><span class="hint" id="smtStand"></span><span style="display:flex;gap:8px"><button type="button" class="ghost" id="smtOrdner">📂 Ordner öffnen</button><button type="button" class="primary" id="smtHolen">🔄 Aus Outlook holen</button></span></div>
+  </form>
+</dialog>
+
+<dialog id="kdDlg">
+  <form method="dialog" class="dlg" onsubmit="return false">
+    <div class="dlg-head"><strong>👤 Kundendaten</strong><button type="button" class="ghost" id="kdZu">Schließen</button></div>
+    <div class="et-kopf"><input type="search" id="kdSuche" placeholder="Suchen: Firma, Name oder E-Mail …"></div>
+    <div class="dlg-body"><table class="et-tab"><thead><tr><th>Firma</th><th>Name</th><th>E-Mail</th><th></th></tr></thead><tbody id="kdListe"></tbody></table></div>
+    <div class="dlg-foot"><span class="hint" id="kdStand"></span><span style="display:flex;gap:8px"><button type="button" class="ghost" id="kdScan">📱 Visitenkarte scannen</button><button type="button" class="primary" id="kdNeu">＋ Kunde hinzufügen</button></span></div>
+  </form>
+</dialog>
+
+<dialog id="kdEditDlg">
+  <form method="dialog" class="dlg" onsubmit="return false">
+    <div class="dlg-head"><strong id="kdEditTitel">Kunde</strong><button type="button" class="ghost" id="kdEditZu">Abbrechen</button></div>
+    <div class="dlg-body col" style="gap:10px;min-width:min(440px,82vw);padding:0 16px 12px">
+      <label class="field">Firma<input id="kdFirma" autocomplete="off"></label>
+      <label class="field">Name / Ansprechpartner<input id="kdName" autocomplete="off"></label>
+      <label class="field">E-Mail<input id="kdEmail" type="email" inputmode="email" autocomplete="off"></label>
+      <span class="hint" id="kdEditFehler" style="color:var(--warn)" hidden></span>
+    </div>
+    <div class="dlg-foot"><button type="button" class="ghost" id="kdEditDel" style="color:var(--warn)" hidden>Löschen</button><span style="flex:1"></span><button type="button" class="primary" id="kdEditSave">Speichern</button></div>
   </form>
 </dialog>
 
@@ -1200,7 +1222,7 @@ $("#addDate").onchange = e => { state.addDate = e.target.checked; persist(); sta
 
 /* ---------- Dokumente ---------- */
 const uid = () => Math.random().toString(36).slice(2, 10);
-async function addDoc(name, bytes, handle, excel){
+async function addDoc(name, bytes, handle, excel, mail){
   let pdf;
   try{ pdf = await openPdf(bytes); }
   catch(e){
@@ -1209,7 +1231,7 @@ async function addDoc(name, bytes, handle, excel){
   }
   const pages = [];
   for(let i = 1; i <= pdf.numPages; i++){ const vp = (await pdf.getPage(i)).getViewport({scale: 1}); pages.push({w: vp.width, h: vp.height}); }
-  const doc = {id: uid(), name, bytes, pdf, pages, handle, excel: excel || null, stamp: null, found: null, saved: false, moved: false};
+  const doc = {id: uid(), name, bytes, pdf, pages, handle, excel: excel || null, mail: mail || "", stamp: null, found: null, saved: false, moved: false};
   state.docs.push(doc); outlookVor();
   doc.addDate = state.addDate;
   await autoPlace(doc);
@@ -1972,12 +1994,15 @@ async function mailDocs(list){
     const files = [], t0 = performance.now();
     for(const d of list){ const b = await signed(d); if(b) files.push({name: outName(d), data: b64(b)}); }
     if(!files.length){ toast("Es gab nichts zu versenden."); return; }
+    // Empfänger: wenn alle Berichte zum selben Kunden gehören, dessen E-Mail schon eintragen
+    const mails = [...new Set(list.map(d => d.mail).filter(Boolean))], to = mails.length === 1 ? mails[0] : "";
     const t1 = performance.now(); const subject = await mailSubject(list); const t2 = performance.now();
     const vorb = `PDFs ${Math.round(t1 - t0)} · Betreff ${Math.round(t2 - t1)} (${files.length} Berichte)`;
-    const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({subject, files, vorb})})).json();
+    const r = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({subject, files, to, vorb})})).json();
     if(!r.ok){ toast(r.error || "E-Mail konnte nicht geöffnet werden.", 7000); return; }
     let msg = r.via === "explorer"
       ? "Kein E-Mail-Programm gefunden. Der Ordner mit den PDFs ist geöffnet – zieh sie einfach in deine E-Mail."
+      : to ? `E-Mail mit ${files.length} ${files.length === 1 ? "Bericht" : "Berichten"} geöffnet – Empfänger ${to} ist eingetragen, bitte prüfen und senden.`
       : `E-Mail mit ${files.length} ${files.length === 1 ? "Bericht" : "Berichten"} geöffnet – Empfänger eintragen und senden.`;
     if(ohne) msg += ` ${ohne} ohne Unterschrift ${ohne === 1 ? "wurde" : "wurden"} nicht angehängt.`;
     toast(msg, 8000); report("mail", files.length);
@@ -4362,12 +4387,29 @@ function akteAnsicht(){
 }
 /* ---- Kundenliste: einmal eingelesene Kunden für alle Techniker (Server, Blatt „Kunden“) ---- */
 let kunden = null;   // [{name, strasse, ort, ansprech, tel, mail}]
+let meineKunden = null;   // persönliche Kundendaten – nur ich (Server, Blatt „Kundendaten“): [{id, firma, name, email}]
 const KUNDE_SPALTEN = [["name", "D5"], ["strasse", "D6"], ["ort", "D7"], ["ansprech", "D8"], ["tel", "Q9"], ["mail", "D9"]];
 async function kundenLaden(){
   try{
     const x = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "k_holen", seit: 0})})).json();
     if(x.ok) kunden = x.text.split("\n").slice(1).filter(z => z.trim()).map(z => { const c = z.split("\t"); return {name: c[0], strasse: c[1], ort: c[2], ansprech: c[3], tel: c[4], mail: c[5]}; });
   }catch(e){}
+  meineKundenLaden();
+}
+async function meineKundenLaden(){
+  try{
+    const x = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_holen"})})).json();
+    if(x.ok) meineKunden = (x.text || "").split("\n").filter(z => z.trim()).map(z => { const c = z.split("\t"); return {id: c[0], firma: c[1] || "", name: c[2] || "", email: c[3] || ""}; });
+  }catch(e){}
+  return meineKunden;
+}
+async function meineKundeSpeichern(k){
+  const r = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_speichern", kd: {id: k.id || "", firma: k.firma || "", name: k.name || "", email: k.email || ""}})})).json();
+  if(r.ok && r.text) k.id = r.text.trim();
+  return r;
+}
+async function meineKundeLoeschen(id){
+  return (await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_loeschen", kd: {id}})})).json());
 }
 const kundeSchl = k => normNr(k.name) + "|" + normNr(k.ort);
 function kundeSpeichern(f, w){
@@ -4385,20 +4427,26 @@ function kundeVorschlag(i, f, w){
   const zu = () => { box.hidden = true; };
   const zeigen = () => {
     const q = i.value.trim().toLowerCase(); box.innerHTML = "";
-    if(!kunden || q.length < 2){ zu(); return; }
-    const w2 = q.split(/\s+/);
-    const t = kunden.filter(k => { const s = (k.name + " " + k.ort + " " + k.strasse).toLowerCase(); return w2.every(x => s.includes(x)); })
-      .filter(k => k.name.toLowerCase() !== q).slice(0, 8);
-    if(!t.length){ zu(); return; }
-    for(const k of t){
+    if(q.length < 2){ zu(); return; }
+    const w2 = q.split(/\s+/), map = FELD_MAP[f.id] || {};
+    const eintrag = (titel, name, unter, fuellen) => {
       const b = document.createElement("button"); b.type = "button";
-      b.innerHTML = "<b></b><span></span>"; b.firstChild.textContent = k.name; b.lastChild.textContent = [k.strasse, k.ort, k.ansprech].filter(Boolean).join(" · ");
-      b.onmousedown = e => { e.preventDefault(); i.value = k.name;
-        const map = FELD_MAP[f.id]; for(const [n, z] of KUNDE_SPALTEN) if(map[z] && (k[n] || n === "name")) w[map[z]] = k[n] || "";
-        gemeinsamAus(f, w); formMerken(); zu(); formRender(); formMeldung("Kundendaten von „" + k.name + "“ übernommen.", 4000); };
+      b.innerHTML = "<b></b><span></span>"; b.firstChild.textContent = titel; b.lastChild.textContent = unter;
+      b.onmousedown = e => { e.preventDefault(); i.value = name; fuellen(); gemeinsamAus(f, w); formMerken(); zu(); formRender(); formMeldung("Kundendaten von „" + name + "“ übernommen.", 4000); };
       box.appendChild(b);
+    };
+    // zuerst meine eigenen (gescannten) Kunden – Firma, Ansprechpartner, E-Mail
+    for(const k of (meineKunden || []).filter(k => w2.every(x => (k.firma + " " + k.name + " " + k.email).toLowerCase().includes(x))).filter(k => (k.firma || k.name).toLowerCase() !== q).slice(0, 6)){
+      const pseudo = {name: k.firma || k.name, ansprech: k.name, mail: k.email};
+      eintrag("👤 " + (k.firma || k.name), k.firma || k.name, [k.name, k.email].filter(Boolean).join(" · "),
+        () => { for(const [n, z] of KUNDE_SPALTEN) if(map[z] && (pseudo[n] || n === "name")) w[map[z]] = pseudo[n] || ""; });
     }
-    box.hidden = false;
+    // dann die gemeinsame Kundenliste aller Techniker
+    for(const k of (kunden || []).filter(k => w2.every(x => (k.name + " " + k.ort + " " + k.strasse).toLowerCase().includes(x))).filter(k => k.name.toLowerCase() !== q).slice(0, 8)){
+      eintrag(k.name, k.name, [k.strasse, k.ort, k.ansprech].filter(Boolean).join(" · "),
+        () => { for(const [n, z] of KUNDE_SPALTEN) if(map[z] && (k[n] || n === "name")) w[map[z]] = k[n] || ""; });
+    }
+    box.hidden = !box.children.length;
   };
   i.addEventListener("input", zeigen); i.addEventListener("focus", zeigen); i.addEventListener("blur", () => setTimeout(zu, 150));
   i.addEventListener("keydown", e => { if(e.key === "Escape") zu(); });
@@ -4687,8 +4735,22 @@ async function formSpeichern(drucken, dispo){
     catch(x){ formMeldung("Speichern fehlgeschlagen: " + (x.message || x), 7000); }
   };
   if(r.pdf){ const pb = bytes(r.pdf);
+    // E-Mail des Kunden aus dem Feld „E-Mail“ im Formular – für den Versand und zum Mitnehmen beim Unterschreiben
+    const kMail = String((FELD_MAP[f.id] && w[FELD_MAP[f.id].D9]) || "").trim();
+    const istMail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(kMail);
     knopf("PDF speichern …", klick(pb, ".pdf", "PDF-Dokument", "application/pdf"));
-    knopf("Unterschreiben / E-Mail", async () => { await addDoc(basis + ".pdf", pb.slice(), null, null); renderAll(); $("#formDlg").close(); });
+    knopf("Unterschreiben / E-Mail", async () => { await addDoc(basis + ".pdf", pb.slice(), null, null, istMail ? kMail : ""); renderAll(); $("#formDlg").close(); });
+    if(istMail){ outlookVor();
+      const mb = knopf("📧 E-Mail an Kunde", async () => {
+        mb.disabled = true; const alt = mb.textContent; mb.textContent = "Bitte warten …";
+        try{
+          const m = await (await fetch("/api/mail", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({subject: [f.titel, nrV, kundeName].filter(Boolean).join(" – "), to: kMail, files: [{name: basis + ".pdf", data: r.pdf}]})})).json();
+          if(!m.ok) throw new Error(m.error || "Outlook konnte nicht geöffnet werden.");
+          formMeldung("Outlook ist offen – E-Mail an " + kMail + " prüfen und auf „Senden“ klicken.", 8000);
+        }catch(e){ formMeldung("E-Mail an Kunde: " + (e.message || e), 8000); }
+        mb.disabled = false; mb.textContent = alt;
+      });
+    }
   }
   if(r.xlsx) knopf("Excel speichern …", klick(bytes(r.xlsx), ".xlsx", "Excel-Arbeitsmappe", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
   // An die Dispo: Excel-Datei (Allgemeine Vorlage) als Anhang in einer neuen Outlook-Mail
@@ -5022,7 +5084,7 @@ $("#menuBtn").onclick = () => { const an = !$("#menu").classList.contains("offen
 $("#menuZu").onclick = $("#menuSchleier").onclick = () => menuAuf(false);
 document.addEventListener("keydown", e => { if(e.key === "Escape" && $("#menu").classList.contains("offen") && !document.querySelector("dialog[open]")) menuAuf(false); });
 // Knöpfe im Menü, die ein Fenster öffnen, schließen das Menü
-for(const id of ["helpBtn", "ideaBtn", "ideasOpen", "claudeOpen", "openSheet"]){ const b = document.getElementById(id); if(b) b.addEventListener("click", () => menuAuf(false)); }
+for(const id of ["helpBtn", "ideaBtn", "ideasOpen", "claudeOpen", "openSheet", "kdOpen"]){ const b = document.getElementById(id); if(b) b.addEventListener("click", () => menuAuf(false)); }
 // Noch keine Unterschrift: Menü beim Start einmal öffnen, damit man sie gleich einrichten kann
 setTimeout(() => { if(!state.sig) menuAuf(true); }, 900);
 
@@ -5102,8 +5164,61 @@ setTimeout(() => kalLaden(), 2500);
 setInterval(() => { if(!document.hidden){ kalZeigen(); kalLaden(true); } }, 10 * 60 * 1000);
 addEventListener("focus", () => kalLaden(true));
 
+/* ---------- Kundendaten (persönlich, nur ich) ---------- */
+// Legt die E-Mail-Adresse auf Wunsch auch als Kontakt in Outlook an (dann schlägt Outlook sie beim Tippen vor).
+function outlookKontakt(k){ if(k && k.email) fetch("/api/kontakt", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({firma: k.firma || "", name: k.name || "", email: k.email})}).catch(() => {}); }
+let kdBearbeitet = null;
+function kdZeigen(){
+  const tb = $("#kdListe"), q = $("#kdSuche").value.trim().toLowerCase(); tb.innerHTML = "";
+  const l = (meineKunden || []).filter(k => !q || (k.firma + " " + k.name + " " + k.email).toLowerCase().includes(q)).sort((a, b) => (a.firma || a.name).localeCompare(b.firma || b.name, "de"));
+  for(const k of l){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${esc(k.firma)}</td><td>${esc(k.name)}</td><td class="l">${esc(k.email)}</td><td></td>`;
+    const b = document.createElement("button"); b.type = "button"; b.textContent = "Ändern"; b.onclick = () => kdEditOeffnen(k); tr.lastChild.appendChild(b);
+    tb.appendChild(tr);
+  }
+  if(!l.length) tb.insertAdjacentHTML("beforeend", `<tr><td colspan="4" class="hint" style="padding:14px 6px">${meineKunden && meineKunden.length ? "Nichts gefunden." : "Noch keine Kundendaten. Mit „＋ Kunde hinzufügen“ anlegen" + ($("#kdScan").hidden ? "" : " oder eine Visitenkarte scannen") + "."}</td></tr>`);
+  $("#kdStand").textContent = (meineKunden || []).length + " Kunde(n) · nur für dich sichtbar";
+}
+function kdEditOeffnen(k){
+  kdBearbeitet = k || {id: "", firma: "", name: "", email: ""};
+  $("#kdEditTitel").textContent = k ? "Kunde ändern" : "Neuer Kunde";
+  $("#kdFirma").value = kdBearbeitet.firma || ""; $("#kdName").value = kdBearbeitet.name || ""; $("#kdEmail").value = kdBearbeitet.email || "";
+  $("#kdEditDel").hidden = !(k && k.id); $("#kdEditFehler").hidden = true;
+  $("#kdEditDlg").showModal(); setTimeout(() => $("#kdFirma").focus(), 50);
+}
+$("#kdOpen").onclick = async () => { if(!meineKunden) await meineKundenLaden(); kdZeigen(); $("#kdDlg").showModal(); };
+$("#kdZu").onclick = () => $("#kdDlg").close();
+$("#kdSuche").oninput = () => kdZeigen();
+$("#kdNeu").onclick = () => kdEditOeffnen(null);
+$("#kdScan").hidden = true;   // Scannen per Handy kommt im nächsten Schritt
+$("#kdEditZu").onclick = () => $("#kdEditDlg").close();
+$("#kdEditSave").onclick = async () => {
+  const f = $("#kdEditFehler"), firma = $("#kdFirma").value.trim(), name = $("#kdName").value.trim(), email = $("#kdEmail").value.trim();
+  if(!firma && !name && !email){ f.textContent = "Bitte mindestens ein Feld ausfüllen."; f.hidden = false; return; }
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ f.textContent = "Die E-Mail-Adresse sieht nicht richtig aus."; f.hidden = false; return; }
+  const b = $("#kdEditSave"); b.disabled = true; const alt = b.textContent; b.textContent = "Speichern …";
+  const k = {id: kdBearbeitet.id || "", firma, name, email};
+  const r = await meineKundeSpeichern(k);
+  b.disabled = false; b.textContent = alt;
+  if(!r.ok){ f.textContent = r.error || "Speichern fehlgeschlagen."; f.hidden = false; return; }
+  meineKunden = meineKunden || [];
+  const i = meineKunden.findIndex(x => x.id === k.id);
+  if(i >= 0) meineKunden[i] = k; else meineKunden.push(k);
+  outlookKontakt(k);
+  $("#kdEditDlg").close(); kdZeigen();
+};
+$("#kdEditDel").onclick = async () => {
+  if(!kdBearbeitet || !kdBearbeitet.id){ $("#kdEditDlg").close(); return; }
+  if(!confirm("Diesen Kunden aus deiner Liste löschen?")) return;
+  const r = await meineKundeLoeschen(kdBearbeitet.id);
+  if(!r.ok){ $("#kdEditFehler").textContent = r.error || "Löschen fehlgeschlagen."; $("#kdEditFehler").hidden = false; return; }
+  meineKunden = (meineKunden || []).filter(x => x.id !== kdBearbeitet.id);
+  $("#kdEditDlg").close(); kdZeigen();
+};
+
 /* Fenster: minimieren, maximieren, schließen (für die großen Fenster) */
-for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg", "smtDlg", "pdfLeser"]){
+for(const id of ["formDlg", "docuDlg", "helpDlg", "ideasDlg", "wartDlg", "smtDlg", "kdDlg", "pdfLeser"]){
   const d = document.getElementById(id); if(!d) continue;
   const head = d.querySelector(".dlg-head"); if(!head) continue;
   d.classList.add("fenster");

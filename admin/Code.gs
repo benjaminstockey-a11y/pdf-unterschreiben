@@ -63,6 +63,14 @@ function doPost(e) {
     try { t = 'OK\n' + vorlagenAnfrage(d, true); } catch (x) { t = 'FEHLER\n' + x.message; }
     return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.TEXT);
   }
+  // Service-Mappe: persönliche Kundendaten (nur für den angemeldeten Nutzer)
+  if (d && d.key === KEY && /^kd_(holen|speichern|loeschen)$/.test(String(d.event || ''))) {
+    const l = LockService.getScriptLock(); l.waitLock(20000);
+    let t;
+    try { t = 'OK\n' + kundendatenAnfrage(d); } catch (x) { t = 'FEHLER\n' + x.message; }
+    finally { l.releaseLock(); }
+    return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.TEXT);
+  }
   // Fotos vom Handy (QR-Code) – ohne Sperre
   if (d && d.key === KEY && /^foto(start|liste|holen|ende|vorschau)$/.test(String(d.event || ''))) {
     try { return out(fotoAnfrage(d)); } catch (x) { return out({ ok: false, error: 'Fotos: ' + x.message }); }
@@ -415,6 +423,42 @@ function googleOcr(b64, mime) {
 function berechtigungenPruefen() {
   DriveApp.getRootFolder();
   UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/about?fields=user', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } });
+}
+
+// ---------------- Persönliche Kundendaten (Visitenkarten) ----------------
+// Nur der angemeldete Nutzer sieht und ändert seine eigenen Einträge. Blatt „Kundendaten“, nach Besitzer gefiltert.
+function kundendatenSheet(ss) {
+  return sheet(ss || SpreadsheetApp.getActiveSpreadsheet(), 'Kundendaten', ['Besitzer', 'Firma', 'Name', 'E-Mail', 'ID', 'Zuletzt']);
+}
+function kundendatenAnfrage(d) {
+  const mail = clean(d.email, 150).toLowerCase();
+  if (ADMIN_MAILS.indexOf(mail) < 0 && !mail.endsWith('@' + DOMAIN)) throw new Error('Nicht berechtigt.');
+  const s = kundendatenSheet();
+  const ev = d.event;
+  if (ev === 'kd_holen') {
+    const v = s.getDataRange().getValues(), out = [];
+    for (let i = 1; i < v.length; i++) if (String(v[i][0]).toLowerCase() === mail)
+      out.push([v[i][4], v[i][1], v[i][2], v[i][3]].map(function (x) { return String(x == null ? '' : x).replace(/[\t\n]/g, ' '); }).join('\t'));
+    return out.join('\n');
+  }
+  const kd = d.kd || {};
+  if (ev === 'kd_speichern') {
+    const id = clean(kd.id, 40) || Utilities.getUuid().replace(/-/g, '').slice(0, 12);
+    const firma = clean(kd.firma, 120), name = clean(kd.name, 120), em = clean(kd.email, 150);
+    if (!firma && !name && !em) throw new Error('Leerer Eintrag.');
+    const v = s.getDataRange().getValues(); let row = 0;
+    for (let i = 1; i < v.length; i++) if (String(v[i][4]) === id && String(v[i][0]).toLowerCase() === mail) { row = i + 1; break; }
+    const zeile = [mail, firma, name, em, id, new Date()];
+    if (row) s.getRange(row, 1, 1, 6).setValues([zeile]); else s.appendRow(zeile);
+    return id;
+  }
+  if (ev === 'kd_loeschen') {
+    const id = clean(kd.id, 40); if (!id) throw new Error('Keine ID.');
+    const v = s.getDataRange().getValues();
+    for (let i = v.length - 1; i >= 1; i--) if (String(v[i][4]) === id && String(v[i][0]).toLowerCase() === mail) s.deleteRow(i + 1);
+    return 'ok';
+  }
+  throw new Error('Unbekannte Anfrage.');
 }
 
 // ---------------- Fotos vom Handy (QR-Code) ----------------
