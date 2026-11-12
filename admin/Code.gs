@@ -65,10 +65,12 @@ function doPost(e) {
   }
   // Service-Mappe: persönliche Kundendaten (nur für den angemeldeten Nutzer)
   if (d && d.key === KEY && /^kd_(holen|speichern|loeschen|scanstart|scanergebnis)$/.test(String(d.event || ''))) {
-    const l = LockService.getScriptLock(); l.waitLock(20000);
+    // Sperre nur beim Schreiben – Lesen und Visitenkarten-Scan (nur Cache) laufen ohne Warten
+    const l = /^kd_(speichern|loeschen)$/.test(d.event) ? LockService.getScriptLock() : null;
+    if (l) l.waitLock(20000);
     let t;
     try { t = 'OK\n' + kundendatenAnfrage(d); } catch (x) { t = 'FEHLER\n' + x.message; }
-    finally { l.releaseLock(); }
+    finally { if (l) l.releaseLock(); }
     return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.TEXT);
   }
   // Fotos vom Handy (QR-Code) – ohne Sperre

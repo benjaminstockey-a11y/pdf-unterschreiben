@@ -5231,22 +5231,40 @@ function kdEditOeffnen(k){
   $("#kdEditDel").hidden = !(k && k.id); $("#kdEditFehler").hidden = true;
   $("#kdEditDlg").showModal(); setTimeout(() => $("#kdFirma").focus(), 50);
 }
-$("#kdOpen").onclick = async () => { if(!meineKunden) await meineKundenLaden(); kdZeigen(); $("#kdDlg").showModal(); };
+$("#kdOpen").onclick = async () => { kdScanVorladen(); if(!meineKunden) await meineKundenLaden(); kdZeigen(); $("#kdDlg").showModal(); };
 $("#kdZu").onclick = () => $("#kdDlg").close();
 $("#kdSuche").oninput = () => kdZeigen();
 $("#kdNeu").onclick = () => kdEditOeffnen(null);
 let kdScanAbbruch = false;
+// QR-Code schon beim Öffnen der Kundendaten im Hintergrund anfordern, damit er beim Klick sofort da ist
+let kdScanVor = null;   // {zeit, p: Promise<{token, url}>}
+function kdScanHolen(){
+  return (async () => {
+    const r = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_scanstart"})})).json();
+    if(!r.ok) throw new Error(r.error || "Konnte nicht gestartet werden.");
+    const [token, url] = (r.text || "").split("\n");
+    if(!token || !url) throw new Error("Ungültige Antwort vom Server.");
+    const img = new Image(); img.src = "/api/fotos/qr?u=" + encodeURIComponent(url);   // QR-Bild vorab erzeugen
+    return {token, url};
+  })();
+}
+function kdScanVorladen(){
+  if($("#kdScan").hidden) return;
+  if(kdScanVor && Date.now() - kdScanVor.zeit < 12 * 60000) return;
+  kdScanVor = {zeit: Date.now(), p: kdScanHolen()};
+  kdScanVor.p.catch(() => { kdScanVor = null; });
+}
 async function kdScanStarten(){
   kdScanAbbruch = false;
   $("#kdScanQr").removeAttribute("src"); $("#kdScanSt").textContent = "QR-Code wird erstellt …";
   $("#kdScanDlg").showModal();
   let token, url;
   try{
-    const r = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_scanstart"})})).json();
-    if(!r.ok) throw new Error(r.error || "Konnte nicht gestartet werden.");
-    [token, url] = (r.text || "").split("\n");
-    if(!token || !url) throw new Error("Ungültige Antwort vom Server.");
+    const vor = (kdScanVor && Date.now() - kdScanVor.zeit < 15 * 60000) ? kdScanVor.p : kdScanHolen();
+    kdScanVor = null;   // jeder Token nur einmal
+    ({token, url} = await vor);
   }catch(e){ $("#kdScanSt").textContent = "Fehler: " + (e.message || e); return; }
+  kdScanVorladen();   // nächsten schon bereitlegen
   $("#kdScanQr").src = "/api/fotos/qr?u=" + encodeURIComponent(url);
   $("#kdScanSt").textContent = "Mit dem Handy scannen und eine Visitenkarte fotografieren – das Ergebnis erscheint hier automatisch.";
   const bis = Date.now() + 10 * 60000;
