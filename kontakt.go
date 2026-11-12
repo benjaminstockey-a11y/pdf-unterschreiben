@@ -23,10 +23,12 @@ func (a *app) handleKontakt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Firma string `json:"firma"`
-		Name  string `json:"name"`
-		Email string `json:"email"`
-		Tel   string `json:"tel"`
+		Firma   string `json:"firma"`
+		Name    string `json:"name"`
+		Email   string `json:"email"`
+		Tel     string `json:"tel"`
+		Strasse string `json:"strasse"`
+		Ort     string `json:"ort"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "Ungültige Anfrage."})
@@ -36,6 +38,8 @@ func (a *app) handleKontakt(w http.ResponseWriter, r *http.Request) {
 	in.Name = strings.TrimSpace(in.Name)
 	in.Firma = strings.TrimSpace(in.Firma)
 	in.Tel = strings.TrimSpace(in.Tel)
+	in.Strasse = strings.TrimSpace(in.Strasse)
+	in.Ort = strings.TrimSpace(in.Ort)
 	hasMail := kontaktMail.MatchString(in.Email)
 	if !hasMail && in.Tel == "" {
 		writeJSON(w, map[string]any{"ok": false, "error": "Weder E-Mail noch Telefon."})
@@ -92,6 +96,12 @@ func (a *app) handleKontakt(w http.ResponseWriter, r *http.Request) {
 		if in.Tel != "" {
 			_, _ = oleutil.PutProperty(c, "BusinessTelephoneNumber", in.Tel)
 		}
+		if in.Strasse != "" {
+			_, _ = oleutil.PutProperty(c, "BusinessAddressStreet", in.Strasse)
+		}
+		if in.Ort != "" {
+			_, _ = oleutil.PutProperty(c, "BusinessAddressCity", in.Ort)
+		}
 		_, err = oleutil.CallMethod(c, "Save")
 		return err
 	}}, 60*time.Second)
@@ -100,4 +110,91 @@ func (a *app) handleKontakt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true})
+}
+
+func kontaktEig(c *ole.IDispatch, eig string) string {
+	v, err := oleutil.GetProperty(c, eig)
+	if err != nil || v == nil {
+		return ""
+	}
+	return strings.TrimSpace(v.ToString())
+}
+
+type kontaktEintrag struct {
+	Firma   string `json:"firma"`
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Tel     string `json:"tel"`
+	Strasse string `json:"strasse"`
+	Ort     string `json:"ort"`
+}
+
+// Liest die vorhandenen Outlook-Kontakte (Firma, Name, E-Mail, Telefon, Adresse), damit sie als
+// persönliche Kundendaten übernommen werden können (umgekehrte Richtung zu handleKontakt).
+func (a *app) handleKontaktImport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST", http.StatusMethodNotAllowed)
+		return
+	}
+	var liste []kontaktEintrag
+	err := olNativAuftrag(olAuftrag{art: "fn", fn: func(app *ole.IDispatch) error {
+		nv, err := oleutil.CallMethod(app, "GetNamespace", "MAPI")
+		if err != nil {
+			return err
+		}
+		ns := nv.ToIDispatch()
+		defer ns.Release()
+		fv, err := oleutil.CallMethod(ns, "GetDefaultFolder", 10) // olFolderContacts
+		if err != nil {
+			return err
+		}
+		folder := fv.ToIDispatch()
+		defer folder.Release()
+		iv, err := oleutil.GetProperty(folder, "Items")
+		if err != nil {
+			return err
+		}
+		items := iv.ToIDispatch()
+		defer items.Release()
+		cv, err := oleutil.GetProperty(items, "Count")
+		if err != nil {
+			return err
+		}
+		n := int(cv.Val)
+		if n > 3000 {
+			n = 3000 // Sicherheitsgrenze, falls das Adressbuch riesig ist
+		}
+		for i := 1; i <= n; i++ {
+			iv2, err := oleutil.CallMethod(items, "Item", i)
+			if err != nil {
+				continue
+			}
+			c := iv2.ToIDispatch()
+			if c == nil {
+				continue
+			}
+			em := kontaktEig(c, "Email1Address")
+			tel := kontaktEig(c, "BusinessTelephoneNumber")
+			if tel == "" {
+				tel = kontaktEig(c, "MobileTelephoneNumber")
+			}
+			if em != "" || tel != "" {
+				liste = append(liste, kontaktEintrag{
+					Firma:   kontaktEig(c, "CompanyName"),
+					Name:    kontaktEig(c, "FullName"),
+					Email:   em,
+					Tel:     tel,
+					Strasse: kontaktEig(c, "BusinessAddressStreet"),
+					Ort:     kontaktEig(c, "BusinessAddressCity"),
+				})
+			}
+			c.Release()
+		}
+		return nil
+	}}, 90*time.Second)
+	if err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "liste": liste})
 }

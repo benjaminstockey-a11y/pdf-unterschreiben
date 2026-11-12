@@ -684,7 +684,7 @@ body{padding-bottom:172px}
     <div class="dlg-head"><strong>👤 Kundendaten</strong><button type="button" class="ghost" id="kdZu">Schließen</button></div>
     <div class="et-kopf"><input type="search" id="kdSuche" placeholder="Suchen: Firma, Name oder E-Mail …"></div>
     <div class="dlg-body"><table class="et-tab"><thead><tr><th>Firma</th><th>Name</th><th>E-Mail</th><th>Telefon</th><th></th></tr></thead><tbody id="kdListe"></tbody></table></div>
-    <div class="dlg-foot"><span class="hint" id="kdStand"></span><span style="display:flex;gap:8px"><button type="button" class="ghost" id="kdScan">📱 Visitenkarte scannen</button><button type="button" class="primary" id="kdNeu">＋ Kunde hinzufügen</button></span></div>
+    <div class="dlg-foot"><span class="hint" id="kdStand"></span><span style="display:flex;gap:8px"><button type="button" class="ghost" id="kdImport">📥 Aus Outlook übernehmen</button><button type="button" class="ghost" id="kdScan">📱 Visitenkarte scannen</button><button type="button" class="primary" id="kdNeu">＋ Kunde hinzufügen</button></span></div>
   </form>
 </dialog>
 
@@ -694,6 +694,8 @@ body{padding-bottom:172px}
     <div class="dlg-body col" style="gap:10px;min-width:min(440px,82vw);padding:0 16px 12px">
       <label class="field">Firma<input id="kdFirma" autocomplete="off"></label>
       <label class="field">Name / Ansprechpartner<input id="kdName" autocomplete="off"></label>
+      <label class="field">Straße / Hausnummer<input id="kdStrasse" autocomplete="off"></label>
+      <label class="field">PLZ / Ort<input id="kdOrt" autocomplete="off"></label>
       <label class="field">E-Mail<input id="kdEmail" type="email" inputmode="email" autocomplete="off"></label>
       <label class="field">Telefon<input id="kdTel" type="tel" inputmode="tel" autocomplete="off"></label>
       <span class="hint" id="kdEditFehler" style="color:var(--warn)" hidden></span>
@@ -4400,12 +4402,12 @@ async function kundenLaden(){
 async function meineKundenLaden(){
   try{
     const x = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_holen"})})).json();
-    if(x.ok) meineKunden = (x.text || "").split("\n").filter(z => z.trim()).map(z => { const c = z.split("\t"); return {id: c[0], firma: c[1] || "", name: c[2] || "", email: c[3] || "", tel: c[4] || ""}; });
+    if(x.ok) meineKunden = (x.text || "").split("\n").filter(z => z.trim()).map(z => { const c = z.split("\t"); return {id: c[0], firma: c[1] || "", name: c[2] || "", email: c[3] || "", tel: c[4] || "", strasse: c[5] || "", ort: c[6] || ""}; });
   }catch(e){}
   return meineKunden;
 }
 async function meineKundeSpeichern(k){
-  const r = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_speichern", kd: {id: k.id || "", firma: k.firma || "", name: k.name || "", email: k.email || "", tel: k.tel || ""}})})).json();
+  const r = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_speichern", kd: {id: k.id || "", firma: k.firma || "", name: k.name || "", email: k.email || "", tel: k.tel || "", strasse: k.strasse || "", ort: k.ort || ""}})})).json();
   if(r.ok && r.text) k.id = r.text.trim();
   return r;
 }
@@ -4420,6 +4422,31 @@ function kundeSpeichern(f, w){
   if(kunden){ const i = kunden.findIndex(x => kundeSchl(x) === kundeSchl(k)); const alt = i >= 0 ? kunden[i] : {};
     const neu = {}; for(const [n] of KUNDE_SPALTEN) neu[n] = k[n] || alt[n] || ""; if(i >= 0) kunden[i] = neu; else kunden.push(neu); }
   fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "k_speichern", kunde: k})}).catch(() => {});
+}
+// Beim Speichern eines Formulars automatisch in den persönlichen Kundendaten übernehmen/aktualisieren
+// (Firma = Kundenname, Name = Ansprechpartner), wenn mehr als nur der Name bekannt ist.
+const meineKundeSchl = s => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+function meineKundeAusFormular(f, w){
+  const map = FELD_MAP[f.id]; if(!map || !map.D5) return;
+  const firma = String(w[map.D5] || "").trim();
+  if(firma.replace(/\s/g, "").length < 2) return;
+  const ansprech = map.D8 ? String(w[map.D8] || "").trim() : "";
+  let email = map.D9 ? String(w[map.D9] || "").trim() : "";
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) email = "";
+  const tel = map.Q9 ? String(w[map.Q9] || "").trim() : "";
+  const strasse = map.D6 ? String(w[map.D6] || "").trim() : "";
+  const ort = map.D7 ? String(w[map.D7] || "").trim() : "";
+  if(!ansprech && !email && !tel && !strasse && !ort) return; // nur der Name allein reicht nicht
+  (async () => {
+    if(!meineKunden) await meineKundenLaden();
+    const schl = meineKundeSchl(firma);
+    const i = (meineKunden || []).findIndex(x => meineKundeSchl(x.firma) === schl);
+    const alt = i >= 0 ? meineKunden[i] : {id: "", firma: "", name: "", email: "", tel: "", strasse: "", ort: ""};
+    const k = {id: alt.id || "", firma, name: ansprech || alt.name || "", email: email || alt.email || "", tel: tel || alt.tel || "", strasse: strasse || alt.strasse || "", ort: ort || alt.ort || ""};
+    if(i >= 0 && ["firma", "name", "email", "tel", "strasse", "ort"].every(n => (k[n] || "") === (alt[n] || ""))) return; // keine Änderung
+    const r = await meineKundeSpeichern(k);
+    if(r.ok){ meineKunden = meineKunden || []; if(i >= 0) meineKunden[i] = k; else meineKunden.push(k); }
+  })().catch(() => {});
 }
 // Vorschläge unter dem Kundennamen: „Win…“ → Windau GmbH … – Klick füllt Adresse, Ansprechpartner, Telefon
 function kundeVorschlag(i, f, w){
@@ -4438,7 +4465,7 @@ function kundeVorschlag(i, f, w){
     };
     // zuerst meine eigenen (gescannten) Kunden – Firma, Ansprechpartner, E-Mail
     for(const k of (meineKunden || []).filter(k => w2.every(x => (k.firma + " " + k.name + " " + k.email).toLowerCase().includes(x))).filter(k => (k.firma || k.name).toLowerCase() !== q).slice(0, 6)){
-      const pseudo = {name: k.firma || k.name, ansprech: k.name, mail: k.email, tel: k.tel};
+      const pseudo = {name: k.firma || k.name, ansprech: k.name, mail: k.email, tel: k.tel, strasse: k.strasse, ort: k.ort};
       eintrag("👤 " + (k.firma || k.name), k.firma || k.name, [k.name, k.email, k.tel].filter(Boolean).join(" · "),
         () => { for(const [n, z] of KUNDE_SPALTEN) if(map[z] && (pseudo[n] || n === "name")) w[map[z]] = pseudo[n] || ""; });
     }
@@ -4726,7 +4753,7 @@ async function formSpeichern(drucken, dispo){
   }
   const vl = formState.daten._verlauf || (formState.daten._verlauf = []);
   vl.unshift({zeit: Date.now(), id: f.id, titel: f.titel, kunde: kundeName, nr: nrV, gedruckt: !!drucken, pfade, w: JSON.parse(JSON.stringify(w))});
-  vl.splice(300); kundeSpeichern(f, w); if(f.id === "batterie"){ batHistEintragen(w); batHochladen(w); } formMerken();
+  vl.splice(300); kundeSpeichern(f, w); meineKundeAusFormular(f, w); if(f.id === "batterie"){ batHistEintragen(w); batHochladen(w); } formMerken();
   if(drucken){ formMeldung("An den Drucker geschickt.", 6000); return; }
   // Das „Speichern unter“-Fenster darf der Browser nur direkt nach einem Klick öffnen – deshalb eigene Knöpfe
   const e = $("#formStatus"); clearTimeout(formMeldT); e.hidden = false; e.textContent = "Fertig – jetzt speichern: ";
@@ -5167,7 +5194,7 @@ addEventListener("focus", () => kalLaden(true));
 
 /* ---------- Kundendaten (persönlich, nur ich) ---------- */
 // Legt die E-Mail-Adresse auf Wunsch auch als Kontakt in Outlook an (dann schlägt Outlook sie beim Tippen vor).
-function outlookKontakt(k){ if(k && (k.email || k.tel)) fetch("/api/kontakt", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({firma: k.firma || "", name: k.name || "", email: k.email || "", tel: k.tel || ""})}).catch(() => {}); }
+function outlookKontakt(k){ if(k && (k.email || k.tel)) fetch("/api/kontakt", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({firma: k.firma || "", name: k.name || "", email: k.email || "", tel: k.tel || "", strasse: k.strasse || "", ort: k.ort || ""})}).catch(() => {}); }
 let kdBearbeitet = null;
 function kdZeigen(){
   const tb = $("#kdListe"), q = $("#kdSuche").value.trim().toLowerCase(); tb.innerHTML = "";
@@ -5182,9 +5209,10 @@ function kdZeigen(){
   $("#kdStand").textContent = (meineKunden || []).length + " Kunde(n) · nur für dich sichtbar";
 }
 function kdEditOeffnen(k){
-  kdBearbeitet = k || {id: "", firma: "", name: "", email: "", tel: ""};
+  kdBearbeitet = k || {id: "", firma: "", name: "", email: "", tel: "", strasse: "", ort: ""};
   $("#kdEditTitel").textContent = k ? "Kunde ändern" : "Neuer Kunde";
   $("#kdFirma").value = kdBearbeitet.firma || ""; $("#kdName").value = kdBearbeitet.name || ""; $("#kdEmail").value = kdBearbeitet.email || ""; $("#kdTel").value = kdBearbeitet.tel || "";
+  $("#kdStrasse").value = kdBearbeitet.strasse || ""; $("#kdOrt").value = kdBearbeitet.ort || "";
   $("#kdEditDel").hidden = !(k && k.id); $("#kdEditFehler").hidden = true;
   $("#kdEditDlg").showModal(); setTimeout(() => $("#kdFirma").focus(), 50);
 }
@@ -5193,13 +5221,43 @@ $("#kdZu").onclick = () => $("#kdDlg").close();
 $("#kdSuche").oninput = () => kdZeigen();
 $("#kdNeu").onclick = () => kdEditOeffnen(null);
 $("#kdScan").hidden = true;   // Scannen per Handy kommt im nächsten Schritt
+async function kontaktImportieren(){
+  const btn = $("#kdImport"); btn.disabled = true; const alt = btn.textContent; btn.textContent = "Lese Outlook …";
+  try{
+    const r = await (await fetch("/api/kontakt/import", {method: "POST"})).json();
+    if(!r.ok) throw new Error(r.error || "Import fehlgeschlagen.");
+    if(!meineKunden) await meineKundenLaden();
+    const vorhandenMail = new Set((meineKunden || []).map(k => (k.email || "").toLowerCase()).filter(Boolean));
+    const vorhandenTel = new Set((meineKunden || []).map(k => (k.tel || "").replace(/\s+/g, "")).filter(Boolean));
+    const neu = (r.liste || []).filter(k => {
+      if(!(k.firma || k.name || k.email || k.tel)) return false;
+      const em = (k.email || "").toLowerCase(), tel = (k.tel || "").replace(/\s+/g, "");
+      if(em && vorhandenMail.has(em)) return false;
+      if(!em && tel && vorhandenTel.has(tel)) return false;
+      return true;
+    });
+    if(!neu.length){ toast("Keine neuen Kontakte gefunden – alle sind schon vorhanden."); return; }
+    if(!confirm(neu.length + " neue Kontakt(e) aus Outlook in deine Kundendaten übernehmen?")) return;
+    let n = 0;
+    for(const k of neu){
+      btn.textContent = "Übernehme … (" + (n + 1) + "/" + neu.length + ")";
+      const k2 = {id: "", firma: k.firma || "", name: k.name || "", email: k.email || "", tel: k.tel || "", strasse: k.strasse || "", ort: k.ort || ""};
+      const sr = await meineKundeSpeichern(k2);
+      if(sr.ok){ meineKunden.push(k2); n++; }
+    }
+    kdZeigen();
+    toast(n + " Kontakt(e) aus Outlook übernommen.");
+  }catch(e){ toast("Outlook-Import: " + (e.message || e), 8000); }
+  btn.disabled = false; btn.textContent = alt;
+}
+$("#kdImport").onclick = kontaktImportieren;
 $("#kdEditZu").onclick = () => $("#kdEditDlg").close();
 $("#kdEditSave").onclick = async () => {
-  const f = $("#kdEditFehler"), firma = $("#kdFirma").value.trim(), name = $("#kdName").value.trim(), email = $("#kdEmail").value.trim(), tel = $("#kdTel").value.trim();
+  const f = $("#kdEditFehler"), firma = $("#kdFirma").value.trim(), name = $("#kdName").value.trim(), email = $("#kdEmail").value.trim(), tel = $("#kdTel").value.trim(), strasse = $("#kdStrasse").value.trim(), ort = $("#kdOrt").value.trim();
   if(!firma && !name && !email && !tel){ f.textContent = "Bitte mindestens ein Feld ausfüllen."; f.hidden = false; return; }
   if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ f.textContent = "Die E-Mail-Adresse sieht nicht richtig aus."; f.hidden = false; return; }
   const b = $("#kdEditSave"); b.disabled = true; const alt = b.textContent; b.textContent = "Speichern …";
-  const k = {id: kdBearbeitet.id || "", firma, name, email, tel};
+  const k = {id: kdBearbeitet.id || "", firma, name, email, tel, strasse, ort};
   const r = await meineKundeSpeichern(k);
   b.disabled = false; b.textContent = alt;
   if(!r.ok){ f.textContent = r.error || "Speichern fehlgeschlagen."; f.hidden = false; return; }
