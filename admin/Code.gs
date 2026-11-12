@@ -64,7 +64,7 @@ function doPost(e) {
     return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.TEXT);
   }
   // Service-Mappe: persönliche Kundendaten (nur für den angemeldeten Nutzer)
-  if (d && d.key === KEY && /^kd_(holen|speichern|loeschen)$/.test(String(d.event || ''))) {
+  if (d && d.key === KEY && /^kd_(holen|speichern|loeschen|scanstart|scanergebnis)$/.test(String(d.event || ''))) {
     const l = LockService.getScriptLock(); l.waitLock(20000);
     let t;
     try { t = 'OK\n' + kundendatenAnfrage(d); } catch (x) { t = 'FEHLER\n' + x.message; }
@@ -435,8 +435,19 @@ function kundendatenSheet(ss) {
 function kundendatenAnfrage(d) {
   const mail = clean(d.email, 150).toLowerCase();
   if (ADMIN_MAILS.indexOf(mail) < 0 && !mail.endsWith('@' + DOMAIN)) throw new Error('Nicht berechtigt.');
-  const s = kundendatenSheet();
   const ev = d.event;
+  // Visitenkarte per Handy scannen: Token anzeigen (QR), Handy sendet Foto (h_vk), hier abholen.
+  if (ev === 'kd_scanstart') {
+    const token = Utilities.getUuid().replace(/-/g, '').slice(0, 24);
+    CacheService.getScriptCache().put('kdvk_' + token, 'WARTEN', 1200);
+    return token + '\n' + HANDY_URL_NEU + '?vk=' + token;
+  }
+  if (ev === 'kd_scanergebnis') {
+    const token = String(d.token || '').replace(/[^a-f0-9]/g, '');
+    const v = CacheService.getScriptCache().get('kdvk_' + token);
+    return v === null ? 'FEHLER\nAbgelaufen.' : v;
+  }
+  const s = kundendatenSheet();
   if (ev === 'kd_holen') {
     const v = s.getDataRange().getValues(), out = [];
     for (let i = 1; i < v.length; i++) if (String(v[i][0]).toLowerCase() === mail)
@@ -580,6 +591,7 @@ function handyAnfrage(d) {
   const token = String(d.token || '');
   if (d.event === 'h_check') {
     if (d.modus === 'ts') return CacheService.getScriptCache().get('ts_' + token.replace(/[^a-f0-9]/g, '')) === 'WARTEN' ? '1' : '0';
+    if (d.modus === 'vk') return CacheService.getScriptCache().get('kdvk_' + token.replace(/[^a-f0-9]/g, '')) === 'WARTEN' ? '1' : '0';
     return fotoSitzung(token, false) ? '1' : '0';
   }
   if (d.event === 'h_foto') { fotoHochladen(token, d.name, d.lm, d.mime, d.b64, d.exif); return '1'; }
@@ -596,7 +608,64 @@ function handyAnfrage(d) {
     return Utilities.base64Encode(f.getBlob().getBytes());
   }
   if (d.event === 'h_ts') return tsFoto(token, d.b64, d.mime) ? '1' : '0';
+  if (d.event === 'h_vk') return vkFoto(token, d.b64, d.mime) ? '1' : '0';
   throw new Error('Unbekannte Anfrage.');
+}
+
+// Visitenkarte vom Handy (ohne Google-Anmeldung, Kundendaten): Foto lesen, Firma/Name/E-Mail/Telefon/Adresse
+// raten und für das Programm bereitlegen (Programm fragt per kd_scanergebnis ab, zeigt es zur Prüfung an).
+function vkFoto(token, b64, mime) {
+  token = String(token || '').replace(/[^a-f0-9]/g, '');
+  const c = CacheService.getScriptCache(), v = c.get('kdvk_' + token);
+  if (v === null) throw new Error('Der QR-Code ist abgelaufen. Bitte in der Service-Mappe nochmal „Visitenkarte scannen“ antippen.');
+  if (v !== 'WARTEN') {
+    if (/^[\{\"]/.test(v)) return true; // schon gelesen (z. B. zweiter Versuch nach Verbindungsabbruch)
+    throw new Error(v === 'LIEST' ? 'Die Visitenkarte wird schon gelesen – bitte kurz warten.' : 'Für diesen QR-Code wurde schon ein Foto geschickt.');
+  }
+  b64 = String(b64 || '');
+  if (b64.length < 100 || b64.length > 15000000) throw new Error('Kein gültiges Foto.');
+  c.put('kdvk_' + token, 'LIEST', 1200);
+  let t;
+  try { t = visitenkarteAuswerten(googleOcr(b64, /^image\//.test(String(mime)) ? mime : 'image/jpeg')); }
+  catch (x) { t = 'FEHLER\n' + x.message; }
+  c.put('kdvk_' + token, t.slice(0, 20000), 1200);
+  return !/^FEHLER\n/.test(t);
+}
+
+// Erkannten Visitenkarten-Text (Zeilen) in Firma/Name/E-Mail/Telefon/Adresse zerlegen – eine Schätzung,
+// der Nutzer prüft und korrigiert das Ergebnis im Programm, bevor es gespeichert wird.
+function visitenkarteAuswerten(text) {
+  const zeilen = String(text || '').split('\n').map(function (z) { return z.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+  const EMAIL_RE = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/;
+  const TEL_RE = /(?:\+|00)?[\d][\d \/\-().]{5,}\d/;
+  const FIRMA_RE = /\b(GmbH|mbH|AG|KG|e\.?\s?K\.?|GbR|OHG|Inc\.?|Ltd\.?|& Co|UG)\b/i;
+  const TEL_LABEL = /^(tel|telefon|fon|mobil|handy|mob)[:.]?\s*/i;
+  const FAX_LABEL = /^fax[:.]?\s*/i;
+  const PLZ_ORT_RE = /^\d{4,5}\s+\S+/;
+  const STRASSE_RE = /(straße|strasse|str\.|weg \d|allee|platz\b|gasse)/i;
+  const NAME_RE = /^[A-ZÄÖÜ][a-zäöüß\-]+(\s+[A-ZÄÖÜ][a-zäöüß\-]+){1,2}$/;
+  let email = '', tel = '', strasse = '', ort = '';
+  const rest = [];
+  zeilen.forEach(function (z) {
+    const em = z.match(EMAIL_RE);
+    if (em && !email) { email = em[0]; return; }
+    if (FAX_LABEL.test(z)) return;
+    if (!tel) {
+      const m = z.match(TEL_RE);
+      if (m && (TEL_LABEL.test(z) || m[0].replace(/\D/g, '').length >= 7)) { tel = TEL_LABEL.test(z) ? z.replace(TEL_LABEL, '').trim() : m[0].trim(); return; }
+    }
+    if (!ort && PLZ_ORT_RE.test(z)) { ort = z; return; }
+    if (!strasse && STRASSE_RE.test(z)) { strasse = z; return; }
+    rest.push(z);
+  });
+  const firmaZeile = rest.find(function (z) { return FIRMA_RE.test(z); });
+  const nameZeile = rest.find(function (z) { return z !== firmaZeile && NAME_RE.test(z); });
+  const firma = firmaZeile || rest.find(function (z) { return z !== nameZeile; }) || '';
+  const name = nameZeile || '';
+  return JSON.stringify({
+    firma: firma.slice(0, 120), name: name.slice(0, 120), email: email.slice(0, 150),
+    tel: tel.slice(0, 60), strasse: strasse.slice(0, 150), ort: ort.slice(0, 150)
+  });
 }
 
 // alte Handy-Seite über Google (für QR-Codes, die noch auf script.google.com zeigen)

@@ -704,6 +704,16 @@ body{padding-bottom:172px}
   </form>
 </dialog>
 
+<dialog id="kdScanDlg">
+  <form method="dialog" class="dlg" onsubmit="return false">
+    <div class="dlg-head"><strong>📱 Visitenkarte scannen</strong><button type="button" class="ghost" id="kdScanZu">Abbrechen</button></div>
+    <div class="dlg-body col" style="gap:12px;align-items:center;text-align:center;min-width:min(320px,82vw);padding:4px 16px 20px">
+      <img id="kdScanQr" alt="QR-Code" style="width:220px;height:220px;background:#fff;border-radius:8px">
+      <span class="hint" id="kdScanSt">QR-Code wird erstellt …</span>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="pdfLeser">
   <form method="dialog" class="dlg" onsubmit="return false">
     <div class="dlg-head"><strong id="pdfLeserTitel">PDF</strong><span class="pdf-dreh"><button type="button" id="pdfLinks" title="Alle Seiten nach links drehen">⟲ Links</button><button type="button" id="pdfRechts" title="Alle Seiten nach rechts drehen">⟳ Rechts</button><button type="button" id="pdfGerade" title="Drehung zurücksetzen">↺ Gerade</button></span><button type="button" class="ghost" id="pdfLeserZu">Schließen</button></div>
@@ -5215,7 +5225,7 @@ function kdZeigen(){
 }
 function kdEditOeffnen(k){
   kdBearbeitet = k || {id: "", firma: "", name: "", email: "", tel: "", strasse: "", ort: ""};
-  $("#kdEditTitel").textContent = k ? "Kunde ändern" : "Neuer Kunde";
+  $("#kdEditTitel").textContent = (k && k.id) ? "Kunde ändern" : "Neuer Kunde";
   $("#kdFirma").value = kdBearbeitet.firma || ""; $("#kdName").value = kdBearbeitet.name || ""; $("#kdEmail").value = kdBearbeitet.email || ""; $("#kdTel").value = kdBearbeitet.tel || "";
   $("#kdStrasse").value = kdBearbeitet.strasse || ""; $("#kdOrt").value = kdBearbeitet.ort || "";
   $("#kdEditDel").hidden = !(k && k.id); $("#kdEditFehler").hidden = true;
@@ -5225,7 +5235,39 @@ $("#kdOpen").onclick = async () => { if(!meineKunden) await meineKundenLaden(); 
 $("#kdZu").onclick = () => $("#kdDlg").close();
 $("#kdSuche").oninput = () => kdZeigen();
 $("#kdNeu").onclick = () => kdEditOeffnen(null);
-$("#kdScan").hidden = true;   // Scannen per Handy kommt im nächsten Schritt
+let kdScanAbbruch = false;
+async function kdScanStarten(){
+  kdScanAbbruch = false;
+  $("#kdScanQr").removeAttribute("src"); $("#kdScanSt").textContent = "QR-Code wird erstellt …";
+  $("#kdScanDlg").showModal();
+  let token, url;
+  try{
+    const r = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_scanstart"})})).json();
+    if(!r.ok) throw new Error(r.error || "Konnte nicht gestartet werden.");
+    [token, url] = (r.text || "").split("\n");
+    if(!token || !url) throw new Error("Ungültige Antwort vom Server.");
+  }catch(e){ $("#kdScanSt").textContent = "Fehler: " + (e.message || e); return; }
+  $("#kdScanQr").src = "/api/fotos/qr?u=" + encodeURIComponent(url);
+  $("#kdScanSt").textContent = "Mit dem Handy scannen und eine Visitenkarte fotografieren – das Ergebnis erscheint hier automatisch.";
+  const bis = Date.now() + 10 * 60000;
+  while(Date.now() < bis && !kdScanAbbruch && $("#kdScanDlg").open){
+    await new Promise(r2 => setTimeout(r2, 2000));
+    if(kdScanAbbruch || !$("#kdScanDlg").open) return;
+    let g; try{ g = await (await fetch("/api/formular/geraete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({event: "kd_scanergebnis", token})})).json(); }catch(e){ continue; }
+    if(!g.ok) continue;
+    const t = g.text || "";
+    if(t === "WARTEN" || t === "LIEST") continue;
+    if(t.indexOf("FEHLER") === 0){ $("#kdScanSt").textContent = t.slice(7) || "Die Visitenkarte konnte nicht gelesen werden."; return; }
+    let daten = null; try{ daten = JSON.parse(t); }catch(e){}
+    $("#kdScanDlg").close();
+    if(daten && (daten.firma || daten.name || daten.email || daten.tel)) kdEditOeffnen({id: "", firma: daten.firma || "", name: daten.name || "", email: daten.email || "", tel: daten.tel || "", strasse: daten.strasse || "", ort: daten.ort || ""});
+    else toast("Es konnten keine Daten aus der Visitenkarte erkannt werden.");
+    return;
+  }
+  if($("#kdScanDlg").open) $("#kdScanSt").textContent = "Zeit abgelaufen. Bitte nochmal versuchen.";
+}
+$("#kdScan").onclick = kdScanStarten;
+$("#kdScanZu").onclick = () => { kdScanAbbruch = true; $("#kdScanDlg").close(); };
 async function kontaktImportieren(){
   const btn = $("#kdImport"); btn.disabled = true; const alt = btn.textContent; btn.textContent = "Lese Outlook …";
   try{
