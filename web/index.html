@@ -4425,7 +4425,9 @@ function kundeSpeichern(f, w){
 }
 // Beim Speichern eines Formulars automatisch in den persönlichen Kundendaten übernehmen/aktualisieren
 // (Firma = Kundenname, Name = Ansprechpartner), wenn mehr als nur der Name bekannt ist.
-const meineKundeSchl = s => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+// Abgeglichen wird über Firma + Ansprechpartner zusammen, damit mehrere Ansprechpartner/E-Mails
+// derselben Firma als eigene Einträge nebeneinander stehen bleiben (statt sich gegenseitig zu überschreiben).
+const meineKundeTeil = s => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
 function meineKundeAusFormular(f, w){
   const map = FELD_MAP[f.id]; if(!map || !map.D5) return;
   const firma = String(w[map.D5] || "").trim();
@@ -4439,10 +4441,13 @@ function meineKundeAusFormular(f, w){
   if(!ansprech && !email && !tel && !strasse && !ort) return; // nur der Name allein reicht nicht
   (async () => {
     if(!meineKunden) await meineKundenLaden();
-    const schl = meineKundeSchl(firma);
-    const i = (meineKunden || []).findIndex(x => meineKundeSchl(x.firma) === schl);
+    const fSchl = meineKundeTeil(firma), nSchl = meineKundeTeil(ansprech);
+    const i = (meineKunden || []).findIndex(x => meineKundeTeil(x.firma) === fSchl && meineKundeTeil(x.name) === nSchl);
     const alt = i >= 0 ? meineKunden[i] : {id: "", firma: "", name: "", email: "", tel: "", strasse: "", ort: ""};
-    const k = {id: alt.id || "", firma, name: ansprech || alt.name || "", email: email || alt.email || "", tel: tel || alt.tel || "", strasse: strasse || alt.strasse || "", ort: ort || alt.ort || ""};
+    // Adresse notfalls von einem anderen Ansprechpartner derselben Firma übernehmen (neuer Kontakt, gleiche Anschrift)
+    const vorhandeneAdresse = (!strasse && !ort && i < 0) ? (meineKunden || []).find(x => meineKundeTeil(x.firma) === fSchl && (x.strasse || x.ort)) : null;
+    const k = {id: alt.id || "", firma, name: ansprech || alt.name || "", email: email || alt.email || "", tel: tel || alt.tel || "",
+      strasse: strasse || alt.strasse || (vorhandeneAdresse && vorhandeneAdresse.strasse) || "", ort: ort || alt.ort || (vorhandeneAdresse && vorhandeneAdresse.ort) || ""};
     if(i >= 0 && ["firma", "name", "email", "tel", "strasse", "ort"].every(n => (k[n] || "") === (alt[n] || ""))) return; // keine Änderung
     const r = await meineKundeSpeichern(k);
     if(r.ok){ meineKunden = meineKunden || []; if(i >= 0) meineKunden[i] = k; else meineKunden.push(k); }
